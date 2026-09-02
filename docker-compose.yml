@@ -1,0 +1,15 @@
+services:
+  qloapps:
+    image: webkul/qloapps_docker:latest
+    container_name: qloapps_site
+    ports:
+      - "80:80"        # Web app -> http://localhost
+      - "3307:3306"    # MySQL (host port 3307, change if it conflicts on your machine)
+      - "2222:22"      # SSH into container (optional, rarely needed)
+    environment:
+      - USER_PASSWORD=qloapp1212
+      - MYSQL_ROOT_PASSWORD=qloapp123
+      - MYSQL_DATABASE=qloapps_db
+    volumes:
+      - .:/home/qloapps/www/QloApps
+    restart: unless-stopped
