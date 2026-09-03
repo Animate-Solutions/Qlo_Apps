@@ -1,0 +1,3 @@
+{subject}
+
+This report is best viewed in an HTML-capable mail client.
