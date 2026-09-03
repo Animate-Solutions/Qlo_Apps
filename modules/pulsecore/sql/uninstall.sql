@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS `PREFIX_pulse_setting`;
+DROP TABLE IF EXISTS `PREFIX_pulse_audit`;
+DROP TABLE IF EXISTS `PREFIX_pulse_api_token`;
