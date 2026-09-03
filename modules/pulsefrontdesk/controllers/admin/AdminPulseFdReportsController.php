@@ -5,7 +5,7 @@ class AdminPulseFdReportsController extends ModuleAdminController
 
     public function __construct() { $this->bootstrap = true; parent::__construct(); $this->meta_title = $this->l('Front Desk Reports'); }
 
-    protected function run($r, $from, $to)
+    public function runReport($r, $from, $to)
     {
         switch ($r) {
             case 'occupancy': return PulseFdReport::occupancy($from, $to);
@@ -24,7 +24,7 @@ class AdminPulseFdReportsController extends ModuleAdminController
     {
         parent::initContent();
         $r = Tools::getValue('report', 'occupancy'); $from = Tools::getValue('from', date('Y-m-01')); $to = Tools::getValue('to', PulseCoreService::businessDate());
-        $rows = $this->run($r, $from, $to);
+        $rows = $this->runReport($r, $from, $to);
         if (Tools::getValue('export')) { header('Content-Type: text/csv'); header('Content-Disposition: attachment; filename="'.$r.'_'.$from.'_'.$to.'.csv"'); die(PulseFdReport::toCsv($rows)); }
         $this->context->smarty->assign(array('reports' => $this->reports, 'report' => $r, 'from' => $from, 'to' => $to, 'rows' => $rows, 'columns' => $rows ? array_keys($rows[0]) : array(), 'self_url' => self::$currentIndex.'&token='.$this->token));
         $this->setTemplate('reports.tpl');

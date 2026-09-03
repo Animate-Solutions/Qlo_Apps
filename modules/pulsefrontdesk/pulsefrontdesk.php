@@ -100,8 +100,8 @@ class PulseFrontDesk extends Module
     {
         $sql = Tools::file_get_contents(dirname(__FILE__).'/sql/'.$file.'.sql');
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), $sql);
-        $sql = preg_replace('/^\s*--.*(?:\r\n|\r|\n|$)/m', '', $sql);
         foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) {
+            if (strpos($q, '--') === 0) { continue; }
             if (!Db::getInstance()->execute($q)) { return false; }
         }
         return true;
