@@ -28,7 +28,7 @@ class AdminPulseCoreController extends ModuleAdminController
         if (Tools::isSubmit('createToken')) {
             $tok = Tools::passwdGen(64, 'ALPHANUMERIC');
             Db::getInstance()->insert('pulse_api_token', array('label' => pSQL(Tools::getValue('label')), 'token' => pSQL($tok), 'scopes' => pSQL(implode(',', (array) Tools::getValue('scopes'))), 'active' => 1, 'date_add' => date('Y-m-d H:i:s')));
-            PulseCore::audit('pulsecore', 'token_create', array('label' => Tools::getValue('label')));
+            PulseCoreService::audit('pulsecore', 'token_create', array('label' => Tools::getValue('label')));
             Tools::redirectAdmin(self::$currentIndex.'&token='.$this->token.'&new_token='.$tok);
         }
         if (Tools::isSubmit('revokeToken')) {

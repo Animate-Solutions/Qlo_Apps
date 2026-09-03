@@ -1,0 +1,19 @@
+<div class="pulse-fd" id="pulse-board" data-ajax="{$ajax_url|escape:'html':'UTF-8'}" data-folio="{$folio_url|escape:'html':'UTF-8'}" data-date="{$business_date}" data-nogrid="1">
+<div class="panel"><h3><i class="icon-exchange"></i> Arrivals &amp; Departures
+  <form class="pull-right form-inline" method="get"><input type="hidden" name="controller" value="AdminPulseArrivals"><input type="hidden" name="token" value="{$smarty.get.token|escape}"><input type="date" name="date" class="form-control input-sm" value="{$date}"> <button class="btn btn-default btn-sm">Go</button></form></h3>
+  <p><small>Check-in from {$checkin_time} &middot; check-out by {$checkout_time}</small></p>
+  <ul class="nav nav-tabs"><li class="active"><a data-toggle="tab" href="#t-arr">Arrivals ({$arrivals|count})</a></li><li><a data-toggle="tab" href="#t-dep">Departures ({$departures|count})</a></li><li><a data-toggle="tab" href="#t-inh">In house ({$inhouse|count})</a></li></ul>
+  <div class="tab-content">
+    <div class="tab-pane active" id="t-arr"><table class="table"><thead><tr><th>Guest</th><th>Order</th><th>Room</th><th>Type</th><th>Stay</th><th>Pax</th><th>Booking total</th><th>Paid online</th><th>Notes</th><th></th></tr></thead><tbody>
+      {foreach $arrivals as $a}<tr class="{if $a.blacklisted}danger{elseif $a.vip_level}warning{/if}"><td>{if $a.vip_level}<i class="icon-star"></i> {/if}{$a.guest}<br><small>{$a.email}{if $a.company_name} &middot; {$a.company_name}{/if}</small></td><td>{$a.order_ref}</td><td><strong>{$a.room_num}</strong></td><td>{$a.room_type_name}</td><td>{$a.date_from} → {$a.date_to}<br><small>{$a.nights} night(s)</small></td><td>{$a.adults}A {$a.children}C</td><td>{displayPrice price=$a.total_price_tax_incl}</td><td>{displayPrice price=$a.total_paid_real}</td><td><small>{$a.comment}</small></td>
+        <td><button class="btn btn-success btn-sm act-checkin" data-booking="{$a.id}" data-guest="{$a.guest|escape}">Check in</button></td></tr>{foreachelse}<tr><td colspan="10"><em>No arrivals for {$date}</em></td></tr>{/foreach}</tbody></table></div>
+    <div class="tab-pane" id="t-dep"><table class="table"><thead><tr><th>Guest</th><th>Room</th><th>Folio</th><th>Balance</th><th>Checked in</th><th></th></tr></thead><tbody>
+      {foreach $departures as $d}<tr><td>{$d.guest}</td><td><strong>{$d.room_num}</strong></td><td><a href="{$folio_url}&id_pulse_folio={$d.id_pulse_folio}&viewpulse_folio">{$d.folio_no}</a></td><td class="{if $d.balance>0}text-danger{/if}"><strong>{displayPrice price=$d.balance}</strong></td><td>{$d.check_in}</td>
+        <td><button class="btn btn-primary btn-sm act-checkout" data-booking="{$d.id}" data-guest="{$d.guest|escape}">Check out</button> <button class="btn btn-default btn-sm act-move" data-booking="{$d.id}">Move</button></td></tr>{foreachelse}<tr><td colspan="6"><em>No departures for {$date}</em></td></tr>{/foreach}</tbody></table></div>
+    <div class="tab-pane" id="t-inh"><table class="table"><thead><tr><th>Room</th><th>Guest</th><th>Stay</th><th>Folio</th><th>Balance</th><th></th></tr></thead><tbody>
+      {foreach $inhouse as $i}<tr><td><strong>{$i.room_num}</strong> <small>{$i.room_type_name}</small></td><td>{if $i.vip_level}<i class="icon-star"></i> {/if}{$i.guest}</td><td>{$i.date_from} → {$i.date_to}</td><td><a href="{$folio_url}&id_pulse_folio={$i.id_pulse_folio}&viewpulse_folio">{$i.folio_no}</a></td><td class="{if $i.balance>0}text-danger{/if}">{displayPrice price=$i.balance}</td>
+        <td><button class="btn btn-default btn-sm act-move" data-booking="{$i.id}">Move room</button> <button class="btn btn-primary btn-sm act-checkout" data-booking="{$i.id}" data-guest="{$i.guest|escape}">Check out</button></td></tr>{/foreach}</tbody></table></div>
+  </div>
+</div>
+{include file="./../pulse_room_board/modals.tpl" hk_statuses=[] attendants=[]}
+</div>

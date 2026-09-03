@@ -1,9 +1,9 @@
 <?php
 /**
  * Static service facade for the Pulse suite.
- * Other modules call PulseCore::event(), ::audit(), ::setting().
+ * Other modules call PulseCoreService::event(), ::audit(), ::setting().
  */
-class PulseCore
+class PulseCoreService
 {
     /** Raise a suite-wide event. Every Pulse module hooked to the event name receives $params. */
     public static function event($name, array $params = array())

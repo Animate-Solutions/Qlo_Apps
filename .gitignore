@@ -256,3 +256,5 @@ admin/themes/default/css/screen.css
 
 **sitemap.xml
 robots.txt
+
+backup.sql
