@@ -1,0 +1,18 @@
+<div class="pulse-fd"><div class="panel"><h3>Business date</h3>
+  <form method="post" class="form-inline">Current: <strong>{$business_date}</strong> &nbsp; <input type="date" name="business_date" class="form-control" value="{$business_date}"> <button name="setBusinessDate" class="btn btn-default" onclick="return confirm('Only change the business date during initial setup or under manager instruction.')">Set</button></form>
+</div>
+<div class="panel"><h3>Charge codes &amp; payment methods</h3>
+  <table class="table table-condensed"><thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Default price</th><th>Tax %</th><th>Payment?</th><th>Active</th></tr></thead><tbody>
+  {foreach $charge_codes as $c}<tr><td><strong>{$c.code}</strong></td><td>{$c.name}</td><td>{$c.department}</td><td>{$c.default_price}</td><td>{$c.tax_rate}</td><td>{if $c.is_payment}yes{/if}</td><td>{if $c.active}yes{/if}</td></tr>{/foreach}</tbody></table>
+  <h4>Add / edit</h4>
+  <form method="post" class="form-inline"><input name="id_pulse_charge_code" type="hidden"><input name="code" class="form-control" placeholder="CODE" required maxlength="16"> <input name="name" class="form-control" placeholder="Name" required>
+    <select name="department" class="form-control">{foreach ['rooms','fnb','minibar','spa','laundry','telephone','business_centre','misc','tax','payment','adjustment'] as $d}<option>{$d}</option>{/foreach}</select>
+    <input name="default_price" class="form-control" placeholder="Default price" type="number" step="0.01"> <input name="tax_rate" class="form-control" placeholder="Tax %" type="number" step="0.001">
+    <label><input type="checkbox" name="is_payment" value="1"> payment method</label> <button name="saveChargeCode" class="btn btn-default">Save</button></form>
+  <p class="help-block">Tax rates here are the defaults for manual postings. Room charges posted by night audit use the ROOM code's tax rate to back out tax from QloApps' tax-inclusive booking totals.</p>
+</div>
+<div class="panel"><h3>Upsell offers (check-in, pre-arrival, TV portal)</h3>
+  <table class="table table-condensed"><thead><tr><th>Type</th><th>Name</th><th>Code</th><th>Price excl</th><th>Per</th><th>Min avail %</th><th>Active</th></tr></thead><tbody>{foreach $upsells as $u}<tr><td>{$u.type}</td><td>{$u.name}</td><td>{$u.charge_code}</td><td>{$u.price_tax_excl}</td><td>{$u.per}</td><td>{$u.min_avail_pct}</td><td>{if $u.active}yes{/if}</td></tr>{/foreach}</tbody></table>
+  <form method="post" class="form-inline"><input name="id_pulse_upsell_offer" type="hidden"><select name="type" class="form-control"><option>room_upgrade</option><option>early_checkin</option><option>late_checkout</option><option>breakfast</option><option>package</option><option>other</option></select> <input name="name" class="form-control" placeholder="Name" required> <input name="charge_code" class="form-control" placeholder="Charge code" value="MISC"> <input name="price_tax_excl" type="number" step="0.01" class="form-control" placeholder="Price excl (0 = auto for upgrades)"> <select name="per" class="form-control"><option>stay</option><option>night</option><option>person</option></select> <input name="min_avail_pct" type="number" class="form-control" placeholder="Min avail %" style="width:110px"> <input name="sort" type="number" class="form-control" placeholder="Sort" style="width:70px"> <button name="saveUpsell" class="btn btn-default">Save offer</button></form>
+  <p class="help-block">Room-upgrade offers are generated automatically for every higher-priced room type with a free room; with price 0 the differential defaults to 70% of the rack difference.</p>
+</div></div>

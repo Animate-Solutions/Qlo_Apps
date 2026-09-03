@@ -14,6 +14,6 @@ class PulseCoreApiModuleFrontController extends PulseApiController
 
     protected function ping()
     {
-        return array('module' => 'pulsecore', 'version' => PulseCore::VERSION, 'time' => date('c'));
+        return array('module' => 'pulsecore', 'version' => PulseCoreService::VERSION, 'time' => date('c'));
     }
 }
