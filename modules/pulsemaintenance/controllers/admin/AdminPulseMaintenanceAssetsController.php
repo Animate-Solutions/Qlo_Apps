@@ -1,0 +1,27 @@
+<?php
+class AdminPulseMaintenanceAssetsController extends ModuleAdminController
+{
+    public function __construct() { $this->bootstrap = true; parent::__construct(); $this->meta_title = $this->l('Assets & Parts'); }
+    public function initContent()
+    {
+        parent::initContent();
+        $this->context->smarty->assign(array(
+            'assets' => Db::getInstance()->executeS('SELECT a.*, r.room_num, (SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_work_order` w WHERE w.id_pulse_asset=a.id_pulse_asset AND w.status NOT IN ("completed","verified","cancelled")) open_wo, (SELECT MAX(date_completed) FROM `'._DB_PREFIX_.'pulse_work_order` w WHERE w.id_pulse_asset=a.id_pulse_asset) last_service FROM `'._DB_PREFIX_.'pulse_asset` a LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=a.id_room ORDER BY a.category, a.name'),
+            'parts' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_part` ORDER BY category, name'), 'moves' => Db::getInstance()->executeS('SELECT m.*, p.name, p.sku, w.wo_no FROM `'._DB_PREFIX_.'pulse_part_movement` m INNER JOIN `'._DB_PREFIX_.'pulse_part` p ON p.id_pulse_part=m.id_pulse_part LEFT JOIN `'._DB_PREFIX_.'pulse_work_order` w ON w.id_pulse_work_order=m.id_pulse_work_order ORDER BY m.id_pulse_part_movement DESC LIMIT 30'),
+            'rooms' => Db::getInstance()->executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY floor, room_num'), 'meters' => array('generator_hours', 'diesel_litres', 'electricity_kwh', 'water_m3', 'gas_kg'), 'readings' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_meter_reading` ORDER BY read_at DESC LIMIT 30'),
+            'categories' => array('hvac', 'electrical', 'plumbing', 'generator', 'kitchen', 'laundry', 'it', 'elevator', 'fire_safety', 'furniture', 'pool', 'vehicle', 'building', 'other'), 'self_url' => self::$currentIndex.'&token='.$this->token,
+        ));
+        $this->setTemplate('assets.tpl');
+    }
+    public function postProcess()
+    {
+        try {
+            if (Tools::isSubmit('saveAsset')) { $id = (int) Tools::getValue('id_asset'); $d = array('code' => pSQL(Tools::getValue('code')), 'name' => pSQL(Tools::getValue('name')), 'category' => pSQL(Tools::getValue('category')), 'location_type' => pSQL(Tools::getValue('location_type')), 'id_room' => (int) Tools::getValue('id_room') ?: null, 'location' => pSQL(Tools::getValue('location')), 'make_model' => pSQL(Tools::getValue('make_model')), 'serial_no' => pSQL(Tools::getValue('serial_no')), 'installed_on' => Tools::getValue('installed_on') ?: null, 'warranty_until' => Tools::getValue('warranty_until') ?: null, 'purchase_cost' => (float) Tools::getValue('purchase_cost'), 'vendor' => pSQL(Tools::getValue('vendor')), 'vendor_phone' => pSQL(Tools::getValue('vendor_phone')), 'criticality' => (int) Tools::getValue('criticality', 3), 'status' => pSQL(Tools::getValue('status', 'in_service')), 'date_upd' => date('Y-m-d H:i:s')); if ($id) { Db::getInstance()->update('pulse_asset', $d, 'id_pulse_asset='.$id); } else { $d['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_asset', $d); } $this->confirmations[] = $this->l('Asset saved'); }
+            if (Tools::isSubmit('bulkRoomAssets')) { $n = 0; foreach (Db::getInstance()->executeS('SELECT id, room_num FROM `'._DB_PREFIX_.'htl_room_information` WHERE id_status IN (1,3)') as $r) { $code = strtoupper(Tools::getValue('prefix')).'-'.$r['room_num']; if (!Db::getInstance()->getValue('SELECT id_pulse_asset FROM `'._DB_PREFIX_.'pulse_asset` WHERE code="'.pSQL($code).'"')) { Db::getInstance()->insert('pulse_asset', array('code' => pSQL($code), 'name' => pSQL(Tools::getValue('bname').' — Room '.$r['room_num']), 'category' => pSQL(Tools::getValue('bcategory')), 'location_type' => 'room', 'id_room' => (int) $r['id'], 'criticality' => 3, 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'))); $n++; } } $this->confirmations[] = sprintf($this->l('%d room assets created'), $n); }
+            if (Tools::isSubmit('savePart')) { $id = (int) Tools::getValue('id_part'); $d = array('sku' => pSQL(Tools::getValue('sku')), 'name' => pSQL(Tools::getValue('pname')), 'category' => pSQL(Tools::getValue('pcategory')), 'unit' => pSQL(Tools::getValue('unit', 'pc')), 'reorder_level' => (float) Tools::getValue('reorder_level'), 'unit_cost' => (float) Tools::getValue('unit_cost'), 'supplier' => pSQL(Tools::getValue('supplier'))); $id ? Db::getInstance()->update('pulse_part', $d, 'id_pulse_part='.$id) : Db::getInstance()->insert('pulse_part', $d); $this->confirmations[] = $this->l('Part saved'); }
+            if (Tools::isSubmit('partMove')) { PulseMaintenanceService::partMove((int) Tools::getValue('id_part_m'), Tools::getValue('mtype'), (float) Tools::getValue('mqty'), Tools::getValue('mnote'), Tools::getValue('mcost') !== '' ? (float) Tools::getValue('mcost') : null); $this->confirmations[] = $this->l('Stock updated'); }
+            if (Tools::isSubmit('addReading')) { Db::getInstance()->insert('pulse_meter_reading', array('meter' => pSQL(Tools::getValue('meter')), 'id_pulse_asset' => (int) Tools::getValue('id_asset_m') ?: null, 'reading' => (float) Tools::getValue('reading'), 'cost' => Tools::getValue('cost') !== '' ? (float) Tools::getValue('cost') : null, 'read_at' => date('Y-m-d H:i:s'), 'id_employee' => (int) $this->context->employee->id)); $this->confirmations[] = $this->l('Reading recorded'); }
+        } catch (Exception $e) { $this->errors[] = $e->getMessage(); }
+        return parent::postProcess();
+    }
+}
