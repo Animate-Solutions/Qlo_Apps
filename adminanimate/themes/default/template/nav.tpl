@@ -14,6 +14,7 @@
 						{if $t.class_name == 'AdminPulseCore'}<i class="icon-cogs"></i>
 						{elseif $t.class_name == 'AdminPulseLicense'}<i class="icon-key"></i>
 						{elseif $t.class_name == 'AdminPulseFdDashboard'}<i class="icon-home"></i>
+						{elseif $t.class_name == 'AdminPulsePos'}<i class="icon-cutlery"></i>
 						{elseif $t.class_name == 'AdminPulseReports'}<i class="icon-bar-chart"></i>
 						{elseif $t.class_name == 'AdminPulseLaundry'}<i class="icon-tint"></i>
 						{elseif $t.class_name == 'AdminPulseMaintenance'}<i class="icon-wrench"></i>
