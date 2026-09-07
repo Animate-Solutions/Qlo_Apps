@@ -16,6 +16,7 @@ require_once dirname(__FILE__).'/classes/autoload.php';
 class PulseCore extends Module
 {
     const VERSION = '0.1.0';
+    protected static $pulseNavigationEnsured = false;
 
     /** Hooks this module registers (core, custom, and listened). */
     protected $hooksToRegister = array('displayBackOfficeHeader', 'actionAdminControllerSetMedia', 'moduleRoutes', 'actionPulseEvent');
@@ -104,9 +105,48 @@ class PulseCore extends Module
         $this->context->controller->addJS($this->_path.'views/js/admin.js');
     }
 
+    protected function ensurePulseNavigation()
+    {
+        if (self::$pulseNavigationEnsured) { return; }
+        self::$pulseNavigationEnsured = true;
+        $navigation = array(
+            'AdminPulseCore' => array('name' => 'Pulse Core', 'children' => array()),
+            'AdminPulseLicense' => array('name' => 'License', 'children' => array()),
+            'AdminPulseFdDashboard' => array('name' => 'Front Desk', 'children' => array(
+                'AdminPulseRoomBoard', 'AdminPulseTapeChart', 'AdminPulseWalkIn', 'AdminPulseArrivals',
+                'AdminPulseGroups', 'AdminPulseWaitlist', 'AdminPulseTickets', 'AdminPulseFolio',
+                'AdminPulseHousekeeping', 'AdminPulseGuestProfile', 'AdminPulseCompany', 'AdminPulseNightAudit',
+                'AdminPulseFdReports', 'AdminPulseFdSettings',
+            )),
+            'AdminPulseReports' => array('name' => 'Reports', 'children' => array('AdminPulseExpenses', 'AdminPulseReportSchedules')),
+            'AdminPulseLaundry' => array('name' => 'Laundry', 'children' => array('AdminPulseLaundryLinen', 'AdminPulseLaundrySettings')),
+            'AdminPulseMaintenance' => array('name' => 'Maintenance', 'children' => array('AdminPulseMaintenanceAssets', 'AdminPulseMaintenancePm')),
+        );
+        $position = 0;
+        foreach ($navigation as $parentClass => $definition) {
+            $parentId = (int) Tab::getIdFromClassName($parentClass);
+            if (!$parentId) { continue; }
+            $parent = new Tab($parentId);
+            $parent->id_parent = 0;
+            $parent->position = $position++;
+            $parent->name = array();
+            foreach (Language::getLanguages(true) as $language) { $parent->name[$language['id_lang']] = $definition['name']; }
+            $parent->update();
+            $childPosition = 0;
+            foreach ($definition['children'] as $childClass) {
+                $childId = (int) Tab::getIdFromClassName($childClass);
+                if (!$childId) { continue; }
+                $child = new Tab($childId);
+                $child->id_parent = $parentId;
+                $child->position = $childPosition++;
+                $child->update();
+            }
+        }
+    }
+
     public function hookActionAdminControllerSetMedia($params)
     {
-        // TODO: implement actionAdminControllerSetMedia (no-op until built)
+        $this->ensurePulseNavigation();
     }
 
     public function hookModuleRoutes($params)
