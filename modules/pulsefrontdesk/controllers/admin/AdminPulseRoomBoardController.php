@@ -23,7 +23,11 @@ class AdminPulseRoomBoardController extends ModuleAdminController
 
     public function ajaxProcessBoard()
     {
-        $this->json(array('ok' => true, 'rooms' => PulseRoom::board((int) Tools::getValue('id_hotel') ?: null, Tools::getValue('date') ?: null), 'business_date' => PulseCoreService::businessDate()));
+        try {
+            $this->json(array('ok' => true, 'rooms' => PulseRoom::board((int) Tools::getValue('id_hotel') ?: null, Tools::getValue('date') ?: null), 'business_date' => PulseCoreService::businessDate()));
+        } catch (Exception $e) {
+            $this->fail($e);
+        }
     }
 
     public function ajaxProcessSetHk()

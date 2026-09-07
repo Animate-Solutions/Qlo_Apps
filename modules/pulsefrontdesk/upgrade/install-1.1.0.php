@@ -20,11 +20,16 @@ function upgrade_module_1_1_0($module)
         foreach (Language::getLanguages(true) as $l) { $t->name[$l['id_lang']] = $label; }
         $id ? $t->update() : $t->add();
     }
-    foreach (array('actionPulseStayChanged', 'actionPulseTicketCreated', 'moduleRoutes') as $h) { $module->registerHook($h); }
+    foreach (array('actionPulseStayChanged', 'actionPulseTicketCreated', 'moduleRoutes', 'actionPulseBeforeCheckOut') as $h) { $module->registerHook($h); }
     foreach (array('PULSE_FD_LATE_GRACE' => 60, 'PULSE_FD_PRECHECKIN_DAYS' => 2, 'PULSE_FD_TERMS_VERSION' => '1.0', 'PULSE_FD_SMS_CHANNEL' => 'sms', 'PULSE_FD_WALKIN_PAYMENT_MODULE' => 'bankwire') as $k => $v) {
         if (Configuration::get($k) === false) { Configuration::updateValue($k, $v); }
     }
-    if (!Configuration::get('PULSE_FD_WALKIN_ORDER_STATE')) { Configuration::updateValue('PULSE_FD_WALKIN_ORDER_STATE', (int) Configuration::get('PS_OS_PAYMENT')); }
+    $walkInState = (int) Configuration::get('PULSE_FD_WALKIN_ORDER_STATE');
+    if (!$walkInState || !Validate::isLoadedObject(new OrderState($walkInState))) {
+        $paymentState = (int) Configuration::get('PS_OS_PAYMENT');
+        $walkInState = $paymentState && Validate::isLoadedObject(new OrderState($paymentState)) ? $paymentState : (int) Db::getInstance()->getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC');
+        Configuration::updateValue('PULSE_FD_WALKIN_ORDER_STATE', $walkInState);
+    }
     Configuration::updateValue('PULSE_FD_VERSION', '1.1.0');
     return true;
 }

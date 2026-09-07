@@ -13,7 +13,7 @@ class AdminPulseLicenseController extends ModuleAdminController
             'lic' => $s, 'domain' => PulseLicenseService::domain(), 'fingerprint' => PulseLicenseService::fingerprint(),
             'trial_used' => Configuration::get('PULSE_LICENSE_TRIAL_USED'), 'activated' => Configuration::get('PULSE_LICENSE_ACTIVATED'), 'last_ok' => Configuration::get('PULSE_LICENSE_LAST_OK'),
             'log' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_license_log` ORDER BY id_pulse_license_log DESC LIMIT 20'),
-            'modules' => array('pulsefrontdesk' => 'Front Desk', 'pulsepos' => 'F&B POS', 'pulsepayments' => 'Payments', 'pulsechannel' => 'Channel Manager', 'pulsekeycard' => 'Key Cards', 'pulseguestportal' => 'Guest Portal', 'pulselaundry' => 'Laundry', 'pulsemaintenance' => 'Maintenance', 'pulsereports' => 'Reports & Owner Snapshot'),
+            'modules' => array('pulsefrontdesk' => 'Front Desk', 'pulsepos' => 'F&B POS', 'pulsepayments' => 'Payments', 'pulsechannel' => 'Channel Manager', 'pulsekeycard' => 'Key Cards', 'pulseguestportal' => 'Guest Portal', 'pulselaundry' => 'Laundry', 'pulsemaintenance' => 'Maintenance', 'pulsereports' => 'Reports & Owner Snapshot', 'pulseinventory' => 'Inventory & Stores'),
             'self_url' => self::$currentIndex.'&token='.$this->token,
         ));
         $this->setTemplate('license.tpl');

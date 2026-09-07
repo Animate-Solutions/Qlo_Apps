@@ -35,7 +35,7 @@ class PulseFrontDesk extends Module
         'actionObjectHotelBookingDetailAddAfter', 'actionObjectHotelRoomInformationAddAfter',
         // raised by this module (registered so other modules can listen)
         'actionPulseRoomStatusChange', 'actionPulseFolioPost', 'actionPulseCheckIn', 'actionPulseCheckOut',
-        'actionPulseRoomMove', 'actionPulseNoShow', 'actionPulseHousekeepingTask', 'actionPulseNightAuditClosed', 'actionPulseStayChanged', 'actionPulseTicketCreated', 'moduleRoutes',
+        'actionPulseRoomMove', 'actionPulseNoShow', 'actionPulseHousekeepingTask', 'actionPulseNightAuditClosed', 'actionPulseStayChanged', 'actionPulseTicketCreated', 'actionPulseBeforeCheckOut', 'moduleRoutes',
     );
 
     public function __construct()
@@ -78,7 +78,7 @@ class PulseFrontDesk extends Module
         Configuration::updateValue('PULSE_FD_TERMS_VERSION', '1.0');
         Configuration::updateValue('PULSE_FD_SMS_CHANNEL', 'sms');
         Configuration::updateValue('PULSE_FD_WALKIN_PAYMENT_MODULE', 'bankwire');
-        Configuration::updateValue('PULSE_FD_WALKIN_ORDER_STATE', (int) Configuration::get('PS_OS_PAYMENT'));
+        Configuration::updateValue('PULSE_FD_WALKIN_ORDER_STATE', self::defaultOrderState());
         Configuration::updateValue('PULSE_FD_VERSION', self::VERSION);
         PulseCoreService::setting($this->name, 'business_date', date('Y-m-d'));
         PulseCoreService::setting($this->name, 'require_id', '1');
@@ -105,6 +105,13 @@ class PulseFrontDesk extends Module
             if (!Db::getInstance()->execute($q)) { return false; }
         }
         return true;
+    }
+
+    protected static function defaultOrderState()
+    {
+        $paymentState = (int) Configuration::get('PS_OS_PAYMENT');
+        if ($paymentState && Validate::isLoadedObject(new OrderState($paymentState))) { return $paymentState; }
+        return (int) Db::getInstance()->getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC');
     }
 
     public function getContent() { Tools::redirectAdmin($this->context->link->getAdminLink('AdminPulseFdSettings')); }
@@ -166,6 +173,7 @@ class PulseFrontDesk extends Module
     public function hookActionPulseFolioPost($p) {}
     public function hookActionPulseCheckIn($p) {}
     public function hookActionPulseCheckOut($p) {}
+    public function hookActionPulseBeforeCheckOut($p) {}
     public function hookActionPulseRoomMove($p) {}
     public function hookActionPulseNoShow($p) {}
     public function hookActionPulseHousekeepingTask($p) {}
