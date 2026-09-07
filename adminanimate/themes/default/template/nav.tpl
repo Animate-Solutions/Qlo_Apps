@@ -11,7 +11,13 @@
 				{if $t.active}
 				<li class="maintab {if $t.current}active{/if} {if $t.sub_tabs|@count}has_submenu{/if}" id="maintab-{$t.class_name}" data-submenu="{$t.id_tab}">
 					<a href="{if $t.sub_tabs|@count && isset($t.sub_tabs[0].href)}{$t.sub_tabs[0].href|escape:'html':'UTF-8'}{else}{$t.href|escape:'html':'UTF-8'}{/if}" class="title" >
-						<i class="icon-{$t.class_name}"></i>
+						{if $t.class_name == 'AdminPulseCore'}<i class="icon-cogs"></i>
+						{elseif $t.class_name == 'AdminPulseLicense'}<i class="icon-key"></i>
+						{elseif $t.class_name == 'AdminPulseFdDashboard'}<i class="icon-home"></i>
+						{elseif $t.class_name == 'AdminPulseReports'}<i class="icon-bar-chart"></i>
+						{elseif $t.class_name == 'AdminPulseLaundry'}<i class="icon-tint"></i>
+						{elseif $t.class_name == 'AdminPulseMaintenance'}<i class="icon-wrench"></i>
+						{else}<i class="icon-{$t.class_name}"></i>{/if}
 						<span>{if $t.name eq ''}{$t.class_name|escape:'html':'UTF-8'}{else}{$t.name|escape:'html':'UTF-8'}{/if}</span>
 					</a>
 					{if $t.sub_tabs|@count}
