@@ -1,1 +1,0 @@
-/* pulsepos back-office scripts */

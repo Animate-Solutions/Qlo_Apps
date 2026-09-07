@@ -1,69 +1,109 @@
+-- Outlets, floor, staff
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_outlet` (
-  `id_pulse_pos_outlet` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `id_hotel` INT UNSIGNED NOT NULL,
-  `name` VARCHAR(128) NOT NULL,
-  `type` ENUM('restaurant','bar','room_service','pool','other') NOT NULL,
-  `service_charge_rate` DECIMAL(6,3) NOT NULL DEFAULT 0,
-  `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_pos_outlet`)
+  `id_pulse_pos_outlet` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(8) NOT NULL, `name` VARCHAR(64) NOT NULL, `type` ENUM('restaurant','bar','room_service','pool','banquet','takeaway','lounge') NOT NULL DEFAULT 'restaurant',
+  `revenue_centre` VARCHAR(32) NOT NULL DEFAULT 'fnb', `service_charge_pct` DECIMAL(6,3) NOT NULL DEFAULT 0, `service_charge_taxable` TINYINT(1) NOT NULL DEFAULT 0, `id_tax_group` INT UNSIGNED, `default_price_level` TINYINT NOT NULL DEFAULT 1,
+  `allow_room_charge` TINYINT(1) NOT NULL DEFAULT 1, `allow_tabs` TINYINT(1) NOT NULL DEFAULT 1, `require_covers` TINYINT(1) NOT NULL DEFAULT 1, `auto_fire` TINYINT(1) NOT NULL DEFAULT 1, `receipt_header` TEXT, `receipt_footer` TEXT, `tray_charge` DECIMAL(20,6) NOT NULL DEFAULT 0, `speed_screen` TINYINT(1) NOT NULL DEFAULT 0, `store` VARCHAR(32) NOT NULL DEFAULT 'main', `active` TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_pos_outlet`), UNIQUE KEY `code` (`code`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
-
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_section` (`id_pulse_pos_section` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_outlet` INT UNSIGNED NOT NULL, `name` VARCHAR(64) NOT NULL, `sort` TINYINT NOT NULL DEFAULT 0, PRIMARY KEY (`id_pulse_pos_section`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_table` (
-  `id_pulse_pos_table` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `id_pulse_pos_outlet` INT UNSIGNED NOT NULL,
-  `code` VARCHAR(16) NOT NULL,
-  `seats` TINYINT NOT NULL DEFAULT 4,
-  `status` ENUM('free','occupied','reserved','billed') NOT NULL DEFAULT 'free',
-  PRIMARY KEY (`id_pulse_pos_table`),
-  UNIQUE KEY `outlet_code` (`id_pulse_pos_outlet`,`code`)
+  `id_pulse_pos_table` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_outlet` INT UNSIGNED NOT NULL, `id_pulse_pos_section` INT UNSIGNED, `code` VARCHAR(12) NOT NULL, `seats` TINYINT NOT NULL DEFAULT 4, `shape` ENUM('square','round','rect','bar') NOT NULL DEFAULT 'square', `pos_x` SMALLINT NOT NULL DEFAULT 0, `pos_y` SMALLINT NOT NULL DEFAULT 0,
+  `status` ENUM('free','seated','ordered','billed','reserved','dirty','blocked') NOT NULL DEFAULT 'free', `id_pulse_pos_check` INT UNSIGNED DEFAULT NULL, `active` TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_pos_table`), UNIQUE KEY `outlet_code` (`id_pulse_pos_outlet`,`code`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_staff` (
+  `id_employee` INT UNSIGNED NOT NULL, `pin_hash` CHAR(64) NOT NULL, `role` ENUM('waiter','cashier','bartender','supervisor','manager','kitchen') NOT NULL DEFAULT 'waiter',
+  `can_void_sent` TINYINT(1) NOT NULL DEFAULT 0, `can_discount` TINYINT(1) NOT NULL DEFAULT 0, `max_discount_pct` DECIMAL(6,3) NOT NULL DEFAULT 0, `can_reopen` TINYINT(1) NOT NULL DEFAULT 0, `can_comp` TINYINT(1) NOT NULL DEFAULT 0, `can_settle` TINYINT(1) NOT NULL DEFAULT 1, `outlets` VARCHAR(255) DEFAULT NULL COMMENT 'csv outlet ids or NULL=all', `active` TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_employee`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_clock` (`id_pulse_pos_clock` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_employee` INT UNSIGNED NOT NULL, `id_pulse_pos_outlet` INT UNSIGNED, `clock_in` DATETIME NOT NULL, `clock_out` DATETIME, `business_date` DATE NOT NULL, PRIMARY KEY (`id_pulse_pos_clock`), KEY `e` (`id_employee`,`clock_out`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_device` (`id_pulse_pos_device` INT UNSIGNED NOT NULL AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL, `id_pulse_pos_outlet` INT UNSIGNED, `token` CHAR(64) NOT NULL, `receipt_printer` VARCHAR(64), `last_seen` DATETIME, `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_device`), UNIQUE KEY `t` (`token`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+-- Menu
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_tax_group` (`id_pulse_pos_tax_group` INT UNSIGNED NOT NULL AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL, `rate_pct` DECIMAL(6,3) NOT NULL DEFAULT 0, `components` VARCHAR(255) COMMENT 'e.g. VAT 7.5|Consumption 5', `inclusive` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_tax_group`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_station` (`id_pulse_pos_station` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(16) NOT NULL, `name` VARCHAR(64) NOT NULL, `printer_host` VARCHAR(64), `printer_port` SMALLINT NOT NULL DEFAULT 9100, `kds` TINYINT(1) NOT NULL DEFAULT 1, `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_station`), UNIQUE KEY `c` (`code`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_category` (`id_pulse_pos_category` INT UNSIGNED NOT NULL AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL, `parent` INT UNSIGNED DEFAULT NULL, `major_group` ENUM('food','beverage','liquor','tobacco','other') NOT NULL DEFAULT 'food', `course` TINYINT NOT NULL DEFAULT 0 COMMENT '0 none,1 starter,2 main,3 dessert', `colour` VARCHAR(7) DEFAULT '#2e86c1', `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_category`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_item` (
+  `id_pulse_pos_item` INT UNSIGNED NOT NULL AUTO_INCREMENT, `plu` VARCHAR(16) NOT NULL, `name` VARCHAR(96) NOT NULL, `short_name` VARCHAR(24), `id_pulse_pos_category` INT UNSIGNED NOT NULL, `id_pulse_pos_station` INT UNSIGNED,
+  `price1` DECIMAL(20,6) NOT NULL DEFAULT 0, `price2` DECIMAL(20,6) DEFAULT NULL, `price3` DECIMAL(20,6) DEFAULT NULL, `open_price` TINYINT(1) NOT NULL DEFAULT 0, `id_pulse_pos_tax_group` INT UNSIGNED, `is_combo` TINYINT(1) NOT NULL DEFAULT 0,
+  `course` TINYINT NOT NULL DEFAULT 0, `prep_minutes` TINYINT NOT NULL DEFAULT 15, `available` TINYINT(1) NOT NULL DEFAULT 1, `count_down` INT DEFAULT NULL COMMENT 'NULL=unlimited; else remaining portions', `outlets` VARCHAR(255) DEFAULT NULL COMMENT 'csv outlet ids or NULL=all', `image` VARCHAR(255), `barcode` VARCHAR(32), `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_pos_item`), UNIQUE KEY `plu` (`plu`), KEY `cat` (`id_pulse_pos_category`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_modifier_group` (`id_pulse_pos_modifier_group` INT UNSIGNED NOT NULL AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL, `min_select` TINYINT NOT NULL DEFAULT 0, `max_select` TINYINT NOT NULL DEFAULT 1, `sort` TINYINT NOT NULL DEFAULT 0, PRIMARY KEY (`id_pulse_pos_modifier_group`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_modifier` (`id_pulse_pos_modifier` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_modifier_group` INT UNSIGNED NOT NULL, `name` VARCHAR(64) NOT NULL, `price` DECIMAL(20,6) NOT NULL DEFAULT 0, `id_ingredient` INT UNSIGNED, `ingredient_qty` DECIMAL(10,3), `sort` TINYINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_modifier`), KEY `g` (`id_pulse_pos_modifier_group`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_item_modifier_group` (`id_pulse_pos_item` INT UNSIGNED NOT NULL, `id_pulse_pos_modifier_group` INT UNSIGNED NOT NULL, `required` TINYINT(1) NOT NULL DEFAULT 0, PRIMARY KEY (`id_pulse_pos_item`,`id_pulse_pos_modifier_group`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_combo_component` (`id_pulse_pos_item` INT UNSIGNED NOT NULL COMMENT 'combo', `id_component_item` INT UNSIGNED NOT NULL, `qty` DECIMAL(10,3) NOT NULL DEFAULT 1, `choice_group` VARCHAR(32) DEFAULT NULL COMMENT 'items sharing a group are alternatives', PRIMARY KEY (`id_pulse_pos_item`,`id_component_item`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_service_period` (`id_pulse_pos_service_period` INT UNSIGNED NOT NULL AUTO_INCREMENT, `name` VARCHAR(32) NOT NULL, `id_pulse_pos_outlet` INT UNSIGNED DEFAULT NULL, `start_time` TIME NOT NULL, `end_time` TIME NOT NULL, `days` VARCHAR(16) NOT NULL DEFAULT '1234567', `price_level` TINYINT NOT NULL DEFAULT 1, `categories` VARCHAR(255) DEFAULT NULL COMMENT 'csv category ids visible; NULL=all', `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_service_period`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_reason` (`id_pulse_pos_reason` INT UNSIGNED NOT NULL AUTO_INCREMENT, `type` ENUM('void','discount','comp','refund','waste','no_sale') NOT NULL, `name` VARCHAR(64) NOT NULL, `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_reason`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_discount` (`id_pulse_pos_discount` INT UNSIGNED NOT NULL AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL, `type` ENUM('pct','amount') NOT NULL DEFAULT 'pct', `value` DECIMAL(20,6) NOT NULL, `scope` ENUM('check','item') NOT NULL DEFAULT 'check', `requires_manager` TINYINT(1) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_discount`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+-- Checks
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_check` (
+  `id_pulse_pos_check` INT UNSIGNED NOT NULL AUTO_INCREMENT, `check_no` VARCHAR(16) NOT NULL, `id_pulse_pos_outlet` INT UNSIGNED NOT NULL, `id_pulse_pos_table` INT UNSIGNED, `table_code` VARCHAR(12),
+  `order_type` ENUM('dine_in','bar_tab','takeaway','delivery','room_service','banquet') NOT NULL DEFAULT 'dine_in', `covers` TINYINT NOT NULL DEFAULT 1, `guest_name` VARCHAR(96), `id_room` INT UNSIGNED, `id_htl_booking` INT UNSIGNED, `id_customer` INT UNSIGNED, `id_pulse_company` INT UNSIGNED, `phone` VARCHAR(32), `address` VARCHAR(255),
+  `id_server` INT UNSIGNED NOT NULL, `id_cashier` INT UNSIGNED, `id_pulse_pos_session` INT UNSIGNED, `price_level` TINYINT NOT NULL DEFAULT 1,
+  `status` ENUM('open','printed','settled','void','reopened') NOT NULL DEFAULT 'open', `subtotal` DECIMAL(20,6) NOT NULL DEFAULT 0, `discount_total` DECIMAL(20,6) NOT NULL DEFAULT 0, `service_charge` DECIMAL(20,6) NOT NULL DEFAULT 0, `tax_total` DECIMAL(20,6) NOT NULL DEFAULT 0, `total` DECIMAL(20,6) NOT NULL DEFAULT 0, `paid` DECIMAL(20,6) NOT NULL DEFAULT 0, `tip_total` DECIMAL(20,6) NOT NULL DEFAULT 0, `change_due` DECIMAL(20,6) NOT NULL DEFAULT 0,
+  `check_discount_pct` DECIMAL(6,3) NOT NULL DEFAULT 0, `check_discount_amount` DECIMAL(20,6) NOT NULL DEFAULT 0, `id_check_discount` INT UNSIGNED, `discount_reason` VARCHAR(64), `discount_by` INT UNSIGNED, `comp_reason` VARCHAR(64),
+  `split_from` INT UNSIGNED, `merged_into` INT UNSIGNED, `void_reason` VARCHAR(64), `void_by` INT UNSIGNED, `reopen_by` INT UNSIGNED, `note` VARCHAR(255), `posted_line` BIGINT UNSIGNED, `tax_exempt` TINYINT(1) NOT NULL DEFAULT 0, `tax_exempt_ref` VARCHAR(64), `allergy_note` VARCHAR(128), `preauth_ref` VARCHAR(64), `preauth_amount` DECIMAL(20,6), `delivered_at` DATETIME, `delivered_by` INT UNSIGNED, `business_date` DATE NOT NULL, `id_device` INT UNSIGNED,
+  `date_add` DATETIME NOT NULL, `date_printed` DATETIME, `date_settled` DATETIME, `date_upd` DATETIME NOT NULL,
+  PRIMARY KEY (`id_pulse_pos_check`), UNIQUE KEY `no` (`check_no`), KEY `outlet_status` (`id_pulse_pos_outlet`,`status`), KEY `bd` (`business_date`), KEY `server` (`id_server`), KEY `room` (`id_room`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_check_line` (
+  `id_pulse_pos_check_line` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_check` INT UNSIGNED NOT NULL, `id_pulse_pos_item` INT UNSIGNED NOT NULL, `name` VARCHAR(96) NOT NULL, `seat` TINYINT NOT NULL DEFAULT 1, `course` TINYINT NOT NULL DEFAULT 0, `qty` DECIMAL(10,3) NOT NULL DEFAULT 1,
+  `unit_price` DECIMAL(20,6) NOT NULL, `modifiers` TEXT COMMENT 'JSON [{id,name,price,qty}]', `modifier_total` DECIMAL(20,6) NOT NULL DEFAULT 0, `line_discount` DECIMAL(20,6) NOT NULL DEFAULT 0, `discount_reason` VARCHAR(64), `tax_rate` DECIMAL(6,3) NOT NULL DEFAULT 0, `line_total` DECIMAL(20,6) NOT NULL DEFAULT 0, `note` VARCHAR(128), `id_pulse_pos_station` INT UNSIGNED,
+  `kot_no` VARCHAR(16), `kot_status` ENUM('pending','held','fired','preparing','ready','served','void') NOT NULL DEFAULT 'pending', `fired_at` DATETIME, `ready_at` DATETIME, `served_at` DATETIME, `voided` TINYINT(1) NOT NULL DEFAULT 0, `void_reason` VARCHAR(64), `void_by` INT UNSIGNED, `void_after_send` TINYINT(1) NOT NULL DEFAULT 0, `comp` TINYINT(1) NOT NULL DEFAULT 0, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
+  PRIMARY KEY (`id_pulse_pos_check_line`), KEY `chk` (`id_pulse_pos_check`), KEY `kot` (`kot_status`,`id_pulse_pos_station`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_payment` (
+  `id_pulse_pos_payment` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_check` INT UNSIGNED NOT NULL, `method` ENUM('cash','card','transfer','room','city_ledger','voucher','comp','foreign','mobile_money','online','package') NOT NULL, `amount` DECIMAL(20,6) NOT NULL, `tip` DECIMAL(20,6) NOT NULL DEFAULT 0, `tendered` DECIMAL(20,6), `reference` VARCHAR(64), `currency_iso` CHAR(3), `foreign_amount` DECIMAL(20,6), `exchange_rate` DECIMAL(13,6),
+  `id_room` INT UNSIGNED, `id_pulse_folio` INT UNSIGNED, `folio_line` BIGINT UNSIGNED, `id_pulse_company` INT UNSIGNED, `signature_path` VARCHAR(255), `id_meal_plan` INT UNSIGNED, `id_pulse_pos_session` INT UNSIGNED, `id_employee` INT UNSIGNED, `business_date` DATE NOT NULL, `voided` TINYINT(1) NOT NULL DEFAULT 0, `date_add` DATETIME NOT NULL,
+  PRIMARY KEY (`id_pulse_pos_payment`), KEY `chk` (`id_pulse_pos_check`), KEY `sess` (`id_pulse_pos_session`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_session` (
+  `id_pulse_pos_session` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_outlet` INT UNSIGNED NOT NULL, `id_employee` INT UNSIGNED NOT NULL, `opening_float` DECIMAL(20,6) NOT NULL DEFAULT 0, `drops` DECIMAL(20,6) NOT NULL DEFAULT 0, `paid_outs` DECIMAL(20,6) NOT NULL DEFAULT 0, `expected_cash` DECIMAL(20,6), `counted_cash` DECIMAL(20,6), `variance` DECIMAL(20,6), `z_number` INT UNSIGNED, `status` ENUM('open','closed') NOT NULL DEFAULT 'open', `business_date` DATE NOT NULL, `note` VARCHAR(255), `date_open` DATETIME NOT NULL, `date_close` DATETIME,
+  PRIMARY KEY (`id_pulse_pos_session`), KEY `o` (`id_pulse_pos_outlet`,`status`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_session_movement` (`id_pulse_pos_session_movement` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_session` INT UNSIGNED NOT NULL, `type` ENUM('drop','paid_out','float_add','no_sale') NOT NULL, `amount` DECIMAL(20,6) NOT NULL DEFAULT 0, `reason` VARCHAR(128), `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL, PRIMARY KEY (`id_pulse_pos_session_movement`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_voucher` (`id_pulse_pos_voucher` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(24) NOT NULL, `type` ENUM('gift','meal','promo') NOT NULL DEFAULT 'gift', `value` DECIMAL(20,6) NOT NULL, `balance` DECIMAL(20,6) NOT NULL, `issued_to` VARCHAR(96), `expires` DATE, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, PRIMARY KEY (`id_pulse_pos_voucher`), UNIQUE KEY `c` (`code`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_audit` (`id_pulse_pos_audit` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_check` INT UNSIGNED, `event` VARCHAR(32) NOT NULL, `detail` VARCHAR(255), `amount` DECIMAL(20,6), `id_employee` INT UNSIGNED, `authorised_by` INT UNSIGNED, `date_add` DATETIME NOT NULL, PRIMARY KEY (`id_pulse_pos_audit`), KEY `c` (`id_pulse_pos_check`), KEY `e` (`event`,`date_add`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+-- Inventory & recipes
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_ingredient` (`id_pulse_pos_ingredient` INT UNSIGNED NOT NULL AUTO_INCREMENT, `sku` VARCHAR(24) NOT NULL, `name` VARCHAR(96) NOT NULL, `group_name` ENUM('food','beverage','liquor','consumable') NOT NULL DEFAULT 'food', `unit` VARCHAR(12) NOT NULL DEFAULT 'kg', `qty_on_hand` DECIMAL(12,3) NOT NULL DEFAULT 0, `reorder_level` DECIMAL(12,3) NOT NULL DEFAULT 0, `unit_cost` DECIMAL(20,6) NOT NULL DEFAULT 0, `supplier` VARCHAR(96), `store` VARCHAR(32) NOT NULL DEFAULT 'main', `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_pos_ingredient`), UNIQUE KEY `s` (`sku`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_recipe` (`id_pulse_pos_item` INT UNSIGNED NOT NULL, `id_pulse_pos_ingredient` INT UNSIGNED NOT NULL, `qty` DECIMAL(12,4) NOT NULL, PRIMARY KEY (`id_pulse_pos_item`,`id_pulse_pos_ingredient`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_stock_movement` (`id_pulse_pos_stock_movement` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_ingredient` INT UNSIGNED NOT NULL, `type` ENUM('sale','purchase','waste','transfer','count','return','production') NOT NULL, `qty` DECIMAL(12,4) NOT NULL, `unit_cost` DECIMAL(20,6), `id_pulse_pos_check` INT UNSIGNED, `reference` VARCHAR(64), `reason` VARCHAR(96), `id_employee` INT UNSIGNED, `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, PRIMARY KEY (`id_pulse_pos_stock_movement`), KEY `i` (`id_pulse_pos_ingredient`,`business_date`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_purchase` (`id_pulse_pos_purchase` INT UNSIGNED NOT NULL AUTO_INCREMENT, `purchase_no` VARCHAR(16) NOT NULL, `supplier` VARCHAR(96), `invoice_ref` VARCHAR(64), `total` DECIMAL(20,6) NOT NULL DEFAULT 0, `lines` TEXT COMMENT 'JSON', `id_employee` INT UNSIGNED, `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, PRIMARY KEY (`id_pulse_pos_purchase`), UNIQUE KEY `n` (`purchase_no`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_menu_item` (
-  `id_pulse_pos_menu_item` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `id_pulse_pos_outlet` INT UNSIGNED NOT NULL,
-  `category` VARCHAR(64) NOT NULL,
-  `name` VARCHAR(128) NOT NULL,
-  `price_tax_excl` DECIMAL(20,6) NOT NULL,
-  `id_tax_rules_group` INT UNSIGNED,
-  `kitchen_station` VARCHAR(32) COMMENT 'kitchen|bar|grill',
-  `available` TINYINT(1) NOT NULL DEFAULT 1,
-  `sort` SMALLINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_pulse_pos_menu_item`),
-  KEY `outlet_cat` (`id_pulse_pos_outlet`,`category`)
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_meal_plan` (
+  `id_pulse_pos_meal_plan` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_htl_booking` INT UNSIGNED NOT NULL, `plan` ENUM('BB','HB','FB','AI','CUSTOM') NOT NULL DEFAULT 'BB', `persons` TINYINT NOT NULL DEFAULT 1,
+  `breakfast` DECIMAL(20,6) NOT NULL DEFAULT 0, `lunch` DECIMAL(20,6) NOT NULL DEFAULT 0, `dinner` DECIMAL(20,6) NOT NULL DEFAULT 0, `outlets` VARCHAR(255) DEFAULT NULL, `note` VARCHAR(128), `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL,
+  PRIMARY KEY (`id_pulse_pos_meal_plan`), KEY `b` (`id_htl_booking`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_meal_plan_use` (`id_pulse_pos_meal_plan_use` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_pos_meal_plan` INT UNSIGNED NOT NULL, `meal` ENUM('breakfast','lunch','dinner') NOT NULL, `business_date` DATE NOT NULL, `persons` TINYINT NOT NULL DEFAULT 1, `amount` DECIMAL(20,6) NOT NULL, `id_pulse_pos_check` INT UNSIGNED, PRIMARY KEY (`id_pulse_pos_meal_plan_use`), KEY `p` (`id_pulse_pos_meal_plan`,`business_date`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_requisition` (`id_pulse_pos_requisition` INT UNSIGNED NOT NULL AUTO_INCREMENT, `req_no` VARCHAR(16) NOT NULL, `from_store` VARCHAR(32) NOT NULL DEFAULT 'main', `to_store` VARCHAR(32) NOT NULL, `status` ENUM('requested','approved','issued','rejected') NOT NULL DEFAULT 'requested', `lines` TEXT, `note` VARCHAR(255), `requested_by` INT UNSIGNED, `approved_by` INT UNSIGNED, `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL, PRIMARY KEY (`id_pulse_pos_requisition`), UNIQUE KEY `n` (`req_no`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_ingredient_store` (`id_pulse_pos_ingredient` INT UNSIGNED NOT NULL, `store` VARCHAR(32) NOT NULL, `qty_on_hand` DECIMAL(12,3) NOT NULL DEFAULT 0, PRIMARY KEY (`id_pulse_pos_ingredient`,`store`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_offline_log` (`id_pulse_pos_offline_log` INT UNSIGNED NOT NULL AUTO_INCREMENT, `client_id` VARCHAR(64) NOT NULL, `action` VARCHAR(32), `payload` TEXT, `result` VARCHAR(255), `replayed_at` DATETIME NOT NULL, PRIMARY KEY (`id_pulse_pos_offline_log`), UNIQUE KEY `c` (`client_id`)) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_bill` (
-  `id_pulse_pos_bill` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `bill_no` VARCHAR(32) NOT NULL,
-  `id_pulse_pos_outlet` INT UNSIGNED NOT NULL,
-  `id_pulse_pos_table` INT UNSIGNED,
-  `id_room` INT UNSIGNED COMMENT 'set for room service / post-to-room',
-  `id_pulse_folio` INT UNSIGNED,
-  `covers` TINYINT NOT NULL DEFAULT 1,
-  `status` ENUM('open','billed','settled','void') NOT NULL DEFAULT 'open',
-  `subtotal` DECIMAL(20,6) NOT NULL DEFAULT 0,
-  `service_charge` DECIMAL(20,6) NOT NULL DEFAULT 0,
-  `tax` DECIMAL(20,6) NOT NULL DEFAULT 0,
-  `total` DECIMAL(20,6) NOT NULL DEFAULT 0,
-  `settle_method` VARCHAR(32),
-  `id_employee` INT UNSIGNED NOT NULL,
-  `business_date` DATE NOT NULL,
-  `date_add` DATETIME NOT NULL,
-  `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_pos_bill`),
-  UNIQUE KEY `bill_no` (`bill_no`)
-) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
-
-CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pos_bill_line` (
-  `id_pulse_pos_bill_line` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `id_pulse_pos_bill` INT UNSIGNED NOT NULL,
-  `id_pulse_pos_menu_item` INT UNSIGNED NOT NULL,
-  `name` VARCHAR(128) NOT NULL,
-  `qty` DECIMAL(10,3) NOT NULL DEFAULT 1,
-  `unit_price_tax_excl` DECIMAL(20,6) NOT NULL,
-  `modifiers` VARCHAR(255),
-  `kot_no` VARCHAR(32),
-  `kot_status` ENUM('pending','fired','ready','served','void') NOT NULL DEFAULT 'pending',
-  PRIMARY KEY (`id_pulse_pos_bill_line`),
-  KEY `bill` (`id_pulse_pos_bill`)
-) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+-- Seeds
+INSERT IGNORE INTO `PREFIX_pulse_pos_tax_group` (`id_pulse_pos_tax_group`,`name`,`rate_pct`,`components`,`inclusive`) VALUES (1,'VAT 7.5% + Consumption 5%',12.5,'VAT 7.5|Consumption 5',1),(2,'VAT 7.5% only',7.5,'VAT 7.5',1),(3,'Zero rated',0,'',1);
+INSERT IGNORE INTO `PREFIX_pulse_pos_station` (`code`,`name`,`kds`) VALUES ('KITCHEN','Main kitchen',1),('BAR','Bar',1),('GRILL','Grill',1),('PASTRY','Pastry / cold',1),('NONE','No preparation',0);
+INSERT IGNORE INTO `PREFIX_pulse_pos_outlet` (`id_pulse_pos_outlet`,`code`,`name`,`type`,`service_charge_pct`,`id_tax_group`,`receipt_footer`) VALUES (1,'REST','Restaurant','restaurant',10,1,'Thank you for dining with us'),(2,'BAR','Bar & Lounge','bar',10,1,'Thank you'),(3,'RSVC','Room Service','room_service',10,1,'');
+INSERT IGNORE INTO `PREFIX_pulse_pos_section` (`id_pulse_pos_outlet`,`name`) VALUES (1,'Main hall'),(1,'Terrace'),(2,'Bar');
+INSERT IGNORE INTO `PREFIX_pulse_pos_category` (`id_pulse_pos_category`,`name`,`major_group`,`course`,`colour`,`sort`) VALUES (1,'Starters','food',1,'#27ae60',1),(2,'Soups & Swallow','food',2,'#e67e22',2),(3,'Mains & Grills','food',2,'#c0392b',3),(4,'Continental','food',2,'#8e44ad',4),(5,'Sides','food',2,'#16a085',5),(6,'Desserts','food',3,'#d35400',6),(7,'Soft drinks & Water','beverage',0,'#2980b9',7),(8,'Beers','liquor',0,'#f39c12',8),(9,'Wines & Spirits','liquor',0,'#7f8c8d',9),(10,'Hot beverages','beverage',0,'#6c3483',10);
+INSERT IGNORE INTO `PREFIX_pulse_pos_item` (`plu`,`name`,`short_name`,`id_pulse_pos_category`,`id_pulse_pos_station`,`price1`,`price2`,`id_pulse_pos_tax_group`,`course`,`prep_minutes`) VALUES
+('1001','Peppered snail','Snail',1,1,8500,8500,1,1,20),('1002','Chicken wings (6)','Wings',1,3,6500,6500,1,1,15),('1003','Spring rolls','S.Rolls',1,1,4500,4500,1,1,12),
+('2001','Egusi soup with pounded yam','Egusi+PY',2,1,7500,7500,1,2,20),('2002','Afang soup with eba','Afang',2,1,7000,7000,1,2,20),('2003','Pepper soup (goat)','Goat PS',2,1,7500,7500,1,2,25),
+('3001','Jollof rice with chicken','Jollof Chk',3,1,9000,9000,1,2,20),('3002','Fried rice with beef','FRice Beef',3,1,9000,9000,1,2,20),('3003','Grilled croaker fish','Croaker',3,3,15000,15000,1,2,30),('3004','Suya platter','Suya',3,3,8000,8000,1,2,20),
+('4001','Club sandwich & chips','Club Sand',4,1,7500,7500,1,2,15),('4002','Beef burger & fries','Burger',4,3,8500,8500,1,2,15),('4003','Pasta bolognese','Pasta',4,1,8000,8000,1,2,18),
+('5001','Plantain (dodo)','Dodo',5,1,2500,2500,1,2,10),('5002','Chips','Chips',5,1,2500,2500,1,2,10),
+('6001','Ice cream (2 scoops)','Ice cream',6,4,3500,3500,1,3,5),('6002','Fruit platter','Fruit',6,4,4000,4000,1,3,5),
+('7001','Bottled water 75cl','Water',7,2,1000,1000,1,0,1),('7002','Coke / Fanta / Sprite 50cl','Soft drk',7,2,1500,1500,1,0,1),('7003','Malt','Malt',7,2,1800,1800,1,0,1),('7004','Chapman','Chapman',7,2,4500,4500,1,0,5),
+('8001','Star lager 60cl','Star',8,2,2500,2000,1,0,1),('8002','Heineken 33cl','Heineken',8,2,3000,2500,1,0,1),('8003','Guinness stout 60cl','Guinness',8,2,3000,2500,1,0,1),
+('9001','Red wine (glass)','Wine gl',9,2,6000,5000,1,0,2),('9002','Hennessy VS (tot)','Henny tot',9,2,7000,6000,1,0,1),('9003','Hennessy VS (bottle 70cl)','Henny btl',9,2,95000,95000,1,0,1),
+('10001','Cappuccino','Cappu',10,2,3000,3000,1,0,5),('10002','Tea','Tea',10,2,1500,1500,1,0,3);
+INSERT IGNORE INTO `PREFIX_pulse_pos_modifier_group` (`id_pulse_pos_modifier_group`,`name`,`min_select`,`max_select`) VALUES (1,'Cooking',1,1),(2,'Spice level',0,1),(3,'Extras',0,5),(4,'Swallow choice',1,1);
+INSERT IGNORE INTO `PREFIX_pulse_pos_modifier` (`id_pulse_pos_modifier_group`,`name`,`price`) VALUES (1,'Rare',0),(1,'Medium',0),(1,'Well done',0),(2,'Mild',0),(2,'Medium',0),(2,'Extra hot',0),(3,'Extra plantain',1500),(3,'Extra chicken',3000),(3,'No onions',0),(3,'Extra sauce',500),(4,'Pounded yam',0),(4,'Eba',0),(4,'Semo',0),(4,'Fufu',0);
+INSERT IGNORE INTO `PREFIX_pulse_pos_item_modifier_group` (`id_pulse_pos_item`,`id_pulse_pos_modifier_group`,`required`) SELECT id_pulse_pos_item,2,0 FROM `PREFIX_pulse_pos_item` WHERE plu IN ('2003','3004','1002');
+INSERT IGNORE INTO `PREFIX_pulse_pos_item_modifier_group` (`id_pulse_pos_item`,`id_pulse_pos_modifier_group`,`required`) SELECT id_pulse_pos_item,4,1 FROM `PREFIX_pulse_pos_item` WHERE plu IN ('2001','2002');
+INSERT IGNORE INTO `PREFIX_pulse_pos_item_modifier_group` (`id_pulse_pos_item`,`id_pulse_pos_modifier_group`,`required`) SELECT id_pulse_pos_item,3,0 FROM `PREFIX_pulse_pos_item` WHERE id_pulse_pos_category IN (3,4);
+INSERT IGNORE INTO `PREFIX_pulse_pos_item_modifier_group` (`id_pulse_pos_item`,`id_pulse_pos_modifier_group`,`required`) SELECT id_pulse_pos_item,1,1 FROM `PREFIX_pulse_pos_item` WHERE plu='4002';
+INSERT IGNORE INTO `PREFIX_pulse_pos_service_period` (`name`,`start_time`,`end_time`,`price_level`) VALUES ('Breakfast','06:00:00','10:30:00',1),('Lunch','11:00:00','16:00:00',1),('Happy hour','17:00:00','19:00:00',2),('Dinner','19:00:00','23:30:00',1);
+INSERT IGNORE INTO `PREFIX_pulse_pos_reason` (`type`,`name`) VALUES ('void','Wrong item'),('void','Guest changed mind'),('void','Kitchen error'),('void','Out of stock'),('void','Duplicate entry'),('discount','Manager courtesy'),('discount','Staff meal'),('discount','Service recovery'),('discount','Promotion'),('comp','Owner/MD guest'),('comp','Service recovery'),('comp','Entertainment'),('waste','Spoilage'),('waste','Over-production'),('waste','Breakage'),('no_sale','Change'),('no_sale','Drawer check');
+INSERT IGNORE INTO `PREFIX_pulse_pos_discount` (`name`,`type`,`value`,`scope`,`requires_manager`) VALUES ('Staff 50%','pct',50,'check',1),('Happy hour 20%','pct',20,'item',0),('Corporate 10%','pct',10,'check',0),('Service recovery','amount',0,'check',1);
+INSERT IGNORE INTO `PREFIX_pulse_pos_table` (`id_pulse_pos_outlet`,`id_pulse_pos_section`,`code`,`seats`,`shape`,`pos_x`,`pos_y`) VALUES (1,1,'T1',4,'square',40,40),(1,1,'T2',4,'square',160,40),(1,1,'T3',4,'square',280,40),(1,1,'T4',6,'rect',400,40),(1,1,'T5',2,'round',40,160),(1,1,'T6',2,'round',160,160),(1,1,'T7',8,'rect',280,160),(1,1,'T8',4,'square',40,280),(1,1,'T9',4,'square',160,280),(1,1,'T10',4,'square',280,280),(1,2,'P1',4,'round',40,40),(1,2,'P2',4,'round',160,40),(1,2,'P3',6,'rect',280,40),(1,2,'P4',4,'round',40,160),(2,3,'B1',2,'bar',40,40),(2,3,'B2',2,'bar',100,40),(2,3,'B3',2,'bar',160,40),(2,3,'B4',2,'bar',220,40),(2,3,'L1',4,'round',40,160),(2,3,'L2',4,'round',160,160),(2,3,'L3',6,'rect',280,160);

@@ -1,0 +1,51 @@
+<?php
+/** Recipes deduct ingredients on kitchen fire (or settlement for unprepared items); purchases, waste, counts, COGS. */
+class PulsePosInventory
+{
+    public static function consumeLine(array $l) { if (!(int) $l['id_pulse_pos_item']) { return; } if (Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pos_stock_movement` WHERE type="sale" AND reference="L'.(int) $l['id_pulse_pos_check_line'].'"')) { return; } foreach (Db::getInstance()->executeS('SELECT r.*, i.unit_cost FROM `'._DB_PREFIX_.'pulse_pos_recipe` r INNER JOIN `'._DB_PREFIX_.'pulse_pos_ingredient` i ON i.id_pulse_pos_ingredient=r.id_pulse_pos_ingredient WHERE r.id_pulse_pos_item='.(int) $l['id_pulse_pos_item']) as $r) { $q = $r['qty'] * $l['qty']; self::move($r['id_pulse_pos_ingredient'], 'sale', -$q, $r['unit_cost'], 'L'.$l['id_pulse_pos_check_line'], '', $l['id_pulse_pos_check']); } $mods = is_array($l['modifiers']) ? $l['modifiers'] : json_decode($l['modifiers'], true); foreach ((array) $mods as $m) { $mm = Db::getInstance()->getRow('SELECT m.id_ingredient, m.ingredient_qty, i.unit_cost FROM `'._DB_PREFIX_.'pulse_pos_modifier` m LEFT JOIN `'._DB_PREFIX_.'pulse_pos_ingredient` i ON i.id_pulse_pos_ingredient=m.id_ingredient WHERE m.id_pulse_pos_modifier='.(int) $m['id']); if ($mm && $mm['id_ingredient']) { self::move($mm['id_ingredient'], 'sale', -($mm['ingredient_qty'] * $l['qty'] * (isset($m['qty']) ? $m['qty'] : 1)), $mm['unit_cost'], 'L'.$l['id_pulse_pos_check_line'].'M'.$m['id'], '', $l['id_pulse_pos_check']); } } }
+    public static function reverseLine(array $l) { foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_stock_movement` WHERE type="sale" AND reference LIKE "L'.(int) $l['id_pulse_pos_check_line'].'%"') as $m) { self::move($m['id_pulse_pos_ingredient'], 'return', -$m['qty'], $m['unit_cost'], 'V'.$l['id_pulse_pos_check_line'], 'void after send', $l['id_pulse_pos_check']); } }
+    public static function move($idIng, $type, $qty, $unitCost = null, $ref = '', $reason = '', $idCheck = null, $emp = 0)
+    {
+        if ($type === 'count') { Db::getInstance()->update('pulse_pos_ingredient', array('qty_on_hand' => (float) $qty), 'id_pulse_pos_ingredient='.(int) $idIng); } else { Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_pos_ingredient` SET qty_on_hand=qty_on_hand+('.(float) $qty.')'.($type === 'purchase' && $unitCost !== null ? ', unit_cost='.(float) $unitCost : '').' WHERE id_pulse_pos_ingredient='.(int) $idIng); }
+        Db::getInstance()->insert('pulse_pos_stock_movement', array('id_pulse_pos_ingredient' => (int) $idIng, 'type' => pSQL($type), 'qty' => (float) $qty, 'unit_cost' => $unitCost === null ? null : (float) $unitCost, 'id_pulse_pos_check' => $idCheck ? (int) $idCheck : null, 'reference' => pSQL($ref), 'reason' => pSQL($reason), 'id_employee' => (int) $emp, 'business_date' => PulsePosService::bd(), 'date_add' => date('Y-m-d H:i:s')));
+        PulseCoreService::event('actionPulsePosStockMove', array('id_ingredient' => (int) $idIng, 'type' => $type, 'qty' => (float) $qty, 'unit_cost' => $unitCost, 'reference' => $ref, 'reason' => $reason));
+    }
+    public static function purchase($supplier, $invoice, array $lines, $emp)
+    {
+        $no = PulsePosService::nextNo('PU'); $total = 0;
+        foreach ($lines as $ln) { if ((float) $ln['qty'] <= 0) { continue; } self::move($ln['id'], 'purchase', $ln['qty'], $ln['unit_cost'], $no, $supplier, null, $emp); $total += $ln['qty'] * $ln['unit_cost']; }
+        Db::getInstance()->insert('pulse_pos_purchase', array('purchase_no' => pSQL($no), 'supplier' => pSQL($supplier), 'invoice_ref' => pSQL($invoice), 'total' => round($total, 2), 'lines' => pSQL(json_encode($lines), true), 'id_employee' => (int) $emp, 'business_date' => PulsePosService::bd(), 'date_add' => date('Y-m-d H:i:s')));
+        if (class_exists('PulseExpense')) { $grp = Db::getInstance()->getValue('SELECT group_name FROM `'._DB_PREFIX_.'pulse_pos_ingredient` WHERE id_pulse_pos_ingredient='.(int) $lines[0]['id']); PulseExpense::add(array('category' => in_array($grp, array('beverage', 'liquor')) ? 'BEV' : 'FOOD', 'department' => 'fnb', 'description' => 'F&B purchase '.$no.' — '.$supplier, 'payee' => $supplier, 'amount' => round($total, 2), 'payment_method' => 'credit', 'reference' => $invoice, 'source' => 'pos', 'source_ref' => $no)); }
+        return $no;
+    }
+    /* ---------- stores & requisitions (central store → outlet) ---------- */
+    public static function requisition($fromStore, $toStore, array $lines, $note, $emp) { $no = PulsePosService::nextNo('RQ'); Db::getInstance()->insert('pulse_pos_requisition', array('req_no' => pSQL($no), 'from_store' => pSQL($fromStore), 'to_store' => pSQL($toStore), 'lines' => pSQL(json_encode($lines), true), 'note' => pSQL($note), 'requested_by' => (int) $emp, 'business_date' => PulsePosService::bd(), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'))); return $no; }
+    public static function issueRequisition($id, array $issuedQty, $emp)
+    {
+        $r = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_requisition` WHERE id_pulse_pos_requisition='.(int) $id); if (!$r || $r['status'] === 'issued') { return false; }
+        $lines = json_decode($r['lines'], true);
+        foreach ($lines as &$ln) { $q = isset($issuedQty[$ln['id']]) ? (float) $issuedQty[$ln['id']] : (float) $ln['qty']; $ln['issued'] = $q; if ($q <= 0) { continue; }
+            Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_pos_ingredient_store` (id_pulse_pos_ingredient,store,qty_on_hand) VALUES ('.(int) $ln['id'].',"'.pSQL($r['from_store']).'",'.(-$q).') ON DUPLICATE KEY UPDATE qty_on_hand=qty_on_hand-'.$q);
+            Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_pos_ingredient_store` (id_pulse_pos_ingredient,store,qty_on_hand) VALUES ('.(int) $ln['id'].',"'.pSQL($r['to_store']).'",'.$q.') ON DUPLICATE KEY UPDATE qty_on_hand=qty_on_hand+'.$q);
+            Db::getInstance()->insert('pulse_pos_stock_movement', array('id_pulse_pos_ingredient' => (int) $ln['id'], 'type' => 'transfer', 'qty' => $q, 'reference' => pSQL($r['req_no']), 'reason' => pSQL($r['from_store'].' -> '.$r['to_store']), 'id_employee' => (int) $emp, 'business_date' => PulsePosService::bd(), 'date_add' => date('Y-m-d H:i:s'))); }
+        Db::getInstance()->update('pulse_pos_requisition', array('status' => 'issued', 'lines' => pSQL(json_encode($lines), true), 'approved_by' => (int) $emp, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pos_requisition='.(int) $id); return true;
+    }
+    public static function storeStock() { return Db::getInstance()->executeS('SELECT s.store, i.name, i.unit, s.qty_on_hand FROM `'._DB_PREFIX_.'pulse_pos_ingredient_store` s INNER JOIN `'._DB_PREFIX_.'pulse_pos_ingredient` i ON i.id_pulse_pos_ingredient=s.id_pulse_pos_ingredient ORDER BY s.store, i.name'); }
+    /** Theoretical vs actual: variance = actual count - (opening + purchased - recipe usage - waste). */
+    public static function variance($from, $to)
+    {
+        $rows = Db::getInstance()->executeS('SELECT i.id_pulse_pos_ingredient, i.name, i.unit, i.unit_cost, i.qty_on_hand actual,
+            (SELECT COALESCE(SUM(-m.qty),0) FROM `'._DB_PREFIX_.'pulse_pos_stock_movement` m WHERE m.id_pulse_pos_ingredient=i.id_pulse_pos_ingredient AND m.type IN ("sale","return") AND m.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'") theoretical_usage,
+            (SELECT COALESCE(SUM(-m.qty),0) FROM `'._DB_PREFIX_.'pulse_pos_stock_movement` m WHERE m.id_pulse_pos_ingredient=i.id_pulse_pos_ingredient AND m.type="waste" AND m.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'") waste,
+            (SELECT COALESCE(SUM(m.qty),0) FROM `'._DB_PREFIX_.'pulse_pos_stock_movement` m WHERE m.id_pulse_pos_ingredient=i.id_pulse_pos_ingredient AND m.type="purchase" AND m.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'") purchased,
+            (SELECT m.qty FROM `'._DB_PREFIX_.'pulse_pos_stock_movement` m WHERE m.id_pulse_pos_ingredient=i.id_pulse_pos_ingredient AND m.type="count" AND m.business_date<"'.pSQL($from).'" ORDER BY m.id_pulse_pos_stock_movement DESC LIMIT 1) opening_count
+            FROM `'._DB_PREFIX_.'pulse_pos_ingredient` i WHERE i.active=1 ORDER BY i.name');
+        foreach ($rows as &$r) { $open = $r['opening_count'] !== null ? (float) $r['opening_count'] : null; $r['expected'] = $open === null ? null : round($open + $r['purchased'] - $r['theoretical_usage'] - $r['waste'], 3); $r['variance'] = $r['expected'] === null ? null : round($r['actual'] - $r['expected'], 3); $r['variance_value'] = $r['variance'] === null ? null : round($r['variance'] * $r['unit_cost'], 2); }
+        return $rows;
+    }
+
+    public static function itemCost($idItem) { return (float) Db::getInstance()->getValue('SELECT COALESCE(SUM(r.qty*i.unit_cost),0) FROM `'._DB_PREFIX_.'pulse_pos_recipe` r INNER JOIN `'._DB_PREFIX_.'pulse_pos_ingredient` i ON i.id_pulse_pos_ingredient=r.id_pulse_pos_ingredient WHERE r.id_pulse_pos_item='.(int) $idItem); }
+    public static function lowStock() { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_ingredient` WHERE active=1 AND qty_on_hand<=reorder_level ORDER BY name'); }
+    public static function cogs($from, $to) { return Db::getInstance()->executeS('SELECT i.group_name, ROUND(SUM(-m.qty*m.unit_cost),2) cost FROM `'._DB_PREFIX_.'pulse_pos_stock_movement` m INNER JOIN `'._DB_PREFIX_.'pulse_pos_ingredient` i ON i.id_pulse_pos_ingredient=m.id_pulse_pos_ingredient WHERE m.type IN ("sale","return") AND m.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY i.group_name'); }
+    public static function waste($from, $to) { return Db::getInstance()->executeS('SELECT i.name, SUM(-m.qty) qty, i.unit, ROUND(SUM(-m.qty*COALESCE(m.unit_cost,i.unit_cost)),2) value, GROUP_CONCAT(DISTINCT m.reason) reasons FROM `'._DB_PREFIX_.'pulse_pos_stock_movement` m INNER JOIN `'._DB_PREFIX_.'pulse_pos_ingredient` i ON i.id_pulse_pos_ingredient=m.id_pulse_pos_ingredient WHERE m.type="waste" AND m.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY i.id_pulse_pos_ingredient ORDER BY value DESC'); }
+}
