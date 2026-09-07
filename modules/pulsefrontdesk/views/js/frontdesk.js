@@ -27,7 +27,17 @@
       $g.append($f);
     });
   }
-  function load() { post('Board', { id_hotel: $('#board-hotel').val() || '', date: $b.data('date') }).done(function (d) { rooms = d.rooms || []; render(); if (sel) openDrawer(rooms.filter(function (r) { return r.id_room == sel.id_room; })[0]); }); }
+  function load() {
+    post('Board', { id_hotel: $('#board-hotel').val() || '', date: $b.data('date') })
+      .done(function (d) {
+        if (!d.ok) { return $('#board-grid').html('<p class="text-danger">' + esc(d.error || 'Unable to load rooms.') + '</p>'); }
+        rooms = d.rooms || []; render(); if (sel) openDrawer(rooms.filter(function (r) { return r.id_room == sel.id_room; })[0]);
+      })
+      .fail(function (xhr) {
+        var message = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Unable to load rooms. Check the server log.';
+        $('#board-grid').html('<p class="text-danger">' + esc(message) + '</p>');
+      });
+  }
   if (!$b.data('nogrid')) { load(); setInterval(load, 60000); }
   $('#board-refresh').click(load); $('#board-hotel').change(load);
 

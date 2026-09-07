@@ -59,6 +59,7 @@ class PulseMaintenanceService
         Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_part` SET qty_on_hand=qty_on_hand-'.(float) $qty.' WHERE id_pulse_part='.(int) $idPart);
         Db::getInstance()->insert('pulse_part_movement', array('id_pulse_part' => (int) $idPart, 'type' => 'issue', 'qty' => (float) $qty, 'id_pulse_work_order' => (int) $idWo, 'unit_cost' => (float) $p['unit_cost'], 'id_employee' => self::emp(), 'date_add' => date('Y-m-d H:i:s')));
         Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_work_order` SET parts_cost=parts_cost+'.round($qty * $p['unit_cost'], 2).' WHERE id_pulse_work_order='.(int) $idWo);
+        PulseCoreService::event('actionPulseMaintenancePartMove', array('id_part' => (int) $idPart, 'type' => 'issue', 'qty' => (float) $qty, 'reference' => 'WO'.(int) $idWo));
         return true;
     }
     public static function partMove($idPart, $type, $qty, $note = '', $unitCost = null)
@@ -66,6 +67,7 @@ class PulseMaintenanceService
         $sign = in_array($type, array('receive', 'return')) ? 1 : ($type === 'adjust' ? 0 : -1);
         if ($type === 'adjust') { Db::getInstance()->update('pulse_part', array('qty_on_hand' => (float) $qty), 'id_pulse_part='.(int) $idPart); } else { Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_part` SET qty_on_hand=qty_on_hand+'.($sign * (float) $qty).($unitCost !== null && $type === 'receive' ? ', unit_cost='.(float) $unitCost : '').' WHERE id_pulse_part='.(int) $idPart); }
         Db::getInstance()->insert('pulse_part_movement', array('id_pulse_part' => (int) $idPart, 'type' => pSQL($type), 'qty' => (float) $qty, 'unit_cost' => $unitCost !== null ? (float) $unitCost : null, 'note' => pSQL($note), 'id_employee' => self::emp(), 'date_add' => date('Y-m-d H:i:s')));
+        PulseCoreService::event('actionPulseMaintenancePartMove', array('id_part' => (int) $idPart, 'type' => $type, 'qty' => (float) $qty, 'unit_cost' => $unitCost, 'reference' => $note));
     }
 
     public static function queue($status = 'open,assigned,in_progress,on_hold', $tech = null)

@@ -8,7 +8,7 @@ class AdminPulseCoreController extends ModuleAdminController
     {
         parent::initContent();
         $mods = array();
-        foreach (array('pulsecore', 'pulselicense', 'pulsefrontdesk', 'pulsepos', 'pulsepayments', 'pulsechannel', 'pulsekeycard', 'pulseguestportal', 'pulselaundry', 'pulsemaintenance', 'pulsereports') as $n) {
+        foreach (array('pulsecore', 'pulselicense', 'pulsefrontdesk', 'pulsepos', 'pulsepayments', 'pulsechannel', 'pulsekeycard', 'pulseguestportal', 'pulselaundry', 'pulsemaintenance', 'pulsereports', 'pulseinventory') as $n) {
             $m = Module::getInstanceByName($n);
             $mods[] = array('name' => $n, 'installed' => Module::isInstalled($n), 'enabled' => Module::isEnabled($n), 'version' => $m ? $m->version : '—', 'display' => $m ? $m->displayName : $n);
         }

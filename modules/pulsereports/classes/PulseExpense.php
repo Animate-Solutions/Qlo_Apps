@@ -11,7 +11,7 @@ class PulseExpense
     {
         if (!empty($d['source']) && !empty($d['source_ref']) && Db::getInstance()->getValue('SELECT id_pulse_expense FROM `'._DB_PREFIX_.'pulse_expense` WHERE source="'.pSQL($d['source']).'" AND source_ref="'.pSQL($d['source_ref']).'"')) { return false; } // idempotent feeds
         Db::getInstance()->insert('pulse_expense', array(
-            'expense_no' => self::nextNo(), 'id_pulse_expense_category' => (int) (isset($d['id_category']) ? $d['id_category'] : self::catId($d['category'])), 'department' => pSQL(isset($d['department']) ? $d['department'] : 'general'),
+            'expense_no' => self::nextNo(), 'id_pulse_expense_category' => (int) ((isset($d['id_category']) && (int) $d['id_category']) ? $d['id_category'] : (self::catId(isset($d['category']) ? $d['category'] : 'MISC') ?: self::catId('MISC'))), 'department' => pSQL(isset($d['department']) ? $d['department'] : 'general'),
             'description' => pSQL($d['description']), 'payee' => pSQL(isset($d['payee']) ? $d['payee'] : ''), 'amount' => (float) $d['amount'], 'tax_amount' => (float) (isset($d['tax_amount']) ? $d['tax_amount'] : 0),
             'payment_method' => pSQL(isset($d['payment_method']) ? $d['payment_method'] : 'cash'), 'reference' => pSQL(isset($d['reference']) ? $d['reference'] : ''), 'receipt_path' => pSQL(isset($d['receipt_path']) ? $d['receipt_path'] : ''),
             'status' => pSQL(isset($d['status']) ? $d['status'] : ((float) $d['amount'] > (float) Configuration::get('PULSE_RPT_APPROVAL_LIMIT') ? 'submitted' : 'approved')),

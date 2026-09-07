@@ -7,7 +7,7 @@ class PulseMaintenance extends Module
 {
     const VERSION = '1.0.0';
     protected $tabs = array('AdminPulseMaintenance' => 'Maintenance', 'AdminPulseMaintenanceAssets' => 'Assets & Parts', 'AdminPulseMaintenancePm' => 'Preventive Maintenance');
-    protected $hooks = array('displayBackOfficeHeader', 'moduleRoutes', 'actionPulseTicketCreated', 'actionPulseHousekeepingTask', 'actionPulseWorkOrder', 'actionPulseWorkOrderStatus');
+    protected $hooks = array('displayBackOfficeHeader', 'moduleRoutes', 'actionPulseTicketCreated', 'actionPulseHousekeepingTask', 'actionPulseWorkOrder', 'actionPulseWorkOrderStatus', 'actionPulseMaintenancePartMove');
 
     public function __construct()
     {
@@ -64,4 +64,5 @@ class PulseMaintenance extends Module
     }
     public function hookActionPulseWorkOrder($p) {}
     public function hookActionPulseWorkOrderStatus($p) {}
+    public function hookActionPulseMaintenancePartMove($p) {}
 }

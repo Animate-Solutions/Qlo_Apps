@@ -121,6 +121,8 @@ class PulseFdService
         $b = self::booking($idBooking);
         if (!$b || (int) $b['id_status'] !== HotelBookingDetail::STATUS_CHECKED_IN) { throw new PrestaShopException('Booking is not in-house'); }
         $folio = PulseFolio::ensureForBooking($b);
+        PulseCoreService::event('actionPulseBeforeCheckOut', array('booking' => $b, 'folio' => $folio, 'id_room' => $b['id_room']));
+        $folio = new PulseFolio((int) $folio->id);
         // late checkout fee
         $lateAfter = PulseCoreService::setting('pulsefrontdesk', 'checkout_time') ?: '12:00';
         if (date('H:i') > $lateAfter && !empty($opts['late_fee']) && (float) $opts['late_fee'] > 0) {

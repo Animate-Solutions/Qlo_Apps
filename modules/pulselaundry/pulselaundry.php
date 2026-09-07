@@ -7,7 +7,7 @@ class PulseLaundry extends Module
 {
     const VERSION = '1.0.0';
     protected $tabs = array('AdminPulseLaundry' => 'Laundry', 'AdminPulseLaundryLinen' => 'Linen & Par Stock', 'AdminPulseLaundrySettings' => 'Laundry Settings');
-    protected $hooks = array('displayBackOfficeHeader', 'moduleRoutes', 'actionPulseCheckOut', 'actionPulseLaundryOrder', 'actionPulseLaundryStatus');
+    protected $hooks = array('displayBackOfficeHeader', 'moduleRoutes', 'actionPulseCheckOut', 'actionPulseLaundryOrder', 'actionPulseLaundryStatus', 'actionPulseBeforeCheckOut');
 
     public function __construct()
     {
@@ -47,12 +47,16 @@ class PulseLaundry extends Module
     public function hookDisplayBackOfficeHeader() { if (strpos($this->context->controller->controller_name, 'AdminPulseLaundry') === 0) { $this->context->controller->addCSS($this->_path.'views/css/laundry.css'); } }
     public function hookModuleRoutes() { return array('pulselaundry-api' => array('controller' => 'api', 'rule' => 'pulse/api/laundry{/:resource}{/:id}', 'keywords' => array('resource' => array('regexp' => '[a-z_]+', 'param' => 'resource'), 'id' => array('regexp' => '[0-9]+', 'param' => 'id')), 'params' => array('fc' => 'module', 'module' => $this->name))); }
 
-    /** Guest checking out with laundry still in process → post it now and alert the desk. */
+    /** Post chargeable guest laundry before the folio closes, then alert the desk after checkout if still in process. */
+    public function hookActionPulseBeforeCheckOut($p)
+    {
+        if (empty($p['booking']['id'])) { return; }
+        foreach (Db::getInstance()->executeS('SELECT id_pulse_laundry_order FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE id_htl_booking='.(int) $p['booking']['id'].' AND type="guest" AND posted_line IS NULL AND complimentary=0 AND total_tax_incl>0 AND status<>"cancelled"') as $o) { PulseLaundryService::postToFolio($o['id_pulse_laundry_order']); }
+    }
     public function hookActionPulseCheckOut($p)
     {
         if (empty($p['booking']['id']) || !empty($p['room_move'])) { return; }
         foreach (Db::getInstance()->executeS('SELECT id_pulse_laundry_order, order_no, status, posted_line FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE id_htl_booking='.(int) $p['booking']['id'].' AND status NOT IN ("delivered","cancelled")') as $o) {
-            if (!$o['posted_line']) { PulseLaundryService::postToFolio($o['id_pulse_laundry_order']); }
             if (class_exists('PulseTrace')) { PulseTrace::add('alert', 'Guest checked out with laundry '.$o['order_no'].' still '.$o['status'], date('Y-m-d H:i:s'), (int) $p['booking']['id'], (int) $p['id_room'], null, 'laundry'); }
         }
     }

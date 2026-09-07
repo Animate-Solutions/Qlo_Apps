@@ -52,6 +52,18 @@ class PulseReservation
         return $c;
     }
 
+    protected static function walkInOrderState()
+    {
+        $configured = (int) Configuration::get('PULSE_FD_WALKIN_ORDER_STATE');
+        $paymentState = (int) Configuration::get('PS_OS_PAYMENT');
+        foreach (array($configured, $paymentState) as $idState) {
+            if ($idState && Validate::isLoadedObject(new OrderState($idState))) { return $idState; }
+        }
+        $fallback = (int) Db::getInstance()->getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC');
+        if ($fallback) { Configuration::updateValue('PULSE_FD_WALKIN_ORDER_STATE', $fallback); }
+        return $fallback;
+    }
+
     /**
      * Create a confirmed reservation. $rooms = [[id_product, id_room|null, adults, children, rate_override|null], ...]
      * $opts: source, day_use(bool), day_use_until, id_group_block, comment, payment_module, order_state, deposit, deposit_method
@@ -88,7 +100,8 @@ class PulseReservation
         $modName = !empty($opts['payment_module']) ? $opts['payment_module'] : (Configuration::get('PULSE_FD_WALKIN_PAYMENT_MODULE') ?: 'bankwire');
         $pm = Module::getInstanceByName($modName);
         if (!$pm || !($pm instanceof PaymentModule)) { throw new PrestaShopException('Payment module "'.$modName.'" not available — set one in Front Desk Settings'); }
-        $state = !empty($opts['order_state']) ? (int) $opts['order_state'] : (int) (Configuration::get('PULSE_FD_WALKIN_ORDER_STATE') ?: Configuration::get('PS_OS_PAYMENT'));
+        $state = !empty($opts['order_state']) ? (int) $opts['order_state'] : self::walkInOrderState();
+        if (!$state) { throw new PrestaShopException('No valid order state is configured for desk reservations'); }
         $pm->validateOrder((int) $cart->id, $state, $cart->getOrderTotal(true, Cart::BOTH), isset($opts['source']) ? 'Front desk ('.$opts['source'].')' : 'Front desk', isset($opts['comment']) ? $opts['comment'] : '', array(), (int) $cart->id_currency, false, $customer->secure_key);
         $idOrder = (int) $pm->currentOrder;
         if (!$idOrder) { throw new PrestaShopException('Order creation failed'); }
