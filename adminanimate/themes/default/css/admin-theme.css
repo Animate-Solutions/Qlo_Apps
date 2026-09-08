@@ -14901,7 +14901,9 @@ a.link-social:hover {
 #nav-sidebar {
   position: fixed;
   width: 210px;
-  height: 100%;
+  top: 36px;
+  height: calc(100vh - 36px);
+  overflow-y: auto;
   z-index: 500;
   background-color: #363a41;
   left: 0;
