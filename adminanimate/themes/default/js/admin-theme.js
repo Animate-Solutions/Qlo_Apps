@@ -308,7 +308,7 @@ $(document).ready(function() {
 	var closingMenu, openingMenu;
 	$('li.maintab.has_submenu').hover(function() {
 		var submenu = $(this);
-		if (submenu.is('.active') && submenu.children('ul.submenu').is(':visible')) {
+		if (submenu.is('.active') && submenu.children('ul.submenu').is(':visible') && !$('#nav-sidebar').length) {
 			return;
 		}
 		clearTimeout(openingMenu);
@@ -318,16 +318,23 @@ $(document).ready(function() {
 			$('ul.submenu.outOfBounds').removeClass('outOfBounds').css('top',0);
 			submenu.addClass('hover');
 			var h = $( window ).height();
-			var x = submenu.find('.submenu li').last().offset();
-			var l = x.top + submenu.find('.submenu li').last().height();
 			var f = 25;
 			if ($('#footer').is(':visible')){
 				f = $('#footer').height() + f;
 			}
+			if ($('#nav-sidebar').length) {
+				var hoverMenu = submenu.find('ul.submenu');
+				var itemRect = submenu[0].getBoundingClientRect();
+				var menuHeight = hoverMenu.outerHeight();
+				var top = Math.max(36, Math.min(itemRect.top, h - menuHeight - f));
+				hoverMenu.css({position: 'fixed', left: itemRect.right, top: top});
+			}
+			var x = submenu.find('.submenu li').last().offset();
+			var l = x.top + submenu.find('.submenu li').last().height();
 			var s = $(document).scrollTop();
 			var position = h - l - f + s;
 			var out = false;
-			if ( position < 0) {
+			if (!$('#nav-sidebar').length && position < 0) {
 				out = true;
 				submenu.find('.submenu').addClass('outOfBounds').css('top', position);
 			}
@@ -336,11 +343,13 @@ $(document).ready(function() {
 		var submenu = $(this);
 		closingMenu = setTimeout(function(){
 			submenu.removeClass('hover');
+			submenu.find('ul.submenu').css({position: '', left: '', top: ''});
 		},250);
 	});
 
 	$('ul.submenu').on('mouseenter', function(){
 		clearTimeout(openingMenu);
+		clearTimeout(closingMenu);
 	});
 
 	//media queries - depends of enquire.js
