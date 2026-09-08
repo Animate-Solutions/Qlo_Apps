@@ -119,6 +119,7 @@ class PulseCore extends Module
                 'AdminPulseFdReports', 'AdminPulseFdSettings',
             )),
             'AdminPulsePos' => array('name' => 'F&B POS', 'children' => array('AdminPulsePosMenu', 'AdminPulsePosInventory', 'AdminPulsePosReports', 'AdminPulsePosSettings')),
+            'AdminPulseInventory' => array('name' => 'Inventory & Stores', 'children' => array('AdminPulseInventoryPurchasing', 'AdminPulseInventoryCounts', 'AdminPulseInventoryMinibar', 'AdminPulseInventoryReports', 'AdminPulseInventorySettings')),
             'AdminPulseReports' => array('name' => 'Reports', 'children' => array('AdminPulseExpenses', 'AdminPulseReportSchedules')),
             'AdminPulseLaundry' => array('name' => 'Laundry', 'children' => array('AdminPulseLaundryLinen', 'AdminPulseLaundrySettings')),
             'AdminPulseMaintenance' => array('name' => 'Maintenance', 'children' => array('AdminPulseMaintenanceAssets', 'AdminPulseMaintenancePm')),
