@@ -1,0 +1,14 @@
+{hotel}
+Payslip for {period}
+
+Dear {firstname},
+
+Your payslip for {period} is ready. Open it here:
+
+{url}
+
+You will be asked for your payslip PIN before it opens - the last four characters of your staff number, unless you have changed it. This link is personal to you; please do not forward it. If you think someone else has seen it, tell the payroll office and they will issue a new one.
+
+{message}
+
+Sent by Pulse Payroll for {hotel}. Please do not reply to this message.

@@ -1,0 +1,15 @@
+.pulse-ch .inline{display:inline} .pulse-ch .ch-filter{margin-bottom:10px} .pulse-ch .ch-detail{background:#fbfbfb;border:1px solid #ddd;padding:10px}
+.pulse-ch .ch-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#bbb;margin-right:4px}
+.pulse-ch .ch-ok{background:#46a74e} .pulse-ch .ch-degraded{background:#f0ad4e} .pulse-ch .ch-down{background:#d9534f} .pulse-ch .ch-unknown{background:#bbb}
+.pulse-ch .ch-bad{background:#d9534f;color:#fff} .pulse-ch .ch-alerttab a{color:#d9534f;font-weight:bold}
+.pulse-ch .ch-unmapped{margin:6px 0 0 18px} .pulse-ch .ch-unmapped li{margin-bottom:3px}
+.pulse-ch .ch-scroll{overflow-x:auto;max-width:100%} .pulse-ch .ch-grid{font-size:11px;margin-bottom:8px} .pulse-ch .ch-grid th,.pulse-ch .ch-grid td{padding:2px 3px;text-align:center;vertical-align:top}
+.pulse-ch .ch-sticky{position:sticky;left:0;background:#fff;text-align:left!important;min-width:150px;z-index:2}
+.pulse-ch .ch-we{background:#f6f6f6} .pulse-ch .ch-cell{min-width:62px;border:1px solid #eee}
+.pulse-ch .ch-cell.ch-stop{background:#fdecea} .pulse-ch .ch-cell.ch-zero{background:#fff6e5} .pulse-ch .ch-cell.ch-dirty{box-shadow:inset 3px 0 0 #337ab7} .pulse-ch .ch-cell.ch-none{background:#fafafa;color:#ccc}
+.pulse-ch .ch-av{font-weight:bold;font-size:12px} .pulse-ch .ch-rate{width:56px;font-size:11px;padding:0 2px;border:1px solid #ddd} .pulse-ch .ch-los{width:22px;font-size:10px;padding:0 1px;border:1px solid #ddd}
+.pulse-ch .ch-badges{font-size:9px;color:#777} .pulse-ch .ch-badges label{font-weight:normal;margin:0 1px} .pulse-ch .ch-badges input{margin:0}
+.pulse-ch .ch-legend{display:inline-block;width:10px;height:10px;border:1px solid #ccc;vertical-align:middle} .pulse-ch .ch-legend.ch-stop{background:#fdecea} .pulse-ch .ch-legend.ch-cta{background:#fff6e5} .pulse-ch .ch-legend.ch-dirty{background:#337ab7}
+.pulse-ch .ch-raw{max-height:260px;overflow:auto;font-size:11px;background:#f7f7f7} .pulse-ch .ch-dow{font-weight:normal;margin-right:6px}
+.pulse-ch .form-control{display:inline-block;width:auto;margin-right:4px;margin-bottom:3px}
+@media print{.noprint,.nav-tabs,#nav-sidebar,#header_infos{display:none!important}}

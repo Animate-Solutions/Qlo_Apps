@@ -1,0 +1,29 @@
+.pulse-crm .inline{display:inline}
+.pulse-crm .input-sm{height:24px;font-size:12px;padding:1px 4px}
+.pulse-crm .form-inline .form-control{margin:0 4px 4px 0}
+.pulse-crm pre.crm-note{white-space:pre-wrap;background:#f7f8fa;border:1px solid #e3e6ea;padding:10px;border-radius:3px;font:13px/1.5 inherit;color:#333}
+.crm-kpis{margin-bottom:12px}
+.crm-kpi{background:#fff;border:1px solid #e3e6ea;border-radius:3px;padding:10px 12px;margin-bottom:10px;min-height:78px}
+.crm-kpi .v{display:block;font-size:22px;font-weight:600;line-height:1.1;color:#00424B}
+.crm-kpi .l{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#7a8794}
+.crm-kpi small{display:block;font-size:11px;color:#9aa4ae;margin-top:2px}
+.crm-bar{background:#eef1f4;height:10px;border-radius:5px;overflow:hidden;min-width:80px}
+.crm-bar span{display:block;height:10px;background:#2c7be5}
+.pulse-crm .badge{font-weight:600}
+.badge.crm-vip{background:#8e44ad}
+.badge.crm-occ{background:#f0a020}
+.badge.crm-det{background:#c0392b}
+.badge.crm-pro{background:#27ae60}
+.badge.crm-tag-default{background:#95a5a6}
+.badge.crm-tag-info{background:#2c7be5}
+.badge.crm-tag-success{background:#27ae60}
+.badge.crm-tag-warning{background:#f0a020}
+.badge.crm-tag-danger{background:#c0392b}
+.badge.crm-st-draft{background:#95a5a6}
+.badge.crm-st-scheduled{background:#2c7be5}
+.badge.crm-st-sending{background:#f0a020}
+.badge.crm-st-paused{background:#7f8c8d}
+.badge.crm-st-sent{background:#27ae60}
+.badge.crm-st-cancelled{background:#c0392b}
+.pulse-crm table.table>tbody>tr>td{vertical-align:middle}
+@media print{.noprint,.nav-tabs,#nav-sidebar,#header_infos,.btn{display:none!important}.tab-pane{display:block!important;opacity:1!important}}

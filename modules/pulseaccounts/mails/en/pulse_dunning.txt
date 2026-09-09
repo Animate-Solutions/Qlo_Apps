@@ -1,0 +1,8 @@
+Statement of account - {company}
+
+Total outstanding: {balance}
+
+The full statement is in the HTML version of this message. If you have already paid,
+please reply with the transfer reference so we can apply it to your account.
+
+Accounts Department

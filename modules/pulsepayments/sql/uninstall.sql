@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_gateway`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_transaction`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_posting`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_log`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_link`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_event`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_terminal`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_terminal_request`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_refund`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_dispute`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_settlement`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_settlement_line`;
+DROP TABLE IF EXISTS `PREFIX_pulse_pay_daily`;

@@ -1,0 +1,16 @@
+.pulse-gp .inline{display:inline}
+.pulse-gp .input-sm{height:24px;font-size:12px;padding:1px 4px}
+.pulse-gp .gp-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#bbb;margin-right:6px}
+.pulse-gp .gp-dot.on{background:#3fa34d} .pulse-gp .gp-dot.off{background:#c1272d} .pulse-gp .gp-dot.pending{background:#e8a33d}
+.pulse-gp .gp-floor{margin-bottom:14px}
+.pulse-gp .gp-devgrid{display:flex;flex-wrap:wrap;gap:6px}
+.pulse-gp .gp-dev{border:1px solid #ddd;border-radius:4px;padding:4px 8px;min-width:96px;font-size:12px;background:#fff}
+.pulse-gp .gp-dev.off{background:#fbe9e9;border-color:#e0b4b4} .pulse-gp .gp-dev.pending{background:#fdf5e6;border-color:#e6cf9c}
+.pulse-gp .gp-swatch{display:inline-block;width:22px;height:22px;border:1px solid #ccc;vertical-align:middle;margin-left:4px}
+.pulse-gp .gp-thumb{max-height:44px;border-radius:3px}
+.pulse-gp .gp-kpi{font-size:26px;font-weight:600;line-height:1.1}
+.pulse-gp .gp-chat{max-height:420px;overflow-y:auto;background:#fafafa;padding:10px;border:1px solid #eee}
+.pulse-gp .gp-b{max-width:70%;padding:6px 10px;border-radius:10px;margin-bottom:8px;display:inline-block;clear:both}
+.pulse-gp .gp-b.guest{background:#eef4f5;float:left} .pulse-gp .gp-b.desk{background:#00424b;color:#fff;float:right}
+.pulse-gp .gp-clear{clear:both}
+@media print{.noprint,.nav-tabs,#nav-sidebar,#header_infos{display:none!important}}

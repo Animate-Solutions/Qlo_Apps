@@ -1,0 +1,45 @@
+/* Pulse Payroll — back office */
+.pulse-pr .pr-tiles { margin: 12px 0 6px; }
+.pulse-pr .pr-tile { background: #fff; border: 1px solid #d6d4d4; border-radius: 3px; padding: 10px 12px; margin-bottom: 8px; min-height: 62px; }
+.pulse-pr .pr-tile.warning { border-left: 4px solid #f0ad4e; }
+.pulse-pr .pr-tile.danger { border-left: 4px solid #d9534f; }
+.pulse-pr .pr-tile .pr-n { display: block; font-size: 18px; font-weight: 600; color: #363a41; line-height: 1.2; }
+.pulse-pr .pr-tile .pr-l { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-top: 2px; }
+
+.pulse-pr .pr-env { font-size: 12px; color: #777; margin: 6px 0 10px; }
+.pulse-pr .pr-env span { display: inline-block; padding: 1px 7px; border-radius: 9px; margin-right: 5px; font-size: 11px; }
+.pulse-pr .pr-env span.on { background: #dff0d8; color: #3c763d; }
+.pulse-pr .pr-env span.off { background: #f2f2f2; color: #aaa; text-decoration: line-through; }
+
+.pulse-pr .pr-status { display: inline-block; padding: 2px 9px; border-radius: 3px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: #eee; color: #666; }
+.pulse-pr .pr-draft { background: #f2f2f2; color: #888; }
+.pulse-pr .pr-calculated { background: #d9edf7; color: #31708f; }
+.pulse-pr .pr-approved { background: #dff0d8; color: #3c763d; }
+.pulse-pr .pr-paid { background: #d0e9c6; color: #2b542c; }
+.pulse-pr .pr-posted { background: #c3e6cb; color: #1d643b; }
+.pulse-pr .pr-cancelled, .pulse-pr .pr-void { background: #f2dede; color: #a94442; }
+.pulse-pr .pr-distributed { background: #d9edf7; color: #31708f; }
+.pulse-pr .pr-applied, .pulse-pr .pr-repaying { background: #fcf8e3; color: #8a6d3b; }
+.pulse-pr .pr-settled { background: #dff0d8; color: #3c763d; }
+
+.pulse-pr .pr-hash code { font-size: 10px; color: #999; }
+.pulse-pr .pr-actions { margin: 10px 0; padding: 10px; background: #fafafa; border: 1px solid #eee; border-radius: 3px; }
+.pulse-pr .pr-actions .btn { margin-right: 6px; }
+.pulse-pr .pr-filter { margin-bottom: 10px; }
+.pulse-pr .pr-filter .form-control, .pulse-pr .pr-actions .form-control { margin-right: 5px; }
+.pulse-pr form.inline { display: inline; }
+
+.pulse-pr table.table { font-size: 12px; }
+.pulse-pr table.table > thead > tr > th { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #777; }
+.pulse-pr .pr-register td, .pulse-pr .pr-register th { white-space: nowrap; padding: 3px 6px; }
+.pulse-pr .pr-ded { background: #fdf7f7; }
+.pulse-pr .pr-payslip .pr-slip-head table td:first-child { color: #888; width: 45%; }
+.pulse-pr .pr-sign { border-bottom: 1px solid #999; min-width: 130px; }
+
+.pulse-pr .help-block { font-size: 11px; color: #999; margin-top: 3px; }
+.pulse-pr .alert ul { margin-bottom: 0; padding-left: 18px; }
+
+@media print {
+  .pulse-pr .nav, .pulse-pr .btn, .pulse-pr form.form-inline, .pulse-pr .pr-actions { display: none !important; }
+  .pulse-pr .pr-print td, .pulse-pr .pr-print th { font-size: 11px; }
+}

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tizen web-app wrapper for the Pulse Guest Portal.
+  The app itself is a thin bootstrapper: it reads the set's MAC through the Tizen system-info API and
+  forwards the browser to /pulse/tv?mac=... on the property server, so the whole portal keeps being served
+  and updated from Pulse rather than baked into a signed package. Change PULSE_SERVER in index.html (or set
+  it once from the hotel's own config server) before packaging.
+  Application id: the first 10 characters are the package id issued by the Tizen certificate you sign with.
+-->
+<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets"
+        id="http://animate.ng/pulseguestportal" version="1.0.0" viewmodes="maximized">
+    <tizen:application id="PulseGpT01.PulseGuestPortal" package="PulseGpT01" required_version="4.0"/>
+    <name>Pulse Guest Portal</name>
+    <description>In-room guest portal for Pulse HMS — The Carvington Hotel &amp; Suites</description>
+    <author email="support@animate.ng" href="https://animate.ng">Animate Solutions Limited</author>
+    <license>Proprietary — Animate Solutions Limited</license>
+    <icon src="icon.png"/>
+    <content src="index.html"/>
+    <tizen:profile name="tv-samsung"/>
+    <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable"
+                   encryption="disable" install-location="auto" hwkey-event="enable"/>
+    <!-- the portal is served over the property LAN, so the app must be allowed to reach it -->
+    <access origin="*" subdomains="true"/>
+    <tizen:allow-navigation>*</tizen:allow-navigation>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/systeminfo"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+</widget>

@@ -1,0 +1,7 @@
+.pulse-pay .inline{display:inline} .pulse-pay .input-sm{height:24px;font-size:12px;padding:1px 4px}
+.pulse-pay .pp-kpi{border:1px solid #ddd;border-radius:3px;padding:8px 12px;margin-bottom:10px;background:#fafafa} .pulse-pay .pp-kpi span{display:block;font-size:11px;text-transform:uppercase;color:#777} .pulse-pay .pp-kpi b{font-size:20px} .pulse-pay .pp-kpi.pp-warn{background:#fcf8e3;border-color:#faebcc}
+.pulse-pay .pp-gw .panel-heading{background:#f6f6f6} .pulse-pay .badge.pp-on{background:#72c279} .pulse-pay .badge.pp-test{background:#f0ad4e}
+.pulse-pay .pp-log pre{max-height:120px;overflow:auto;font-size:10px;white-space:pre-wrap;word-break:break-all;margin:0;border:0;background:transparent}
+.pulse-pay .pp-raw{max-height:260px;overflow:auto;font-size:11px;white-space:pre-wrap;word-break:break-all}
+.pulse-pay .pp-copy{font-family:monospace;font-size:11px}
+@media print{.noprint,.nav-tabs,#nav-sidebar,#header_infos{display:none!important}}

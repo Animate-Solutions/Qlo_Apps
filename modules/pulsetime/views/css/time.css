@@ -1,0 +1,29 @@
+.pulse-ta .input-sm{height:24px;font-size:12px;padding:1px 4px}
+.pulse-ta .ta-tiles{margin:6px 0 4px}
+.pulse-ta .ta-tile{border:1px solid #d6dbe0;border-radius:3px;padding:8px 10px;margin-bottom:8px;background:#fff;text-align:center}
+.pulse-ta .ta-tile .n{display:block;font-size:26px;line-height:1.1;font-weight:600;color:#363a41}
+.pulse-ta .ta-tile .l{display:block;font-size:11px;color:#7a8189;text-transform:uppercase;letter-spacing:.4px}
+.pulse-ta .ta-tile.ta-in{border-color:#4cbb6c;background:#f4fbf6}
+.pulse-ta .ta-tile.ta-in .n{color:#2f8f4b}
+.pulse-ta .ta-tile.ta-warn{border-color:#f0ad4e;background:#fdf8f1}
+.pulse-ta .ta-tile.ta-warn .n{color:#b4761f}
+.pulse-ta .ta-tile.ta-bad{border-color:#d9534f;background:#fdf5f4}
+.pulse-ta .ta-tile.ta-bad .n{color:#b6403c}
+.pulse-ta .ta-dept{margin:16px 0 4px;padding-bottom:3px;border-bottom:1px solid #e3e7ea;font-size:15px}
+.pulse-ta .ta-board td{vertical-align:middle}
+.pulse-ta .badge.ta-late{background:#d9534f}
+.pulse-ta .ta-acts{white-space:nowrap}
+.pulse-ta .ta-acts .btn{margin:0 1px 2px 0}
+.pulse-ta .ta-roster td{padding:2px}
+.pulse-ta .ta-roster th{font-size:11px;text-align:center}
+.pulse-ta .ta-roster th.ta-hol{background:#fdf8f1}
+.pulse-ta .ta-cell{width:78px;font-size:11px;height:24px;padding:1px 2px}
+.pulse-ta .ta-day .panel-heading{padding:6px 10px}
+.pulse-ta .ta-fs{border:1px solid #e3e7ea;border-radius:3px;padding:8px 12px;margin-bottom:12px}
+.pulse-ta .ta-fs legend{font-size:14px;width:auto;padding:0 6px;margin-bottom:6px;border:0}
+.pulse-ta .ta-set{margin-bottom:8px}
+.pulse-ta .ta-set label{font-weight:600;font-size:12px;margin-bottom:2px}
+.pulse-ta .ta-set .help-block{font-size:11px;margin:2px 0 0}
+.pulse-ta pre{font-size:11px;background:#f7f8f9;border:1px solid #e3e7ea}
+.pulse-ta code{font-size:11px}
+@media print{.noprint,.nav-tabs,#nav-sidebar,#header_infos,.ta-acts{display:none!important}}
