@@ -446,7 +446,7 @@ class PulsePrRun
     public static function dashboard()
     {
         $period = date('Y-m');
-        $last = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE status IN ("approved","paid","posted") ORDER BY period DESC, id_pulse_pr_run DESC LIMIT 1');
+        $last = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE status IN ("approved","paid","posted") ORDER BY period DESC, id_pulse_pr_run DESC');
         $open = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE status IN ("draft","calculated","approved") ORDER BY period DESC');
         $heads = Db::getInstance()->getRow('SELECT COUNT(*) total, SUM(status="active") active, SUM(status="probation") probation, SUM(employment_type="casual") casuals, SUM(on_hold=1) on_hold FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status<>"exited"');
         $pack = PulsePrStatutory::pack(PulsePrService::country());

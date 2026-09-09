@@ -170,7 +170,7 @@ class PulseGpRequest
     public static function queue($status = 'new,ack,in_progress', $date = null)
     {
         $st = '"'.implode('","', array_map('pSQL', explode(',', $status))).'"';
-        $hasTickets = (bool) Db::getInstance()->getValue('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_ticket"');
+        $hasTickets = (bool) Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_ticket"');
         return Db::getInstance()->executeS('SELECT r.*'.($hasTickets ? ', t.status ticket_status, t.ticket_no' : ', NULL ticket_status, NULL ticket_no').'
             FROM `'._DB_PREFIX_.'pulse_gp_request` r '.($hasTickets ? 'LEFT JOIN `'._DB_PREFIX_.'pulse_ticket` t ON t.id_pulse_ticket=r.id_pulse_ticket ' : '').'
             WHERE r.status IN ('.$st.')'.($date ? ' AND r.business_date="'.pSQL($date).'"' : '').' ORDER BY FIELD(r.status,"new","ack","in_progress"), r.id_pulse_gp_request DESC LIMIT 200');

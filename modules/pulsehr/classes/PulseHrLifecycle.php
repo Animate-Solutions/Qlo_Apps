@@ -153,7 +153,7 @@ class PulseHrLifecycle
                 if (!$e['id_employee']) { throw new PrestaShopException('Key cards are held against a back-office user — link '.$e['firstname'].' to an employee login first'); }
                 $idGroup = (int) (isset($p['id_group']) ? $p['id_group'] : PulseHrService::cfg('KC_GROUP_'.Tools::strtoupper((string) $e['dept_code']), 0));
                 if (!$idGroup) {
-                    $idGroup = (int) Db::getInstance()->getValue('SELECT id_pulse_kc_staff_group FROM `'._DB_PREFIX_.'pulse_kc_staff_group` WHERE active=1 AND department="'.pSQL((string) $e['dept_code']).'" ORDER BY is_master LIMIT 1');
+                    $idGroup = (int) Db::getInstance()->getValue('SELECT id_pulse_kc_staff_group FROM `'._DB_PREFIX_.'pulse_kc_staff_group` WHERE active=1 AND department="'.pSQL((string) $e['dept_code']).'" ORDER BY is_master');
                 }
                 if (!$idGroup) { throw new PrestaShopException('No key card access group matches '.$e['dept_name'].' — create one in Key Cards ▸ Staff first'); }
                 return 'key:'.(int) PulseKcStaff::issueCard((int) $e['id_employee'], $idGroup);

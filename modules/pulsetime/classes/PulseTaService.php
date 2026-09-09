@@ -20,7 +20,7 @@ class PulseTaService
     public static function tableExists($t)
     {
         static $cache = array();
-        if (!isset($cache[$t])) { $cache[$t] = (bool) Db::getInstance()->getValue('SHOW TABLES LIKE "'._DB_PREFIX_.pSQL($t).'"'); }
+        if (!isset($cache[$t])) { $cache[$t] = (bool) Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.pSQL($t).'"'); }
         return $cache[$t];
     }
 

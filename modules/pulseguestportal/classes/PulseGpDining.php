@@ -11,7 +11,7 @@ class PulseGpDining
     {
         $id = (int) PulseGpService::cfg('ORDER_OUTLET', 0);
         if ($id && Db::getInstance()->getValue('SELECT id_pulse_pos_outlet FROM `'._DB_PREFIX_.'pulse_pos_outlet` WHERE id_pulse_pos_outlet='.$id.' AND active=1')) { return $id; }
-        return (int) Db::getInstance()->getValue('SELECT id_pulse_pos_outlet FROM `'._DB_PREFIX_.'pulse_pos_outlet` WHERE type="room_service" AND active=1 ORDER BY id_pulse_pos_outlet LIMIT 1');
+        return (int) Db::getInstance()->getValue('SELECT id_pulse_pos_outlet FROM `'._DB_PREFIX_.'pulse_pos_outlet` WHERE type="room_service" AND active=1 ORDER BY id_pulse_pos_outlet');
     }
 
     /**
@@ -63,8 +63,8 @@ class PulseGpDining
         if (!$lines) { throw new PrestaShopException('Your tray is empty', 400); }
         $o = self::outlet();
         if (!$o) { throw new PrestaShopException('No room-service outlet is configured', 503); }
-        $emp = (int) Db::getInstance()->getValue('SELECT id_employee FROM `'._DB_PREFIX_.'pulse_pos_staff` WHERE role="manager" AND active=1 ORDER BY id_employee LIMIT 1');
-        if (!$emp) { $emp = (int) Db::getInstance()->getValue('SELECT id_employee FROM `'._DB_PREFIX_.'pulse_pos_staff` WHERE active=1 ORDER BY id_employee LIMIT 1'); }
+        $emp = (int) Db::getInstance()->getValue('SELECT id_employee FROM `'._DB_PREFIX_.'pulse_pos_staff` WHERE role="manager" AND active=1 ORDER BY id_employee');
+        if (!$emp) { $emp = (int) Db::getInstance()->getValue('SELECT id_employee FROM `'._DB_PREFIX_.'pulse_pos_staff` WHERE active=1 ORDER BY id_employee'); }
         if (!$emp) { throw new PrestaShopException('No POS user is configured to take portal orders', 503); }
         $now = date('Y-m-d H:i:s');
         Db::getInstance()->insert('pulse_gp_order', array('client_id' => pSQL($clientId), 'id_pulse_gp_device' => (int) $device['id_pulse_gp_device'],

@@ -26,7 +26,7 @@ class PulseHrService
     public static function tableExists($table)
     {
         static $seen = array();
-        if (!isset($seen[$table])) { $seen[$table] = (bool) Db::getInstance()->getValue('SHOW TABLES LIKE "'._DB_PREFIX_.pSQL($table).'"'); }
+        if (!isset($seen[$table])) { $seen[$table] = (bool) Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.pSQL($table).'"'); }
         return $seen[$table];
     }
 

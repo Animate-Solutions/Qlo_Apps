@@ -153,7 +153,7 @@ class PulseGpService
             INNER JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer
             LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room
             WHERE b.id='.(int) $idBooking);
-        if ($b && Db::getInstance()->getValue('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_guest_profile"')) { $b['vip_level'] = (int) Db::getInstance()->getValue('SELECT vip_level FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.(int) $b['id_customer']); }
+        if ($b && Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_guest_profile"')) { $b['vip_level'] = (int) Db::getInstance()->getValue('SELECT vip_level FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.(int) $b['id_customer']); }
         return $b;
     }
 

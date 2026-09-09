@@ -42,7 +42,7 @@ class PulseGuestPortal extends Module
             'PULSE_GP_HTTP_TIMEOUT' => 6, 'PULSE_GP_LAUNDRY_API' => '', 'PULSE_GP_API_TOKEN' => '', 'PULSE_GP_SECRET' => Tools::passwdGen(48), 'PULSE_GP_CRON_TOKEN' => Tools::passwdGen(32),
         ) as $k => $v) { Configuration::updateValue($k, $v); }
         // paid VOD needs a charge code, but only Front Desk owns that table — the portal installs standalone
-        if (Db::getInstance()->getValue('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_charge_code"')) {
+        if (Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_charge_code"')) {
             Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES ("VOD","In-room Movie","misc",0,7.5,0)');
         }
         return true;
@@ -61,8 +61,13 @@ class PulseGuestPortal extends Module
 
     protected function runSql($f)
     {
-        $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/'.$f.'.sql'));
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (strpos($q, '--') !== 0 && !Db::getInstance()->execute($q)) { return false; } }
+        $path = dirname(__FILE__).'/sql/'.$f.'.sql';
+        if (!file_exists($path)) { return true; }
+        $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents($path));
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) {
+            if ($q !== '' && !Db::getInstance()->execute($q)) { return false; }
+        }
         return true;
     }
 

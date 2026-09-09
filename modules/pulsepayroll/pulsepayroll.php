@@ -64,8 +64,13 @@ class PulsePayroll extends Module
 
     protected function runSql($f)
     {
-        $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/'.$f.'.sql'));
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (strpos($q, '--') !== 0 && !Db::getInstance()->execute($q)) { return false; } }
+        $path = dirname(__FILE__).'/sql/'.$f.'.sql';
+        if (!file_exists($path)) { return true; }
+        $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents($path));
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) {
+            if ($q !== '' && !Db::getInstance()->execute($q)) { return false; }
+        }
         return true;
     }
 
