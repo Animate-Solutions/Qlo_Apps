@@ -89,7 +89,7 @@ class PulseHrReport
             $day = date('Y-m-d', $d);
             $hours = 0;
             if (PulseHrService::ta() && PulseHrService::tableExists('pulse_ta_timesheet')) {
-                $hours = (float) Db::getInstance()->getValue('SELECT COALESCE(SUM(worked_minutes),0)/60 FROM `'._DB_PREFIX_.'pulse_ta_timesheet` WHERE business_date="'.pSQL($day).'"'.($dept ? ' AND department="'.pSQL($dept).'"' : ''));
+                $hours = (float) Db::getInstance()->getValue('SELECT COALESCE(SUM(worked_hours),0) FROM `'._DB_PREFIX_.'pulse_ta_timesheet` WHERE business_date="'.pSQL($day).'"');
                 if ($hours > 0) { $source = 'timesheets'; }
             }
             if ($hours <= 0) {
