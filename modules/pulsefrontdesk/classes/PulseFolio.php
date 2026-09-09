@@ -132,7 +132,7 @@ class PulseFolio extends ObjectModel
         $c = new Currency($cur); $rate = (float) $c->conversion_rate; // shop currency = 1
         $amountShop = round($amountForeign / $rate, 2);
         $id = $this->post($code, $description.' ['.$isoCode.' '.number_format($amountForeign, 2).' @ '.$rate.']', 1, $amountShop, 0, true, $paymentMethod);
-        Db::getInstance()->update('pulse_folio_line', array('currency_iso' => pSQL($isoCode), 'amount_foreign' => (float) $amountForeign, 'conversion_rate' => $rate), 'id_pulse_folio_line='.(int) $id);
+        Db::getInstance()->update('pulse_folio_line', array('currency_iso' => pSQL($isoCode), 'foreign_amount' => (float) $amountForeign, 'exchange_rate' => $rate), 'id_pulse_folio_line='.(int) $id);
         return $id;
     }
 

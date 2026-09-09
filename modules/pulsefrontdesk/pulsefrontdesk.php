@@ -98,11 +98,13 @@ class PulseFrontDesk extends Module
 
     protected function runSql($file)
     {
-        $sql = Tools::file_get_contents(dirname(__FILE__).'/sql/'.$file.'.sql');
+        $path = dirname(__FILE__).'/sql/'.$file.'.sql';
+        if (!file_exists($path)) { return true; }
+        $sql = Tools::file_get_contents($path);
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), $sql);
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
         foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) {
-            if (strpos($q, '--') === 0) { continue; }
-            if (!Db::getInstance()->execute($q)) { return false; }
+            if ($q !== '' && !Db::getInstance()->execute($q)) { return false; }
         }
         return true;
     }
