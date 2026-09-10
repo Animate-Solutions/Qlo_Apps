@@ -12,7 +12,7 @@
 				<li class="maintab {if $t.current}active{/if} {if $t.sub_tabs|@count}has_submenu{/if}" id="maintab-{$t.class_name}" data-submenu="{$t.id_tab}">
 					<a href="{if $t.sub_tabs|@count && isset($t.sub_tabs[0].href)}{$t.sub_tabs[0].href|escape:'html':'UTF-8'}{else}{$t.href|escape:'html':'UTF-8'}{/if}" class="title" >
 						{if $t.class_name == 'AdminPulseCore'}<i class="icon-cogs"></i>
-						{elseif $t.class_name == 'AdminPulseLicense'}<i class="icon-key"></i>
+						{* {elseif $t.class_name == 'AdminPulseLicense'}<i class="icon-key"></i> *}
 						{elseif $t.class_name == 'AdminPulseFdDashboard'}<i class="icon-home"></i>
 						{elseif $t.class_name == 'AdminPulsePos'}<i class="icon-cutlery"></i>
 						{elseif $t.class_name == 'AdminPulseInventory'}<i class="icon-archive"></i>
