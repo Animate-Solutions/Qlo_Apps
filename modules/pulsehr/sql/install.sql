@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_department` (
   `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id_pulse_hr_department`), UNIQUE KEY `code` (`code`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
-
+3
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_section` (
   `id_pulse_hr_section` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_hr_department` INT UNSIGNED NOT NULL, `code` VARCHAR(32) NOT NULL, `name` VARCHAR(64) NOT NULL,
   `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_section`), UNIQUE KEY `code` (`code`), KEY `dept` (`id_pulse_hr_department`)
