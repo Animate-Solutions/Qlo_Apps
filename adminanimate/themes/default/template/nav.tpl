@@ -19,6 +19,15 @@
 						{elseif $t.class_name == 'AdminPulseReports'}<i class="icon-bar-chart"></i>
 						{elseif $t.class_name == 'AdminPulseLaundry'}<i class="icon-tint"></i>
 						{elseif $t.class_name == 'AdminPulseMaintenance'}<i class="icon-wrench"></i>
+						{elseif $t.class_name == 'AdminPulseGuestPortal'}<i class="icon-user"></i>
+						{elseif $t.class_name == 'AdminPulseHr'}<i class="icon-briefcase"></i>
+						{elseif $t.class_name == 'AdminPulseTaBoard'}<i class="icon-time"></i>
+						{elseif $t.class_name == 'AdminPulseCrm'}<i class="icon-comments"></i>
+						{elseif $t.class_name == 'AdminPulsePrPayroll'}<i class="icon-usd"></i>
+						{elseif $t.class_name == 'AdminPulsePayments'}<i class="icon-credit-card"></i>
+						{elseif $t.class_name == 'AdminPulseChannel'}<i class="icon-random"></i>
+						{elseif $t.class_name == 'AdminPulseKeycard'}<i class="icon-unlock-alt"></i>
+						{elseif $t.class_name == 'AdminPulseAccounts'}<i class="icon-calculator"></i>
 						{else}<i class="icon-{$t.class_name}"></i>{/if}
 						<span>{if $t.name eq ''}{$t.class_name|escape:'html':'UTF-8'}{else}{$t.name|escape:'html':'UTF-8'}{/if}</span>
 					</a>

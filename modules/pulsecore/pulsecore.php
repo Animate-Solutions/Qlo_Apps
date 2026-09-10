@@ -123,6 +123,16 @@ class PulseCore extends Module
             'AdminPulseReports' => array('name' => 'Reports', 'children' => array('AdminPulseExpenses', 'AdminPulseReportSchedules')),
             'AdminPulseLaundry' => array('name' => 'Laundry', 'children' => array('AdminPulseLaundryLinen', 'AdminPulseLaundrySettings')),
             'AdminPulseMaintenance' => array('name' => 'Maintenance', 'children' => array('AdminPulseMaintenanceAssets', 'AdminPulseMaintenancePm')),
+            'AdminPulseGuestPortal' => array('name' => 'Guest Portal', 'children' => array('AdminPulseGuestPortalDevices', 'AdminPulseGuestPortalContent', 'AdminPulseGuestPortalChannels', 'AdminPulseGuestPortalMessages', 'AdminPulseGuestPortalSettings')),
+            'AdminPulseHr' => array('name' => 'HR', 'children' => array('AdminPulseHrEmployees', 'AdminPulseHrOrg', 'AdminPulseHrLeave', 'AdminPulseHrRoster', 'AdminPulseHrLifecycle', 'AdminPulseHrPerformance', 'AdminPulseHrReports', 'AdminPulseHrSettings')),
+            'AdminPulseTaBoard' => array('name' => 'Live Board', 'children' =>  array('AdminPulseTaExceptions', 'AdminPulseTaTimesheets', 'AdminPulseTaDevices', 'AdminPulseTaEnrolment', 'AdminPulseTaOvertime', 'AdminPulseTaSettings')),
+            'AdminPulseCrm' => array('name' => 'CRM', 'children' => array('AdminPulseCrmGuests', 'AdminPulseCrmSegments', 'AdminPulseCrmCampaigns', 'AdminPulseCrmJourneys', 'AdminPulseCrmLoyalty', 'AdminPulseCrmSurveys', 'AdminPulseCrmCases', 'AdminPulseCrmReviews', 'AdminPulseCrmCorporate', 'AdminPulseCrmSettings')),
+            'AdminPulsePrPayroll' => array('name' => 'Payroll', 'children' => array('AdminPulsePrEmployees', 'AdminPulsePrElements', 'AdminPulsePrCasual', 'AdminPulsePrTronc', 'AdminPulsePrLoans', 'AdminPulsePrStatutory', 'AdminPulsePrReports', 'AdminPulsePrSettings')),
+            'AdminPulsePayments' => array('name' => 'Payments', 'children' => array('AdminPulsePayTransactions', 'AdminPulsePayLinks', 'AdminPulsePayRecon', 'AdminPulsePaySettings')),
+            'AdminPulseChannel' => array('name' => 'Channel Manager', 'children' => array('AdminPulseChannelAri', 'AdminPulseChannelMapping', 'AdminPulseChannelReservations', 'AdminPulseChannelLogs', 'AdminPulseChannelSettings')),
+            'AdminPulseKeycard' => array('name' => 'Key Desk', 'children' => array('AdminPulseKeycardKeys', 'AdminPulseKeycardEncoders', 'AdminPulseKeycardAudit', 'AdminPulseKeycardStaff', 'AdminPulseKeycardSettings')),
+            'AdminPulseAccounts' => array('name' => 'Accounts', 'children' => array('AdminPulseAccCoa', 'AdminPulseAccJournals', 'AdminPulseAccAr', 'AdminPulseAccAp', 'AdminPulseAccTax', 'AdminPulseAccBank', 'AdminPulseAccAssets', 'AdminPulseAccReports', 'AdminPulseAccSettings'))
+
         );
         $position = 0;
         foreach ($navigation as $parentClass => $definition) {

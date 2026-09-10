@@ -1,0 +1,25 @@
+/* Pulse HR — back office. Dense tables, a roster grid that fits a week on one screen, print-clean. */
+.pulse-hr .inline{display:inline}
+.pulse-hr .input-sm{height:24px;font-size:12px;padding:1px 4px}
+.pulse-hr .kpi{display:inline-block;min-width:120px;margin:0 12px 8px 0;padding:8px 12px;background:#f7f9fa;border-left:3px solid #00424b;border-radius:2px}
+.pulse-hr .kpi b{display:block;font-size:22px;line-height:1.1}
+.pulse-hr .kpi span{font-size:11px;color:#7a8b99;text-transform:uppercase;letter-spacing:.03em}
+.pulse-hr .kpi.warn{border-left-color:#f0ad4e} .pulse-hr .kpi.bad{border-left-color:#c9302c} .pulse-hr .kpi.ok{border-left-color:#5cb85c}
+.pulse-hr table.roster{table-layout:fixed;width:100%}
+.pulse-hr table.roster th{font-size:11px;text-align:center}
+.pulse-hr table.roster td{padding:2px;vertical-align:middle}
+.pulse-hr table.roster td.name{text-align:left;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pulse-hr table.roster select{width:100%;height:24px;font-size:11px;padding:0 2px}
+.pulse-hr table.roster td.leave{background:#fcf3e3;font-size:10px;text-align:center;color:#8a6100}
+.pulse-hr .cover{font-size:11px;text-align:center;padding:2px}
+.pulse-hr .cover.short{background:#f2dede;color:#a94442;font-weight:700}
+.pulse-hr .cover.ok{background:#dff0d8;color:#3c763d}
+.pulse-hr .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.pulse-hr .org li{list-style:none} .pulse-hr .org .d0{font-weight:700}
+.pulse-hr .timeline{border-left:2px solid #dde3e9;margin-left:8px;padding-left:12px}
+.pulse-hr .timeline .v{position:relative;padding:6px 0}
+.pulse-hr .timeline .v:before{content:"";position:absolute;left:-19px;top:12px;width:10px;height:10px;border-radius:50%;background:#00424b}
+.pulse-hr .timeline .v.superseded:before{background:#c2ccd4}
+.pulse-hr .muted{color:#7a8b99}
+.pulse-hr .flag{font-family:monospace;font-size:11px}
+@media print{.noprint,.nav-tabs,#nav-sidebar,#header_infos,.hr-actions{display:none!important}}

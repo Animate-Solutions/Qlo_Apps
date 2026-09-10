@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920,height=1080,initial-scale=1">
+<title>Pulse Guest Portal</title>
+<style>
+  html,body{margin:0;height:100%;background:#00424B;color:#F1E9E1;font-family:Inter,Arial,sans-serif}
+  .wrap{height:100%;display:flex;align-items:center;justify-content:center;text-align:center}
+  h1{font-family:Georgia,serif;font-size:56px;margin:0 0 12px}
+  p{font-size:24px;opacity:.75;margin:6px}
+  code{font-size:20px;opacity:.6}
+</style>
+</head>
+<body>
+<div class="wrap"><div>
+  <h1 id="hotel">The Carvington Hotel &amp; Suites</h1>
+  <p id="msg">Starting your screen…</p>
+  <p><code id="detail"></code></p>
+</div></div>
+<script>
+/* Pulse Guest Portal — Tizen bootstrapper.
+   One job: work out this set's identity and hand over to the portal on the property server. Nothing about a
+   guest lives in this package, so a stolen or re-imaged TV carries no data, and the portal can be changed on
+   the server without re-signing and re-installing 52 sets.
+
+   PULSE_SERVER  the property server, no trailing slash. Set it here before packaging, or leave the default
+                 and let the TV pick it up from the hotel's DHCP option 66 / config server if you have one. */
+var PULSE_SERVER = 'https://pms.carvington.local';
+var PORTAL_PATH = '/pulse/tv';
+
+function detail(t) { document.getElementById('detail').textContent = t; }
+function fail(t) { document.getElementById('msg').textContent = t; }
+
+function mac() {
+  try {
+    if (window.webapis && webapis.network && webapis.network.getMac) { return webapis.network.getMac(); }
+  } catch (e) {}
+  try {
+    if (window.tizen && tizen.systeminfo) {
+      var p = tizen.systeminfo.getCapability('http://tizen.org/system/tizenid');
+      if (p) { return p; }
+    }
+  } catch (e) {}
+  return '';
+}
+function duid() {
+  try { if (window.webapis && webapis.productinfo && webapis.productinfo.getDuid) { return webapis.productinfo.getDuid(); } } catch (e) {}
+  return '';
+}
+function model() {
+  try { if (window.webapis && webapis.productinfo && webapis.productinfo.getModel) { return webapis.productinfo.getModel(); } } catch (e) {}
+  return '';
+}
+function firmware() {
+  try { if (window.webapis && webapis.productinfo && webapis.productinfo.getFirmware) { return webapis.productinfo.getFirmware(); } } catch (e) {}
+  return '';
+}
+
+function go() {
+  var m = mac(), d = duid();
+  if (!m && !d) { fail('This set did not report a MAC address — pair it by serial at the front desk.'); }
+  detail((m || d) + (model() ? ' · ' + model() : ''));
+  var url = PULSE_SERVER + PORTAL_PATH + '?mac=' + encodeURIComponent(m) + '&serial=' + encodeURIComponent(d)
+    + '&model=' + encodeURIComponent(model()) + '&fw=' + encodeURIComponent(firmware()) + '&type=tv';
+  setTimeout(function () { window.location.replace(url); }, 600);
+}
+
+/* the remote's Return key must not drop the guest out of the app into the TV menu */
+document.addEventListener('keydown', function (e) { if (e.keyCode === 10009) { e.preventDefault(); } });
+/* if the LAN is not up yet at boot, keep trying rather than leaving a dead screen */
+window.addEventListener('error', function () { setTimeout(go, 5000); });
+window.onload = go;
+</script>
+</body>
+</html>

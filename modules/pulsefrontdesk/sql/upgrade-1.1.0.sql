@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pabx_log` (
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 -- multi-currency on folios (settlement currency captured per line; folio kept in shop currency)
-ALTER TABLE `PREFIX_pulse_folio_line` ADD COLUMN `currency_iso` CHAR(3) DEFAULT NULL, ADD COLUMN `amount_foreign` DECIMAL(20,6) DEFAULT NULL, ADD COLUMN `conversion_rate` DECIMAL(13,6) DEFAULT NULL;
+ALTER TABLE `PREFIX_pulse_folio_line` ADD COLUMN `currency_iso` CHAR(3) DEFAULT NULL, ADD COLUMN `foreign_amount` DECIMAL(20,6) DEFAULT NULL, ADD COLUMN `exchange_rate` DECIMAL(13,6) DEFAULT NULL;
 
 INSERT IGNORE INTO `PREFIX_pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES
 ('UPG','Room Upgrade','rooms',0,7.5,0),('ECI','Early Check-in','rooms',0,7.5,0),('DAYUSE','Day Use','rooms',0,7.5,0),

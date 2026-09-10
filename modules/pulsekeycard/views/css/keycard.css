@@ -1,0 +1,12 @@
+.pulse-kc .kpis{margin:0 0 12px}.pulse-kc .kpis div{text-align:center;padding:8px;border-right:1px solid #eee}.pulse-kc .kpis span{display:block;font-size:22px;font-weight:600}
+.pulse-kc .inline{display:inline}.pulse-kc .input-sm{height:24px;font-size:12px;padding:1px 4px}
+.pulse-kc .kc-search{margin:10px 0}.pulse-kc .kc-search .input-lg{width:340px;font-size:20px}
+.pulse-kc .kc-room{font-size:18px;font-weight:700}
+.pulse-kc .kc-results tr.info td{background:#e8f3fb}
+.pulse-kc .kc-issue .btn-lg{font-size:18px;padding:14px}
+.pulse-kc .kc-actions form{white-space:nowrap}.pulse-kc .kc-actions .btn{margin-right:2px}
+.pulse-kc .kc-fallback,.pulse-kc .kc-mobile{margin-top:8px}
+.pulse-kc .kc-filters{margin-bottom:8px}.pulse-kc .kc-filters .form-control{margin-right:4px}
+.pulse-kc .kc-cron{font-size:11px;word-break:break-all;white-space:pre-wrap}
+.pulse-kc code{font-size:11px}
+@media print{.noprint,.nav-tabs,#nav-sidebar,#header_infos,.kc-actions{display:none!important}}
