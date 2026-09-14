@@ -32,7 +32,7 @@ class PulseFrontDesk extends Module
 
     protected $hooks = array(
         'displayBackOfficeHeader', 'displayAdminOrderContentOrder', 'actionOrderStatusPostUpdate',
-        'actionObjectHotelBookingDetailAddAfter', 'actionObjectHotelRoomInformationAddAfter',
+        'actionObjectHotelBookingDetailAddAfter', 'actionObjectHotelRoomInformationAddAfter', 'displayBackOfficeFooter',
         // raised by this module (registered so other modules can listen)
         'actionPulseRoomStatusChange', 'actionPulseFolioPost', 'actionPulseCheckIn', 'actionPulseCheckOut',
         'actionPulseRoomMove', 'actionPulseNoShow', 'actionPulseHousekeepingTask', 'actionPulseNightAuditClosed', 'actionPulseStayChanged', 'actionPulseTicketCreated', 'actionPulseBeforeCheckOut', 'moduleRoutes',
@@ -129,6 +129,13 @@ class PulseFrontDesk extends Module
     /* ---------------- hooks ---------------- */
 
     public function hookDisplayBackOfficeHeader()
+    {
+        if (strpos($this->context->controller->controller_name, 'AdminPulse') === 0) {
+            $this->context->controller->addCSS($this->_path.'views/css/frontdesk.css');
+        }
+    }
+
+    public function hookDisplayBackOfficeFooter()
     {
         if (strpos($this->context->controller->controller_name, 'AdminPulse') === 0) {
             $this->context->controller->addCSS($this->_path.'views/css/frontdesk.css');
