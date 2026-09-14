@@ -1,3 +1,9 @@
+(function () {
+  if (typeof jQuery === 'undefined') {
+    return setTimeout(arguments.callee, 50);
+  }
+  var s = document.createElement('script');
+  s.text = '/* placeholder */';
 /* Minimal signature pad: <canvas class="sig-pad" data-target="#inputId"> */
 (function ($) {
   function init(c) {
@@ -15,3 +21,4 @@
   $(document).on('click', '.sig-clear', function () { var f = $($(this).data('pad')).data('clear'); if (f) f(); });
   window.pulseInitSignature = function (sel) { $(sel).each(function () { if (!$(this).data('clear')) init(this); }); };
 })(jQuery);
+})();

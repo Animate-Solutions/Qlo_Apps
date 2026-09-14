@@ -1,3 +1,9 @@
+(function () {
+  if (typeof jQuery === 'undefined') {
+    return setTimeout(arguments.callee, 50);
+  }
+  var s = document.createElement('script');
+  s.text = '/* placeholder */';
 /* Pulse Tape Chart — rooms × dates with drag/drop and resize */
 (function ($) {
   var $c = $('#tape-chart'); if (!$c.length) return;
@@ -59,3 +65,4 @@
   $('#tc-start,#tc-days').change(load); $('#tc-prev').click(function () { $('#tc-start').val(addDays($('#tc-start').val(), -7)); load(); }); $('#tc-next').click(function () { $('#tc-start').val(addDays($('#tc-start').val(), 7)); load(); }); $('#tc-today').click(function () { $('#tc-start').val($c.data('start')); load(); });
   load();
 })(jQuery);
+})();
