@@ -132,13 +132,6 @@ class PulseFrontDesk extends Module
     {
         if (strpos($this->context->controller->controller_name, 'AdminPulse') === 0) {
             $this->context->controller->addCSS($this->_path.'views/css/frontdesk.css');
-        }
-    }
-
-    public function hookDisplayBackOfficeFooter()
-    {
-        if (strpos($this->context->controller->controller_name, 'AdminPulse') === 0) {
-            $this->context->controller->addCSS($this->_path.'views/css/frontdesk.css');
             $this->context->controller->addJS($this->_path.'views/js/frontdesk.js');
             $this->context->controller->addJS($this->_path.'views/js/tapechart.js');
             $this->context->controller->addJS($this->_path.'views/js/signature.js');

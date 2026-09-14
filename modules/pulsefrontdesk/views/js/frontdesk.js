@@ -1,3 +1,11 @@
+(function () {
+  if (typeof jQuery === 'undefined') {
+    return setTimeout(arguments.callee, 50);
+  }
+  var s = document.createElement('script');
+  s.text = '/* placeholder */';
+  // jQuery now exists — redefine $ and run the rest of the file
+  window.$ = window.jQuery;
 /* Pulse Front Desk — room board & check-in/out actions (jQuery from PrestaShop BO) */
 (function ($) {
   $(function () {
@@ -541,3 +549,4 @@
   });
   });
 })(jQuery);
+})();
