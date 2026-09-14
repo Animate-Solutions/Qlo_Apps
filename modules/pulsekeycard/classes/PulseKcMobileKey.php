@@ -61,14 +61,14 @@ class PulseKcMobileKey
 
         $token = hash('sha256', uniqid('mk', true).Tools::passwdGen(24));
         $fp = !empty($o['device_id']) ? self::fingerprint($o['device_id'], isset($o['ua']) ? $o['ua'] : '') : null;
-        Db::getInstance()->insert(self::T, array(
+        PulseDb::insert(self::T, array(
             'id_pulse_kc_key' => (int) $idKey, 'id_htl_booking' => $idBooking ? (int) $idBooking : null, 'id_customer' => $b ? (int) $b['id_customer'] : (!empty($o['id_customer']) ? (int) $o['id_customer'] : null),
             'token' => pSQL($token), 'credential_enc' => '', 'credential_exp' => date('Y-m-d H:i:s'),
             'channel' => pSQL(isset($o['channel']) ? $o['channel'] : 'both'), 'device_fingerprint' => $fp ? pSQL($fp) : null, 'device_label' => pSQL(Tools::substr((string) (isset($o['device_label']) ? $o['device_label'] : ''), 0, 96)),
             'device_bound_at' => $fp ? date('Y-m-d H:i:s') : null, 'valid_from' => pSQL($from), 'valid_to' => pSQL($to), 'status' => 'issued',
             'business_date' => PulseKcService::bd(), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         ));
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         self::mint($id);
         PulseCoreService::audit('pulsekeycard', 'mobile_key_issue', array('id_key' => $idKey, 'rooms' => PulseKcKey::roomNumbers($rooms), 'valid_to' => $to, 'channel' => isset($o['channel']) ? $o['channel'] : 'both'), self::T, $id);
         if (!isset($o['deliver']) || $o['deliver']) { self::deliver($id); }
@@ -92,7 +92,7 @@ class PulseKcMobileKey
             'db' => $k ? (int) $k['override_deadbolt'] : 0, 'dnd' => $k ? (int) $k['override_dnd'] : 0,
             'dev' => $fingerprint ? $fingerprint : $m['device_fingerprint'], 'nonce' => bin2hex(substr(hash('sha256', uniqid('n', true), true), 0, 8)), 'iat' => time());
         $cred = self::sign($claims);
-        Db::getInstance()->update(self::T, array('credential_enc' => pSQL(PulseCoreService::encrypt($cred), true), 'credential_exp' => date('Y-m-d H:i:s', $exp),
+        PulseDb::update(self::T, array('credential_enc' => pSQL(PulseCoreService::encrypt($cred), true), 'credential_exp' => date('Y-m-d H:i:s', $exp),
             'status' => 'active', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $id);
         $m['credential'] = $cred; $m['credential_exp'] = date('Y-m-d H:i:s', $exp); $m['status'] = 'active';
         return $m;
@@ -104,7 +104,7 @@ class PulseKcMobileKey
      */
     public static function fetch($token, $deviceId = null, $ua = '', $ip = null)
     {
-        $m = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE token="'.pSQL($token).'"');
+        $m = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE token="'.pSQL($token).'"');
         if (!$m) { throw new PrestaShopException('Unknown mobile key', 404); }
         if ($m['status'] === 'revoked') { throw new PrestaShopException('This key has been revoked', 403); }
         if (strtotime($m['valid_to']) < time()) { self::setStatus((int) $m['id_pulse_kc_mobile_key'], 'expired'); throw new PrestaShopException('This key has expired', 403); }
@@ -116,23 +116,23 @@ class PulseKcMobileKey
             throw new PrestaShopException('This key is bound to another device — ask the front desk to re-issue it', 403);
         }
         if (!$m['device_fingerprint'] && $fp) {
-            Db::getInstance()->update(self::T, array('device_fingerprint' => pSQL($fp), 'device_bound_at' => date('Y-m-d H:i:s'), 'device_label' => pSQL(Tools::substr((string) $ua, 0, 96))), 'id_pulse_kc_mobile_key='.(int) $m['id_pulse_kc_mobile_key']);
+            PulseDb::update(self::T, array('device_fingerprint' => pSQL($fp), 'device_bound_at' => date('Y-m-d H:i:s'), 'device_label' => pSQL(Tools::substr((string) $ua, 0, 96))), 'id_pulse_kc_mobile_key='.(int) $m['id_pulse_kc_mobile_key']);
             $m['device_fingerprint'] = $fp;
         }
         $out = self::mint((int) $m['id_pulse_kc_mobile_key'], $m['device_fingerprint']);
-        Db::getInstance()->update(self::T, array('last_ip' => pSQL(Tools::substr((string) $ip, 0, 45)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $m['id_pulse_kc_mobile_key']);
+        PulseDb::update(self::T, array('last_ip' => pSQL(Tools::substr((string) $ip, 0, 45)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $m['id_pulse_kc_mobile_key']);
         return self::publicView($out);
     }
 
     /** Refresh before the short TTL lapses; requires the bound device and counts against a sane ceiling. */
     public static function refresh($token, $deviceId = null, $ua = '', $ip = null)
     {
-        $m = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE token="'.pSQL($token).'"');
+        $m = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE token="'.pSQL($token).'"');
         if (!$m) { throw new PrestaShopException('Unknown mobile key', 404); }
         $max = (int) PulseKcService::cfg('MOBILE_MAX_REFRESH', 500);
         if ($max > 0 && (int) $m['refresh_count'] >= $max) { throw new PrestaShopException('Refresh limit reached — ask the front desk to re-issue the key', 429); }
         $out = self::fetch($token, $deviceId, $ua, $ip);
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET refresh_count=refresh_count+1, last_refresh_at=NOW() WHERE id_pulse_kc_mobile_key='.(int) $m['id_pulse_kc_mobile_key']);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` SET refresh_count=refresh_count+1, last_refresh_at=NOW() WHERE id_pulse_kc_mobile_key='.(int) $m['id_pulse_kc_mobile_key']);
         return $out;
     }
 
@@ -166,19 +166,19 @@ class PulseKcMobileKey
                 }
             }
         }
-        Db::getInstance()->update(self::T, array('delivered_via' => pSQL($via), 'delivered_at' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $id);
+        PulseDb::update(self::T, array('delivered_via' => pSQL($via), 'delivered_at' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $id);
         PulseCoreService::audit('pulsekeycard', 'mobile_key_delivered', array('id' => (int) $id, 'via' => $via), self::T, $id);
         return array('via' => $via, 'url' => $url);
     }
 
-    public static function get($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_mobile_key='.(int) $id); }
-    public static function setStatus($id, $status) { return Db::getInstance()->update(self::T, array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $id); }
+    public static function get($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_mobile_key='.(int) $id); }
+    public static function setStatus($id, $status) { return PulseDb::update(self::T, array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $id); }
 
     public static function revoke($id, $reason = '')
     {
         $m = self::get($id);
         if (!$m) { return false; }
-        Db::getInstance()->update(self::T, array('status' => 'revoked', 'credential_enc' => '', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $id);
+        PulseDb::update(self::T, array('status' => 'revoked', 'credential_enc' => '', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_mobile_key='.(int) $id);
         PulseCoreService::audit('pulsekeycard', 'mobile_key_revoke', array('id' => (int) $id, 'reason' => $reason), self::T, $id);
         return true;
     }
@@ -186,33 +186,33 @@ class PulseKcMobileKey
     public static function revokeForKey($idKey, $reason = '')
     {
         $n = 0;
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_kc_mobile_key FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_key='.(int) $idKey.' AND status IN ("issued","active")') as $m) { self::revoke((int) $m['id_pulse_kc_mobile_key'], $reason); $n++; }
+        foreach (PulseDb::executeS('SELECT id_pulse_kc_mobile_key FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_key='.(int) $idKey.' AND status IN ("issued","active")') as $m) { self::revoke((int) $m['id_pulse_kc_mobile_key'], $reason); $n++; }
         return $n;
     }
     public static function revokeForBooking($idBooking, $reason = '')
     {
         $n = 0;
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_kc_mobile_key FROM `'._DB_PREFIX_.self::T.'` WHERE id_htl_booking='.(int) $idBooking.' AND status IN ("issued","active")') as $m) { self::revoke((int) $m['id_pulse_kc_mobile_key'], $reason); $n++; }
+        foreach (PulseDb::executeS('SELECT id_pulse_kc_mobile_key FROM `'._DB_PREFIX_.self::T.'` WHERE id_htl_booking='.(int) $idBooking.' AND status IN ("issued","active")') as $m) { self::revoke((int) $m['id_pulse_kc_mobile_key'], $reason); $n++; }
         return $n;
     }
     public static function extendForKey($idKey, $validTo)
     {
-        return Db::getInstance()->update(self::T, array('valid_to' => pSQL($validTo), 'status' => 'active', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey.' AND status IN ("issued","active")');
+        return PulseDb::update(self::T, array('valid_to' => pSQL($validTo), 'status' => 'active', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey.' AND status IN ("issued","active")');
     }
 
     public static function forBooking($idBooking)
     {
-        return Db::getInstance()->executeS('SELECT m.*, k.key_no, k.room_nums FROM `'._DB_PREFIX_.self::T.'` m INNER JOIN `'._DB_PREFIX_.'pulse_kc_key` k ON k.id_pulse_kc_key=m.id_pulse_kc_key WHERE m.id_htl_booking='.(int) $idBooking.' ORDER BY m.id_pulse_kc_mobile_key DESC');
+        return PulseDb::executeS('SELECT m.*, k.key_no, k.room_nums FROM `'._DB_PREFIX_.self::T.'` m INNER JOIN `'._DB_PREFIX_.'pulse_kc_key` k ON k.id_pulse_kc_key=m.id_pulse_kc_key WHERE m.id_htl_booking='.(int) $idBooking.' ORDER BY m.id_pulse_kc_mobile_key DESC');
     }
     public static function active()
     {
-        return Db::getInstance()->executeS('SELECT m.*, k.key_no, k.room_nums, k.guest_name FROM `'._DB_PREFIX_.self::T.'` m INNER JOIN `'._DB_PREFIX_.'pulse_kc_key` k ON k.id_pulse_kc_key=m.id_pulse_kc_key
+        return PulseDb::executeS('SELECT m.*, k.key_no, k.room_nums, k.guest_name FROM `'._DB_PREFIX_.self::T.'` m INNER JOIN `'._DB_PREFIX_.'pulse_kc_key` k ON k.id_pulse_kc_key=m.id_pulse_kc_key
             WHERE m.status IN ("issued","active") AND m.valid_to>NOW() ORDER BY m.valid_to');
     }
 
     /** Cron: lapse anything whose stay window has closed. */
     public static function expireDue()
     {
-        return (int) Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET status="expired", credential_enc="", date_upd=NOW() WHERE status IN ("issued","active") AND valid_to<NOW()') ? (int) Db::getInstance()->Affected_Rows() : 0;
+        return (int) PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` SET status="expired", credential_enc="", date_upd=NOW() WHERE status IN ("issued","active") AND valid_to<NOW()') ? (int) PulseDb::Affected_Rows() : 0;
     }
 }

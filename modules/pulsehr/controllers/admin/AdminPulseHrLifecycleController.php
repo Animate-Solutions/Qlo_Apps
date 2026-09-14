@@ -12,14 +12,14 @@ class AdminPulseHrLifecycleController extends ModuleAdminController
             $c = PulseHrLifecycle::get($id);
             if (!$c) { $this->errors[] = $this->l('Checklist not found'); return $this->setTemplate('lifecycle.tpl'); }
             $this->context->smarty->assign(array('c' => $c, 'self_url' => $self, 'kc' => PulseHrService::kc(), 'pos' => PulseHrService::pos(),
-                'kc_groups' => PulseHrService::kc() ? Db::getInstance()->executeS('SELECT id_pulse_kc_staff_group, name, department FROM `'._DB_PREFIX_.'pulse_kc_staff_group` WHERE active=1 ORDER BY department, name') : array(),
+                'kc_groups' => PulseHrService::kc() ? PulseDb::executeS('SELECT id_pulse_kc_staff_group, name, department FROM `'._DB_PREFIX_.'pulse_kc_staff_group` WHERE active=1 ORDER BY department, name') : array(),
                 'employee_url' => $this->context->link->getAdminLink('AdminPulseHrEmployees')));
             return $this->setTemplate('checklist.tpl');
         }
         $idTpl = (int) Tools::getValue('id_template');
         $this->context->smarty->assign(array(
             'open' => PulseHrLifecycle::checklists('open'), 'done' => PulseHrLifecycle::checklists('completed'),
-            'templates' => PulseHrLifecycle::templates(), 'tpl' => $idTpl ? Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_checklist_template` WHERE id_pulse_hr_checklist_template='.$idTpl) : null,
+            'templates' => PulseHrLifecycle::templates(), 'tpl' => $idTpl ? PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_checklist_template` WHERE id_pulse_hr_checklist_template='.$idTpl) : null,
             'tpl_tasks' => $idTpl ? PulseHrLifecycle::templateTasks($idTpl) : array(), 'departments' => PulseHrService::departments(),
             'staff' => PulseHrEmployee::search(array('limit' => 400)), 'tasks_due' => PulseHrLifecycle::openTasks(40),
             'actions' => array('none' => 'Manual tick', 'keycard_issue' => 'Issue key card', 'keycard_revoke' => 'Revoke key cards', 'pos_pin' => 'Set POS PIN', 'pos_disable' => 'Disable POS login',

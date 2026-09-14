@@ -18,8 +18,8 @@ class AdminPulseHrRosterController extends ModuleAdminController
             'department' => $dept, 'week' => $week, 'week_end' => $end,
             'prev_week' => date('Y-m-d', strtotime($week.' -7 day')), 'next_week' => date('Y-m-d', strtotime($week.' +7 day')),
             'swaps' => PulseHrRoster::swaps('pending,accepted'), 'business_date' => PulseHrService::bd(),
-            'published' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_roster` WHERE roster_date BETWEEN "'.pSQL($week).'" AND "'.pSQL($end).'" AND status="published"'.($dept ? ' AND department="'.pSQL($dept).'"' : '')),
-            'planned' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_roster` WHERE roster_date BETWEEN "'.pSQL($week).'" AND "'.pSQL($end).'" AND status="planned"'.($dept ? ' AND department="'.pSQL($dept).'"' : '')),
+            'published' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_roster` WHERE roster_date BETWEEN "'.pSQL($week).'" AND "'.pSQL($end).'" AND status="published"'.($dept ? ' AND department="'.pSQL($dept).'"' : '')),
+            'planned' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_roster` WHERE roster_date BETWEEN "'.pSQL($week).'" AND "'.pSQL($end).'" AND status="planned"'.($dept ? ' AND department="'.pSQL($dept).'"' : '')),
             'fd' => PulseHrService::fd(), 'self_url' => self::$currentIndex.'&token='.$this->token,
             'employee_url' => $this->context->link->getAdminLink('AdminPulseHrEmployees'),
         ));

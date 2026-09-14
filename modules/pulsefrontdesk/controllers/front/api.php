@@ -16,7 +16,7 @@ class PulseFrontDeskApiModuleFrontController extends PulseApiController
     protected function folio($idRoom)
     {
         $this->requireScope('portal');
-        $b = Db::getInstance()->getRow('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_room='.(int) $idRoom.' AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' AND is_cancelled=0');
+        $b = PulseDb::getRow('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_room='.(int) $idRoom.' AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' AND is_cancelled=0');
         if (!$b) { throw new PrestaShopException('No in-house guest', 404); }
         $f = PulseFolio::openForBooking($b['id']);
         return $f ? array('folio_no' => $f->folio_no, 'balance' => $f->balance, 'lines' => array_map(function ($l) { return array('date' => $l['date_add'], 'description' => $l['description'], 'amount' => $l['amount_tax_incl'], 'is_payment' => $l['is_payment']); }, $f->lines())) : null;
@@ -45,13 +45,13 @@ class PulseFrontDeskApiModuleFrontController extends PulseApiController
     protected function upsells($idRoom)
     {
         $this->requireScope('portal');
-        $b = Db::getInstance()->getRow('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_room='.(int) $idRoom.' AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' AND is_cancelled=0');
+        $b = PulseDb::getRow('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_room='.(int) $idRoom.' AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' AND is_cancelled=0');
         return $b ? PulseUpsell::offersFor($b['id']) : array();
     }
     protected function acceptUpsell($idRoom, $body)
     {
         $this->requireScope('portal');
-        $b = Db::getInstance()->getRow('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_room='.(int) $idRoom.' AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' AND is_cancelled=0');
+        $b = PulseDb::getRow('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_room='.(int) $idRoom.' AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' AND is_cancelled=0');
         if (!$b) { throw new PrestaShopException('No in-house guest', 404); }
         PulseUpsell::accept($b['id'], $body['offer'], 'instay'); return array('ok' => true);
     }

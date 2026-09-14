@@ -19,7 +19,7 @@ class PulseTaEnrolment
         static $cache = array();
         $k = (int) $idDevice.'|'.$ref;
         if (!isset($cache[$k])) {
-            $id = (int) Db::getInstance()->getValue('SELECT id_pulse_ta_staff FROM `'._DB_PREFIX_.self::T.'`
+            $id = (int) PulseDb::getValue('SELECT id_pulse_ta_staff FROM `'._DB_PREFIX_.self::T.'`
                 WHERE id_pulse_ta_device='.(int) $idDevice.' AND device_user_id="'.pSQL($ref).'" AND status<>"removed" AND id_pulse_ta_staff IS NOT NULL');
             if (!$id && (int) PulseTaService::cfg('REF_STAFFNO_FALLBACK', 1)) {
                 // Fall back to the staff number: many properties enrol the reader with the payroll number,
@@ -32,11 +32,11 @@ class PulseTaEnrolment
                 //   * this device does not already know that person by a different id.
                 // Anything ambiguous stays unmatched, which raises an `unmatched_ref` exception and is fixed
                 // once, by hand, on the Enrolment screen.
-                $claimed = (int) Db::getInstance()->getValue('SELECT COUNT(DISTINCT id_pulse_ta_staff) FROM `'._DB_PREFIX_.self::T.'`
+                $claimed = (int) PulseDb::getValue('SELECT COUNT(DISTINCT id_pulse_ta_staff) FROM `'._DB_PREFIX_.self::T.'`
                     WHERE device_user_id="'.pSQL($ref).'" AND status<>"removed" AND id_pulse_ta_staff IS NOT NULL');
                 if (!$claimed) {
-                    $cand = (int) Db::getInstance()->getValue('SELECT id_pulse_ta_staff FROM `'._DB_PREFIX_.'pulse_ta_staff` WHERE staff_no="'.pSQL($ref).'" AND status<>"exited"');
-                    if ($cand && !Db::getInstance()->getValue('SELECT id_pulse_ta_enrolment FROM `'._DB_PREFIX_.self::T.'`
+                    $cand = (int) PulseDb::getValue('SELECT id_pulse_ta_staff FROM `'._DB_PREFIX_.'pulse_ta_staff` WHERE staff_no="'.pSQL($ref).'" AND status<>"exited"');
+                    if ($cand && !PulseDb::getValue('SELECT id_pulse_ta_enrolment FROM `'._DB_PREFIX_.self::T.'`
                         WHERE id_pulse_ta_device='.(int) $idDevice.' AND id_pulse_ta_staff='.$cand.' AND device_user_id<>"'.pSQL($ref).'" AND status<>"removed"')) { $id = $cand; }
                 }
             }
@@ -45,20 +45,20 @@ class PulseTaEnrolment
         return $cache[$k] ? $cache[$k] : null;
     }
 
-    public static function get($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_enrolment='.(int) $id); }
-    public static function find($idStaff, $idDevice) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_staff='.(int) $idStaff.' AND id_pulse_ta_device='.(int) $idDevice); }
-    public static function findRef($idDevice, $ref) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_device='.(int) $idDevice.' AND device_user_id="'.pSQL($ref).'"'); }
+    public static function get($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_enrolment='.(int) $id); }
+    public static function find($idStaff, $idDevice) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_staff='.(int) $idStaff.' AND id_pulse_ta_device='.(int) $idDevice); }
+    public static function findRef($idDevice, $ref) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_device='.(int) $idDevice.' AND device_user_id="'.pSQL($ref).'"'); }
 
     public static function forStaff($idStaff)
     {
-        return Db::getInstance()->executeS('SELECT e.*, d.name device_name_full, d.adapter, d.mode, d.health, d.status device_status
+        return PulseDb::executeS('SELECT e.*, d.name device_name_full, d.adapter, d.mode, d.health, d.status device_status
             FROM `'._DB_PREFIX_.self::T.'` e INNER JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=e.id_pulse_ta_device
             WHERE e.id_pulse_ta_staff='.(int) $idStaff.' ORDER BY d.name');
     }
 
     public static function forDevice($idDevice, $limit = 500)
     {
-        return Db::getInstance()->executeS('SELECT e.*, s.staff_no, s.firstname, s.lastname, s.department FROM `'._DB_PREFIX_.self::T.'` e
+        return PulseDb::executeS('SELECT e.*, s.staff_no, s.firstname, s.lastname, s.department FROM `'._DB_PREFIX_.self::T.'` e
             LEFT JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=e.id_pulse_ta_staff
             WHERE e.id_pulse_ta_device='.(int) $idDevice.' ORDER BY e.status="failed" DESC, s.lastname, e.device_user_id LIMIT '.(int) $limit);
     }
@@ -81,7 +81,7 @@ class PulseTaEnrolment
         $seed = (int) $staff['id_pulse_ta_staff'];
         for ($i = 0; $i < 200; $i++) {
             $cand = (($seed + $i * 7) % 65000) + 100;
-            if (!Db::getInstance()->getValue('SELECT id_pulse_ta_enrolment FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_device='.(int) $dev['id_pulse_ta_device'].' AND device_user_id="'.(int) $cand.'"')) { return (string) $cand; }
+            if (!PulseDb::getValue('SELECT id_pulse_ta_enrolment FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_device='.(int) $dev['id_pulse_ta_device'].' AND device_user_id="'.(int) $cand.'"')) { return (string) $cand; }
         }
         throw new PrestaShopException('No free device user id left on '.$dev['name']);
     }
@@ -99,10 +99,10 @@ class PulseTaEnrolment
         if (isset($d['status'])) { $row['status'] = pSQL($d['status']); }
         $ex = self::findRef($idDevice, $ref);
         if (!$ex && $idStaff) { $ex = self::find($idStaff, $idDevice); }
-        if ($ex) { Db::getInstance()->update(self::T, PulseTaService::nulls($row), 'id_pulse_ta_enrolment='.(int) $ex['id_pulse_ta_enrolment']); return (int) $ex['id_pulse_ta_enrolment']; }
+        if ($ex) { PulseDb::update(self::T, PulseTaService::nulls($row), 'id_pulse_ta_enrolment='.(int) $ex['id_pulse_ta_enrolment']); return (int) $ex['id_pulse_ta_enrolment']; }
         $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert(self::T, PulseTaService::nulls($row), false, true, Db::INSERT_IGNORE);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert(self::T, PulseTaService::nulls($row), false, true, Db::INSERT_IGNORE);
+        return (int) PulseDb::Insert_ID();
     }
 
     /**
@@ -115,7 +115,7 @@ class PulseTaEnrolment
         if ($ref === '') { return 0; }
         $ex = self::findRef($idDevice, $ref);
         if ($ex) {
-            Db::getInstance()->update(self::T, array('device_name' => pSQL(Tools::substr((string) $name, 0, 64)), 'card_no' => pSQL(Tools::substr((string) $card, 0, 32)),
+            PulseDb::update(self::T, array('device_name' => pSQL(Tools::substr((string) $name, 0, 64)), 'card_no' => pSQL(Tools::substr((string) $card, 0, 32)),
                 'privilege' => (int) $privilege, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_enrolment='.(int) $ex['id_pulse_ta_enrolment']);
             return 0;
         }
@@ -161,13 +161,13 @@ class PulseTaEnrolment
         try {
             $r = PulseTaService::runAdapter($d, 'pushUser', array($payload));
             $deferred = !empty($r['deferred']);
-            Db::getInstance()->update(self::T, PulseTaService::nulls(array('status' => $deferred ? 'queued' : 'pushed', 'pushed_at' => $deferred ? null : date('Y-m-d H:i:s'),
+            PulseDb::update(self::T, PulseTaService::nulls(array('status' => $deferred ? 'queued' : 'pushed', 'pushed_at' => $deferred ? null : date('Y-m-d H:i:s'),
                 'attempts' => 0, 'last_error' => '', 'date_upd' => date('Y-m-d H:i:s'))), 'id_pulse_ta_enrolment='.(int) $idEnr);
             PulseTaService::audit('enrolment_push', array('id_staff' => (int) $idStaff, 'device' => $d['name'], 'ref' => $ref, 'deferred' => $deferred ? 1 : 0), self::T, (int) $idEnr);
             return array('ok' => true, 'device_user_id' => $ref, 'deferred' => $deferred ? 1 : 0, 'note' => isset($r['note']) ? $r['note'] : '');
         } catch (Exception $e) {
             $msg = $e instanceof PulseTaDeviceException ? $e->userMessage() : $e->getMessage();
-            Db::getInstance()->update(self::T, array('status' => 'failed', 'attempts' => (int) ($ex ? $ex['attempts'] : 0) + 1,
+            PulseDb::update(self::T, array('status' => 'failed', 'attempts' => (int) ($ex ? $ex['attempts'] : 0) + 1,
                 'last_error' => pSQL(Tools::substr($msg, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_enrolment='.(int) $idEnr);
             PulseTaService::queueJob('push_user', (int) $idDevice, (int) $idStaff, array('ref' => $ref), 120);
             return array('ok' => false, 'device_user_id' => $ref, 'error' => $msg, 'queued' => 1);
@@ -198,12 +198,12 @@ class PulseTaEnrolment
         $d = PulseTaDevice::get($idDevice);
         try {
             PulseTaService::runAdapter($d, 'deleteUser', array($e['device_user_id']));
-            Db::getInstance()->update(self::T, array('status' => 'removed', 'last_error' => '', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_enrolment='.(int) $e['id_pulse_ta_enrolment']);
+            PulseDb::update(self::T, array('status' => 'removed', 'last_error' => '', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_enrolment='.(int) $e['id_pulse_ta_enrolment']);
             PulseTaService::audit('enrolment_revoke', array('id_staff' => (int) $idStaff, 'device' => $d ? $d['name'] : $idDevice, 'reason' => $reason), self::T, (int) $e['id_pulse_ta_enrolment']);
             return array('ok' => true);
         } catch (Exception $ex) {
             $msg = $ex instanceof PulseTaDeviceException ? $ex->userMessage() : $ex->getMessage();
-            Db::getInstance()->update(self::T, array('status' => 'failed', 'last_error' => pSQL(Tools::substr($msg, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_enrolment='.(int) $e['id_pulse_ta_enrolment']);
+            PulseDb::update(self::T, array('status' => 'failed', 'last_error' => pSQL(Tools::substr($msg, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_enrolment='.(int) $e['id_pulse_ta_enrolment']);
             PulseTaService::queueJob('delete_user', (int) $idDevice, (int) $idStaff, array('reason' => $reason), 60);
             return array('ok' => false, 'error' => $msg, 'queued' => 1);
         }
@@ -226,13 +226,13 @@ class PulseTaEnrolment
     /** An ADMS command reported success — flip the enrolment it carried to `pushed`. */
     public static function markCommandDone($idCmd, $idDevice)
     {
-        $cmd = Db::getInstance()->getValue('SELECT cmd FROM `'._DB_PREFIX_.'pulse_ta_device_cmd` WHERE id_pulse_ta_device_cmd='.(int) $idCmd);
+        $cmd = PulseDb::getValue('SELECT cmd FROM `'._DB_PREFIX_.'pulse_ta_device_cmd` WHERE id_pulse_ta_device_cmd='.(int) $idCmd);
         if (!$cmd || !preg_match('/PIN=([^\t\r\n ]+)/', (string) $cmd, $m)) { return 0; }
         $ref = $m[1];
         if (stripos((string) $cmd, 'DELETE USERINFO') !== false) {
-            return Db::getInstance()->update(self::T, array('status' => 'removed', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_device='.(int) $idDevice.' AND device_user_id="'.pSQL($ref).'"');
+            return PulseDb::update(self::T, array('status' => 'removed', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_device='.(int) $idDevice.' AND device_user_id="'.pSQL($ref).'"');
         }
-        return Db::getInstance()->update(self::T, array('status' => 'pushed', 'pushed_at' => date('Y-m-d H:i:s'), 'last_error' => '', 'date_upd' => date('Y-m-d H:i:s')),
+        return PulseDb::update(self::T, array('status' => 'pushed', 'pushed_at' => date('Y-m-d H:i:s'), 'last_error' => '', 'date_upd' => date('Y-m-d H:i:s')),
             'id_pulse_ta_device='.(int) $idDevice.' AND device_user_id="'.pSQL($ref).'"');
     }
 
@@ -252,7 +252,7 @@ class PulseTaEnrolment
             $onDevice[$ref] = 1;
             if (!isset($known[$ref])) { self::discover($idDevice, $ref, isset($u['name']) ? $u['name'] : '', isset($u['card_no']) ? $u['card_no'] : '', isset($u['privilege']) ? $u['privilege'] : 0); $discovered++; }
             else {
-                Db::getInstance()->update(self::T, array('has_finger' => !empty($u['has_finger']) ? 1 : 0, 'has_face' => !empty($u['has_face']) ? 1 : 0,
+                PulseDb::update(self::T, array('has_finger' => !empty($u['has_finger']) ? 1 : 0, 'has_face' => !empty($u['has_face']) ? 1 : 0,
                     'has_card' => !empty($u['has_card']) ? 1 : 0, 'has_password' => !empty($u['has_password']) ? 1 : 0,
                     'device_name' => pSQL(Tools::substr((string) (isset($u['name']) ? $u['name'] : ''), 0, 64)), 'date_upd' => date('Y-m-d H:i:s')),
                     'id_pulse_ta_enrolment='.(int) $known[$ref]['id_pulse_ta_enrolment']);
@@ -260,23 +260,23 @@ class PulseTaEnrolment
         }
         $missing = array();
         foreach ($known as $ref => $e) { if ($e['status'] === 'pushed' && !isset($onDevice[$ref])) { $missing[] = $ref; } }
-        Db::getInstance()->update('pulse_ta_device', array('device_users' => count($users), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_device='.(int) $idDevice);
+        PulseDb::update('pulse_ta_device', array('device_users' => count($users), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_device='.(int) $idDevice);
         PulseTaService::audit('enrolment_reconcile', array('device' => $d['name'], 'on_device' => count($users), 'discovered' => $discovered, 'missing' => count($missing)), self::T, (int) $idDevice);
         return array('on_device' => count($users), 'discovered' => $discovered, 'missing_from_device' => $missing,
-            'unmapped' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_device='.(int) $idDevice.' AND id_pulse_ta_staff IS NULL'));
+            'unmapped' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_device='.(int) $idDevice.' AND id_pulse_ta_staff IS NULL'));
     }
 
     /** Everything that needs a supervisor's attention on the Enrolment screen. */
     public static function problems()
     {
         return array(
-            'failed' => Db::getInstance()->executeS('SELECT e.*, d.name device_name_full, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name
+            'failed' => PulseDb::executeS('SELECT e.*, d.name device_name_full, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name
                 FROM `'._DB_PREFIX_.self::T.'` e INNER JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=e.id_pulse_ta_device
                 LEFT JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=e.id_pulse_ta_staff WHERE e.status="failed" ORDER BY e.date_upd DESC LIMIT 100'),
-            'unmapped' => Db::getInstance()->executeS('SELECT e.*, d.name device_name_full FROM `'._DB_PREFIX_.self::T.'` e
+            'unmapped' => PulseDb::executeS('SELECT e.*, d.name device_name_full FROM `'._DB_PREFIX_.self::T.'` e
                 INNER JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=e.id_pulse_ta_device WHERE e.id_pulse_ta_staff IS NULL ORDER BY e.date_upd DESC LIMIT 100'),
             'unmatched_punches' => PulseTaPunch::unmatched(30),
-            'not_enrolled' => Db::getInstance()->executeS('SELECT s.* FROM `'._DB_PREFIX_.'pulse_ta_staff` s
+            'not_enrolled' => PulseDb::executeS('SELECT s.* FROM `'._DB_PREFIX_.'pulse_ta_staff` s
                 WHERE s.status="active" AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.self::T.'` e WHERE e.id_pulse_ta_staff=s.id_pulse_ta_staff AND e.status<>"removed")
                 ORDER BY s.department, s.lastname LIMIT 200'),
         );

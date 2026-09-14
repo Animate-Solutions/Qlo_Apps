@@ -43,12 +43,12 @@ class PulseTaDevice
 
     public static function all($status = null)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'`'.($status ? ' WHERE status="'.pSQL($status).'"' : '').' ORDER BY FIELD(status,"active","pending","blocked"), name');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'`'.($status ? ' WHERE status="'.pSQL($status).'"' : '').' ORDER BY FIELD(status,"active","pending","blocked"), name');
     }
 
-    public static function get($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_device='.(int) $id); }
-    public static function byName($n) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE name="'.pSQL($n).'"'); }
-    public static function bySerial($s) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE serial="'.pSQL($s).'"'); }
+    public static function get($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_device='.(int) $id); }
+    public static function byName($n) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE name="'.pSQL($n).'"'); }
+    public static function bySerial($s) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE serial="'.pSQL($s).'"'); }
 
     /** Decrypted credentials for a device row. Never returned to a template or the API. */
     public static function credentials($dev)
@@ -115,8 +115,8 @@ class PulseTaDevice
             if ($o !== '' && json_decode($o, true) === null) { throw new PrestaShopException('Device options must be valid JSON'); }
             $row['options_json'] = pSQL($o, true);
         }
-        if ($id) { Db::getInstance()->update(self::T, $row, 'id_pulse_ta_device='.(int) $id); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert(self::T, $row); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update(self::T, $row, 'id_pulse_ta_device='.(int) $id); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert(self::T, $row); $id = (int) PulseDb::Insert_ID(); }
         PulseTaService::audit('device_save', array('id' => $id, 'name' => $row['name'], 'adapter' => $adapter, 'mode' => $row['mode']), self::T, $id);
         return $id;
     }
@@ -130,7 +130,7 @@ class PulseTaDevice
         if ($name !== '') { $u['name'] = pSQL(Tools::substr($name, 0, 64)); }
         if ($location !== '') { $u['location'] = pSQL(Tools::substr($location, 0, 64)); }
         if ($department !== '') { $u['department'] = pSQL(Tools::substr($department, 0, 32)); }
-        Db::getInstance()->update(self::T, $u, 'id_pulse_ta_device='.(int) $id);
+        PulseDb::update(self::T, $u, 'id_pulse_ta_device='.(int) $id);
         PulseTaService::audit('device_claim', array('id' => (int) $id, 'serial' => $d['serial'], 'ip' => $d['host']), self::T, (int) $id);
         PulseCoreService::event('actionPulseTaDeviceHealth', array('id_device' => (int) $id, 'serial' => $d['serial'], 'state' => 'claimed'));
         return true;
@@ -139,7 +139,7 @@ class PulseTaDevice
     public static function block($id, $reason = '')
     {
         $d = self::get($id);
-        Db::getInstance()->update(self::T, array('status' => 'blocked', 'note' => pSQL(Tools::substr('Blocked: '.$reason, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_device='.(int) $id);
+        PulseDb::update(self::T, array('status' => 'blocked', 'note' => pSQL(Tools::substr('Blocked: '.$reason, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_device='.(int) $id);
         PulseTaService::audit('device_block', array('id' => (int) $id, 'serial' => $d ? $d['serial'] : '', 'reason' => $reason), self::T, (int) $id);
         return true;
     }
@@ -162,7 +162,7 @@ class PulseTaDevice
             $u['error_count'] = $n; $u['health'] = $n >= 3 ? 'offline' : 'degraded';
             $u['last_error'] = pSQL(Tools::substr((string) $error, 0, 255));
         }
-        Db::getInstance()->update(self::T, $u, 'id_pulse_ta_device='.(int) $id);
+        PulseDb::update(self::T, $u, 'id_pulse_ta_device='.(int) $id);
         if (!$ok && (int) $d['error_count'] + 1 === 3) {
             PulseTaService::alert('Clocking device "'.$d['name'].'" ('.$d['location'].') has failed three polls in a row — '.Tools::substr((string) $error, 0, 160));
             PulseCoreService::event('actionPulseTaDeviceHealth', array('id_device' => (int) $id, 'serial' => $d['serial'], 'state' => 'offline', 'error' => $error));
@@ -181,7 +181,7 @@ class PulseTaDevice
             if (!empty($r['firmware'])) { $u['firmware'] = pSQL(Tools::substr((string) $r['firmware'], 0, 64)); }
             if (!empty($r['serial']) && $d['serial'] === '') { $u['serial'] = pSQL(PulseTaAdms::cleanSerial($r['serial'])); }
             if (isset($r['users'])) { $u['device_users'] = (int) $r['users']; }
-            if ($u) { Db::getInstance()->update(self::T, $u, 'id_pulse_ta_device='.(int) $id); }
+            if ($u) { PulseDb::update(self::T, $u, 'id_pulse_ta_device='.(int) $id); }
             self::markSeen($id, true);
             return array_merge(array('ok' => true), $r);
         } catch (PulseTaDeviceException $e) {
@@ -257,8 +257,8 @@ class PulseTaDevice
             $d['capabilities'] = $caps;
             $d['stale'] = ($d['status'] === 'active' && (!$d['last_seen_at'] || strtotime($d['last_seen_at']) < time() - $staleMin * 60)) ? 1 : 0;
             $d['silent_min'] = $d['last_seen_at'] ? (int) round((time() - strtotime($d['last_seen_at'])) / 60) : null;
-            $d['queued_cmds'] = $d['mode'] === 'push' ? (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_device_cmd` WHERE id_pulse_ta_device='.(int) $d['id_pulse_ta_device'].' AND status IN ("queued","sent")') : 0;
-            $d['enrolled'] = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_enrolment` WHERE id_pulse_ta_device='.(int) $d['id_pulse_ta_device'].' AND status<>"removed"');
+            $d['queued_cmds'] = $d['mode'] === 'push' ? (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_device_cmd` WHERE id_pulse_ta_device='.(int) $d['id_pulse_ta_device'].' AND status IN ("queued","sent")') : 0;
+            $d['enrolled'] = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_enrolment` WHERE id_pulse_ta_device='.(int) $d['id_pulse_ta_device'].' AND status<>"removed"');
             $d['has_credentials'] = empty($d['credentials_enc']) ? 0 : 1;
             unset($d['credentials_enc']);
             $out[] = $d;
@@ -269,13 +269,13 @@ class PulseTaDevice
     /** Recent inbound push traffic, for the Devices screen. Device-supplied text is escaped again by the template. */
     public static function traffic($idDevice = null, $limit = 60)
     {
-        return Db::getInstance()->executeS('SELECT l.*, d.name device_name FROM `'._DB_PREFIX_.'pulse_ta_device_log` l
+        return PulseDb::executeS('SELECT l.*, d.name device_name FROM `'._DB_PREFIX_.'pulse_ta_device_log` l
             LEFT JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=l.id_pulse_ta_device
             WHERE 1'.($idDevice ? ' AND l.id_pulse_ta_device='.(int) $idDevice : '').' ORDER BY l.id_pulse_ta_device_log DESC LIMIT '.(int) $limit);
     }
 
     public static function commands($idDevice, $limit = 40)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_device_cmd` WHERE id_pulse_ta_device='.(int) $idDevice.' ORDER BY id_pulse_ta_device_cmd DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_device_cmd` WHERE id_pulse_ta_device='.(int) $idDevice.' ORDER BY id_pulse_ta_device_cmd DESC LIMIT '.(int) $limit);
     }
 }

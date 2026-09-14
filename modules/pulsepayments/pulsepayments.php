@@ -52,16 +52,17 @@ class PulsePayments extends Module
     /** SURCH exists only when Front Desk is installed; adding it is optional so we install standalone. */
     protected function addChargeCodes()
     {
-        if (!Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_charge_code"')) { return false; }
-        Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES ("SURCH","Card processing surcharge","misc",0,7.5,0)');
-        Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES ("MOMO","Mobile money","payment",0,0,1)');
+        if (!PulseDb::executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_charge_code"')) { return false; }
+        PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES ("SURCH","Card processing surcharge","misc",0,7.5,0)');
+        PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES ("MOMO","Mobile money","payment",0,0,1)');
         return true;
     }
 
     protected function runSql($f)
     {
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/'.$f.'.sql'));
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (strpos($q, '--') !== 0 && !Db::getInstance()->execute($q)) { return false; } }
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (!Db::getInstance()->execute($q)) { return false; } }
         return true;
     }
 

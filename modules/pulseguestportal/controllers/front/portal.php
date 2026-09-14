@@ -7,12 +7,27 @@
  */
 class PulseGuestPortalPortalModuleFrontController extends ModuleFrontController
 {
-    public function init() { parent::init(); $this->display_header = false; $this->display_footer = false; }
+    protected $idHotel = 0;
+
+    public function init()
+    {
+        parent::init();
+        $this->display_header = false;
+        $this->display_footer = false;
+        // Which property before anything else: the branding, the sections and every API call the page
+        // goes on to make belong to one hotel, and a screen we cannot place is a screen showing the
+        // wrong hotel's building to a guest.
+        $this->idHotel = PulseGpService::enterHotel();
+    }
+
     public function setMedia() { return true; }
 
     public function initContent()
     {
         parent::initContent();
+        if (!$this->idHotel) {
+            PulseCoreService::refuseNoHotel('This screen has not been paired to a room yet, and its address does not name a property. Ask the front desk to pair it, or to check the address it was set up with.');
+        }
         $theme = PulseGpService::theme();
         $boot = array(
             'api' => $this->context->link->getModuleLink('pulseguestportal', 'api', array(), true),

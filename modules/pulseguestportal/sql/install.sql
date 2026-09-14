@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_device` (
   `last_seen` DATETIME DEFAULT NULL, `last_wipe` DATETIME DEFAULT NULL, `paired_at` DATETIME DEFAULT NULL, `paired_by` INT UNSIGNED DEFAULT NULL,
   `token_claimed_at` DATETIME DEFAULT NULL COMMENT 'a token is handed out once; re-issue from the desk if a set loses it',
   `boots` INT UNSIGNED NOT NULL DEFAULT 0, `note` VARCHAR(255), `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_device`), UNIQUE KEY `uid` (`uid`), UNIQUE KEY `token` (`token`), KEY `room` (`id_room`), KEY `st` (`status`,`last_seen`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_device`), UNIQUE KEY `uid` (`id_hotel`,`uid`), UNIQUE KEY `token` (`id_hotel`,`token`), KEY `room` (`id_room`), KEY `st` (`status`,`last_seen`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_session` (
@@ -16,7 +17,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_session` (
   `guest_name` VARCHAR(128), `locale` VARCHAR(5) NOT NULL DEFAULT 'en', `token_hash` CHAR(64) NOT NULL,
   `expires_at` DATETIME NOT NULL, `revoked` TINYINT(1) NOT NULL DEFAULT 0, `revoke_reason` VARCHAR(32),
   `ip` VARCHAR(45), `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_session`), UNIQUE KEY `sid` (`sid`), KEY `dev` (`id_pulse_gp_device`,`revoked`), KEY `booking` (`id_htl_booking`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_session`), UNIQUE KEY `sid` (`id_hotel`,`sid`), KEY `dev` (`id_pulse_gp_device`,`revoked`), KEY `booking` (`id_htl_booking`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_command` (
@@ -24,7 +26,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_command` (
   `type` ENUM('reload','message','wipe','lock','unlock','notify','order_ready','folio_refresh','channel','volume','screenshot') NOT NULL,
   `payload` TEXT, `status` ENUM('queued','sent','acked','expired') NOT NULL DEFAULT 'queued', `id_employee` INT UNSIGNED DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_sent` DATETIME DEFAULT NULL, `date_ack` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_gp_command`), KEY `dev` (`id_pulse_gp_device`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_command`), KEY `dev` (`id_pulse_gp_device`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_message` (
@@ -33,7 +36,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_message` (
   `direction` ENUM('guest','desk') NOT NULL DEFAULT 'guest', `body` TEXT NOT NULL, `id_employee` INT UNSIGNED DEFAULT NULL,
   `read_by_guest` TINYINT(1) NOT NULL DEFAULT 0, `read_by_desk` TINYINT(1) NOT NULL DEFAULT 0, `locale` VARCHAR(5) NOT NULL DEFAULT 'en',
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_message`), KEY `booking` (`id_htl_booking`,`date_add`), KEY `room` (`id_room`,`date_add`), KEY `unread` (`direction`,`read_by_desk`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_message`), KEY `booking` (`id_htl_booking`,`date_add`), KEY `room` (`id_room`,`date_add`), KEY `unread` (`direction`,`read_by_desk`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_request` (
@@ -46,7 +50,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_request` (
   `id_pulse_ticket` INT UNSIGNED DEFAULT NULL, `id_hk_task` INT UNSIGNED DEFAULT NULL, `ext_ref` VARCHAR(64), `fail_reason` VARCHAR(255),
   `source` VARCHAR(16) NOT NULL DEFAULT 'portal', `locale` VARCHAR(5) NOT NULL DEFAULT 'en', `business_date` DATE NOT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_request`), UNIQUE KEY `no` (`request_no`), KEY `st` (`status`,`business_date`), KEY `room` (`id_room`), KEY `sched` (`type`,`scheduled_for`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_request`), UNIQUE KEY `no` (`id_hotel`,`request_no`), KEY `st` (`status`,`business_date`), KEY `room` (`id_room`), KEY `sched` (`type`,`scheduled_for`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_order` (
@@ -57,7 +62,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_order` (
   `status` ENUM('placed','preparing','ready','delivered','cancelled','failed') NOT NULL DEFAULT 'placed',
   `items_json` TEXT, `items_count` SMALLINT NOT NULL DEFAULT 0, `total` DECIMAL(20,6) NOT NULL DEFAULT 0, `note` VARCHAR(255), `fail_reason` VARCHAR(255),
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL, `date_ready` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_gp_order`), UNIQUE KEY `cid` (`client_id`), KEY `room` (`id_room`,`status`), KEY `chk` (`id_pulse_pos_check`), KEY `bd` (`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_order`), UNIQUE KEY `cid` (`id_hotel`,`client_id`), KEY `room` (`id_room`,`status`), KEY `chk` (`id_pulse_pos_check`), KEY `bd` (`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_page` (
@@ -66,13 +72,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_page` (
   `icon` VARCHAR(32), `image` VARCHAR(255), `phone` VARCHAR(32), `extension` VARCHAR(8), `opens` VARCHAR(64), `location` VARCHAR(64),
   `room_types` VARCHAR(255) DEFAULT NULL COMMENT 'csv id_product of room types, NULL=all', `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_page`), UNIQUE KEY `code` (`code`), KEY `cat` (`category`,`sort`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_page`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `cat` (`category`,`sort`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_page_lang` (
   `id_pulse_gp_page` INT UNSIGNED NOT NULL, `lang` VARCHAR(5) NOT NULL DEFAULT 'en',
   `title` VARCHAR(128) NOT NULL, `summary` VARCHAR(255), `body` TEXT,
-  PRIMARY KEY (`id_pulse_gp_page`,`lang`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_pulse_gp_page`,`lang`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_promo` (
@@ -81,13 +90,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_promo` (
   `day_start` TIME NOT NULL DEFAULT '00:00:00', `day_end` TIME NOT NULL DEFAULT '23:59:59', `date_from` DATE DEFAULT NULL, `date_to` DATE DEFAULT NULL,
   `room_types` VARCHAR(255) DEFAULT NULL, `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_promo`), UNIQUE KEY `code` (`code`), KEY `pl` (`placement`,`active`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_promo`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `pl` (`placement`,`active`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_promo_lang` (
   `id_pulse_gp_promo` INT UNSIGNED NOT NULL, `lang` VARCHAR(5) NOT NULL DEFAULT 'en',
   `title` VARCHAR(128) NOT NULL, `body` VARCHAR(255), `cta` VARCHAR(48),
-  PRIMARY KEY (`id_pulse_gp_promo`,`lang`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_pulse_gp_promo`,`lang`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_channel` (
@@ -96,7 +108,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_channel` (
   `category` ENUM('general','news','sport','movies','series','kids','music','documentary','religious','local','adult') NOT NULL DEFAULT 'general',
   `source` VARCHAR(32) NOT NULL DEFAULT 'dstv', `adult` TINYINT(1) NOT NULL DEFAULT 0, `hd` TINYINT(1) NOT NULL DEFAULT 0,
   `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_channel`), UNIQUE KEY `num` (`number`), KEY `cat` (`category`,`sort`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_channel`), UNIQUE KEY `num` (`id_hotel`,`number`), KEY `cat` (`category`,`sort`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_vod` (
@@ -105,7 +118,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_vod` (
   `year` SMALLINT UNSIGNED DEFAULT NULL, `duration_min` SMALLINT UNSIGNED NOT NULL DEFAULT 0, `language` VARCHAR(32) NOT NULL DEFAULT 'English',
   `price` DECIMAL(20,6) NOT NULL DEFAULT 0, `free` TINYINT(1) NOT NULL DEFAULT 1, `adult` TINYINT(1) NOT NULL DEFAULT 0,
   `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_vod`), KEY `cat` (`category`,`sort`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_vod`), KEY `cat` (`category`,`sort`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_vod_play` (
@@ -113,7 +128,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_vod_play` (
   `id_pulse_gp_device` INT UNSIGNED DEFAULT NULL, `id_room` INT UNSIGNED DEFAULT NULL, `id_htl_booking` INT UNSIGNED DEFAULT NULL, `id_customer` INT UNSIGNED DEFAULT NULL,
   `price` DECIMAL(20,6) NOT NULL DEFAULT 0, `posted_line` BIGINT UNSIGNED DEFAULT NULL,
   `status` ENUM('started','charged','free','cancelled','refunded') NOT NULL DEFAULT 'started', `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_vod_play`), KEY `booking` (`id_htl_booking`), KEY `bd` (`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_vod_play`), KEY `booking` (`id_htl_booking`), KEY `bd` (`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_feedback` (
@@ -123,7 +139,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_feedback` (
   `rating_fnb` TINYINT UNSIGNED NOT NULL DEFAULT 0, `rating_cleanliness` TINYINT UNSIGNED NOT NULL DEFAULT 0, `nps` TINYINT DEFAULT NULL, `would_return` TINYINT(1) NOT NULL DEFAULT 1,
   `comment` TEXT, `locale` VARCHAR(5) NOT NULL DEFAULT 'en', `source` VARCHAR(16) NOT NULL DEFAULT 'portal',
   `crm_synced` TINYINT(1) NOT NULL DEFAULT 0, `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_feedback`), KEY `booking` (`id_htl_booking`), KEY `bd` (`business_date`), KEY `crm` (`crm_synced`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_feedback`), KEY `booking` (`id_htl_booking`), KEY `bd` (`business_date`), KEY `crm` (`crm_synced`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_cast` (
@@ -131,7 +148,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_cast` (
   `code` VARCHAR(8) NOT NULL, `pin` VARCHAR(8) NOT NULL, `protocol` ENUM('chromecast','airplay','miracast','dlna') NOT NULL DEFAULT 'chromecast',
   `guest_device` VARCHAR(64), `status` ENUM('waiting','paired','expired','ended') NOT NULL DEFAULT 'waiting',
   `expires_at` DATETIME NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_cast`), KEY `dev` (`id_pulse_gp_device`,`status`), KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_cast`), KEY `dev` (`id_pulse_gp_device`,`status`), KEY `code` (`code`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_control_point` (
@@ -140,19 +158,24 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_control_point` (
   `endpoint` VARCHAR(255) COMMENT 'adapter-specific address (relay id, KNX group, HTTP path)', `state` VARCHAR(32) NOT NULL DEFAULT 'off',
   `value` DECIMAL(6,2) NOT NULL DEFAULT 0, `min_value` DECIMAL(6,2) NOT NULL DEFAULT 16, `max_value` DECIMAL(6,2) NOT NULL DEFAULT 30,
   `online` TINYINT(1) NOT NULL DEFAULT 1, `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_control_point`), UNIQUE KEY `room_code` (`id_room`,`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_control_point`), UNIQUE KEY `room_code` (`id_hotel`,`id_room`,`code`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_control_log` (
   `id_pulse_gp_control_log` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_room` INT UNSIGNED NOT NULL, `code` VARCHAR(32) NOT NULL,
   `action` VARCHAR(32) NOT NULL, `value` VARCHAR(32), `adapter` VARCHAR(64), `result` ENUM('ok','failed','queued') NOT NULL DEFAULT 'ok',
   `message` VARCHAR(255), `source` VARCHAR(16) NOT NULL DEFAULT 'portal', `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_gp_control_log`), KEY `room` (`id_room`,`date_add`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_gp_control_log`), KEY `room` (`id_room`,`date_add`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_gp_rate` (
   `bucket` VARCHAR(64) NOT NULL, `window_start` INT UNSIGNED NOT NULL COMMENT 'unix minute', `hits` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-  PRIMARY KEY (`bucket`,`window_start`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`bucket`,`window_start`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_gp_page` (`id_pulse_gp_page`,`code`,`category`,`icon`,`phone`,`extension`,`opens`,`location`,`sort`,`active`,`date_add`,`date_upd`) VALUES

@@ -7,6 +7,8 @@ class AdminPulseAccAssetsController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
+        // filters the template always reads, so a first visit with no query string renders clean
+        $this->context->smarty->assign(array('status' => Tools::getValue('status', ''), 'q' => Tools::getValue('q', ''), 'class' => Tools::getValue('class', ''), 'include_disposed' => (int) Tools::getValue('include_disposed')));
         $self = self::$currentIndex.'&token='.$this->token;
         if ($id = (int) Tools::getValue('id_asset')) {
             $this->context->smarty->assign(array('a' => PulseAccAssets::asset($id), 'classes' => PulseAccAssets::classes(), 'self_url' => $self, 'currency' => $this->context->currency->sign,
@@ -28,7 +30,7 @@ class AdminPulseAccAssetsController extends ModuleAdminController
             'preview' => Tools::getValue('preview') ? PulseAccAssets::runDepreciation($period, true) : null, 'period' => $period, 'periods' => PulseAccService::periods(24),
             'forecast' => PulseAccAssets::forecast(12), 'capex' => PulseAccAssets::capexVsBudget((int) Tools::getValue('year', date('Y'))), 'year' => (int) Tools::getValue('year', date('Y')),
             'unlinked' => PulseAccAssets::unlinkedEngineeringAssets(50), 'accounts' => PulseAccService::accounts(null, true, true),
-            'rooms' => PulseAccService::fd() ? Db::getInstance()->executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY room_num') : array(),
+            'rooms' => PulseAccService::fd() ? PulseDb::executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY room_num') : array(),
             'departments' => PulseAccService::maps('department'), 'self_url' => $self, 'currency' => $this->context->currency->sign,
             'business_date' => PulseAccService::bd(), 'mnt' => PulseAccService::mnt(),
         ));

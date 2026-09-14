@@ -21,9 +21,9 @@ class AdminPulseHousekeepingController extends ModuleAdminController
     {
         try {
             if (Tools::isSubmit('addTask')) { PulseHousekeeping::createTask((int) Tools::getValue('id_room'), Tools::getValue('type'), (int) Tools::getValue('priority', 5), Tools::getValue('note'), (int) Tools::getValue('assigned_to') ?: null); $this->confirmations[] = $this->l('Task added'); }
-            if (Tools::isSubmit('assign')) { Db::getInstance()->update('pulse_housekeeping_task', array('assigned_to' => (int) Tools::getValue('assigned_to')), 'id_pulse_housekeeping_task='.(int) Tools::getValue('id_task')); }
+            if (Tools::isSubmit('assign')) { PulseDb::update('pulse_housekeeping_task', array('assigned_to' => (int) Tools::getValue('assigned_to')), 'id_pulse_housekeeping_task='.(int) Tools::getValue('id_task')); }
             if (Tools::isSubmit('setStatus')) { PulseHousekeeping::setStatus((int) Tools::getValue('id_task'), Tools::getValue('status')); }
-            if (Tools::isSubmit('bulkAssign')) { foreach ((array) Tools::getValue('task_ids') as $id) { Db::getInstance()->update('pulse_housekeeping_task', array('assigned_to' => (int) Tools::getValue('assigned_to')), 'id_pulse_housekeeping_task='.(int) $id); } }
+            if (Tools::isSubmit('bulkAssign')) { foreach ((array) Tools::getValue('task_ids') as $id) { PulseDb::update('pulse_housekeeping_task', array('assigned_to' => (int) Tools::getValue('assigned_to')), 'id_pulse_housekeeping_task='.(int) $id); } }
             if (Tools::isSubmit('setHk')) { PulseRoom::setHkStatus((int) Tools::getValue('id_room'), Tools::getValue('hk_status'), 'housekeeping', Tools::getValue('reason'), Tools::getValue('until')); }
         } catch (Exception $e) { $this->errors[] = $e->getMessage(); }
         return parent::postProcess();

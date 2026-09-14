@@ -19,7 +19,7 @@ require_once dirname(__FILE__).'/../classes/autoload.php';
 if (php_sapi_name() !== 'cli') { $t = Tools::getValue('token'); if ($t !== Configuration::get('PULSE_PR_CRON_TOKEN')) { die('Invalid token'); } }
 Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1);
 
-$D = Db::getInstance();
+$D = PulseDb::handle();
 $made = array('employees' => 0, 'declarations' => 0, 'loans' => 0, 'runs' => 0, 'payslips' => 0, 'tronc' => 0, 'casual' => 0, 'timesheets' => 0);
 
 Configuration::updateValue('PULSE_PR_EMPLOYER_STAFF_COUNT', 85);

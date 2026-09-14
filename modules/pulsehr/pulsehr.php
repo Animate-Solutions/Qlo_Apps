@@ -56,13 +56,9 @@ class PulseHr extends Module
 
     protected function runSql($f)
     {
-        $path = dirname(__FILE__).'/sql/'.$f.'.sql';
-        if (!file_exists($path)) { return true; }
-        $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents($path));
+        $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/'.$f.'.sql'));
         $sql = preg_replace('/^\s*--.*$/m', '', $sql);
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) {
-            if ($q !== '' && !Db::getInstance()->execute($q)) { return false; }
-        }
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (!Db::getInstance()->execute($q)) { return false; } }
         return true;
     }
 

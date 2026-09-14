@@ -12,11 +12,11 @@ class PulseKcEncoder
 
     public static function all($activeOnly = true)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY FIELD(location,"front_desk","back_office","housekeeping","security","engineering","mobile"), name');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY FIELD(location,"front_desk","back_office","housekeeping","security","engineering","mobile"), name');
     }
 
-    public static function get($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_encoder='.(int) $id); }
-    public static function byName($name) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE name="'.pSQL($name).'"'); }
+    public static function get($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_encoder='.(int) $id); }
+    public static function byName($name) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE name="'.pSQL($name).'"'); }
 
     /** The encoder a key should go to: explicit choice, else the clerk's saved workstation, else the first online front-desk unit. */
     public static function pick($id = null)
@@ -27,7 +27,7 @@ class PulseKcEncoder
             $saved = PulseCoreService::setting('pulsekeycard', 'workstation_'.(int) $ctx->employee->id);
             if ($saved && ($e = self::get((int) $saved)) && $e['active']) { return $e; }
         }
-        $e = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE active=1 AND status<>"disabled" ORDER BY FIELD(status,"online","unknown","offline"), FIELD(location,"front_desk","back_office"), id_pulse_kc_encoder');
+        $e = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE active=1 AND status<>"disabled" ORDER BY FIELD(status,"online","unknown","offline"), FIELD(location,"front_desk","back_office"), id_pulse_kc_encoder');
         if (!$e) { throw new PulseKcEncoderException('No encoder is registered — add one in Key Card ▸ Encoders', PulseKcEncoderException::NOT_CONFIGURED); }
         return $e;
     }
@@ -65,8 +65,8 @@ class PulseKcEncoder
             if ($creds) { $row['credentials_enc'] = pSQL(PulseCoreService::encrypt(json_encode($creds)), true); }
         }
         if (isset($d['options_json'])) { $row['options_json'] = pSQL($d['options_json'], true); }
-        if ($id) { Db::getInstance()->update(self::T, $row, 'id_pulse_kc_encoder='.(int) $id); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert(self::T, $row); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update(self::T, $row, 'id_pulse_kc_encoder='.(int) $id); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert(self::T, $row); $id = (int) PulseDb::Insert_ID(); }
         PulseCoreService::audit('pulsekeycard', 'encoder_save', array('id' => $id, 'name' => $d['name'], 'adapter' => $d['adapter']), self::T, $id);
         return $id;
     }
@@ -76,10 +76,10 @@ class PulseKcEncoder
     {
         $u = array('status' => $ok ? 'online' : 'offline', 'last_error' => pSQL(Tools::substr((string) $error, 0, 255)), 'date_upd' => date('Y-m-d H:i:s'));
         if ($ok) { $u['last_seen'] = date('Y-m-d H:i:s'); }
-        return Db::getInstance()->update(self::T, $u, 'id_pulse_kc_encoder='.(int) $id);
+        return PulseDb::update(self::T, $u, 'id_pulse_kc_encoder='.(int) $id);
     }
 
-    public static function countEncoded($id) { return Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET keys_encoded=keys_encoded+1 WHERE id_pulse_kc_encoder='.(int) $id); }
+    public static function countEncoded($id) { return PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` SET keys_encoded=keys_encoded+1 WHERE id_pulse_kc_encoder='.(int) $id); }
 
     /** Probe one encoder and record the outcome. Never throws — returns the status the UI shows. */
     public static function test($id)

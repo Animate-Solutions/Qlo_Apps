@@ -11,9 +11,9 @@ class PulseHrLeave
     const T = 'pulse_hr_leave_request';
 
     /* ---------- types and entitlements ---------- */
-    public static function types($activeOnly = true) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_type`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY sort, name'); }
-    public static function type($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_type` WHERE id_pulse_hr_leave_type='.(int) $id); }
-    public static function typeByCode($code) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_type` WHERE code="'.pSQL($code).'"'); }
+    public static function types($activeOnly = true) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_type`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY sort, name'); }
+    public static function type($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_type` WHERE id_pulse_hr_leave_type='.(int) $id); }
+    public static function typeByCode($code) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_type` WHERE code="'.pSQL($code).'"'); }
 
     public static function saveType(array $d, $id = 0)
     {
@@ -25,14 +25,14 @@ class PulseHrLeave
             'working_days_only' => !empty($d['working_days_only']) ? 1 : 0, 'requires_document' => !empty($d['requires_document']) ? 1 : 0, 'encashable' => !empty($d['encashable']) ? 1 : 0,
             'colour' => pSQL(isset($d['colour']) ? $d['colour'] : '#2e86c1'), 'sort' => (int) (isset($d['sort']) ? $d['sort'] : 0), 'active' => isset($d['active']) ? (int) $d['active'] : 1);
         if (!$row['code'] || !$row['name']) { throw new PrestaShopException('A leave type needs a code and a name'); }
-        if ($id) { Db::getInstance()->update('pulse_hr_leave_type', $row, 'id_pulse_hr_leave_type='.(int) $id, 0, true); } else { Db::getInstance()->insert('pulse_hr_leave_type', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_hr_leave_type', $row, 'id_pulse_hr_leave_type='.(int) $id, 0, true); } else { PulseDb::insert('pulse_hr_leave_type', $row, true); $id = (int) PulseDb::Insert_ID(); }
         return $id;
     }
 
-    public static function entitlements() { return Db::getInstance()->executeS('SELECT en.*, t.code type_code, t.name type_name, g.code grade_code, g.name grade_name FROM `'._DB_PREFIX_.'pulse_hr_leave_entitlement` en INNER JOIN `'._DB_PREFIX_.'pulse_hr_leave_type` t ON t.id_pulse_hr_leave_type=en.id_pulse_hr_leave_type INNER JOIN `'._DB_PREFIX_.'pulse_hr_grade` g ON g.id_pulse_hr_grade=en.id_pulse_hr_grade ORDER BY t.sort, g.level'); }
+    public static function entitlements() { return PulseDb::executeS('SELECT en.*, t.code type_code, t.name type_name, g.code grade_code, g.name grade_name FROM `'._DB_PREFIX_.'pulse_hr_leave_entitlement` en INNER JOIN `'._DB_PREFIX_.'pulse_hr_leave_type` t ON t.id_pulse_hr_leave_type=en.id_pulse_hr_leave_type INNER JOIN `'._DB_PREFIX_.'pulse_hr_grade` g ON g.id_pulse_hr_grade=en.id_pulse_hr_grade ORDER BY t.sort, g.level'); }
     public static function saveEntitlement($idType, $idGrade, $days)
     {
-        Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_hr_leave_entitlement` (id_pulse_hr_leave_type,id_pulse_hr_grade,days) VALUES ('.(int) $idType.','.(int) $idGrade.','.(float) $days.') ON DUPLICATE KEY UPDATE days=VALUES(days)');
+        PulseDb::execute('INSERT INTO `'._DB_PREFIX_.'pulse_hr_leave_entitlement` (id_pulse_hr_leave_type,id_pulse_hr_grade,days) VALUES ('.(int) $idType.','.(int) $idGrade.','.(float) $days.') ON DUPLICATE KEY UPDATE days=VALUES(days)');
         return true;
     }
 
@@ -42,9 +42,9 @@ class PulseHrLeave
         $e = PulseHrEmployee::get($idEmployee); $t = self::type($idType);
         if (!$e || !$t) { return 0; }
         if ($e['id_pulse_hr_grade']) {
-            $d = Db::getInstance()->getValue('SELECT days FROM `'._DB_PREFIX_.'pulse_hr_leave_entitlement` WHERE id_pulse_hr_leave_type='.(int) $idType.' AND id_pulse_hr_grade='.(int) $e['id_pulse_hr_grade']);
+            $d = PulseDb::getValue('SELECT days FROM `'._DB_PREFIX_.'pulse_hr_leave_entitlement` WHERE id_pulse_hr_leave_type='.(int) $idType.' AND id_pulse_hr_grade='.(int) $e['id_pulse_hr_grade']);
             if ($d !== false && $d !== null) { return (float) $d; }
-            if ($t['code'] === 'ANN') { $g = Db::getInstance()->getRow('SELECT annual_leave_days FROM `'._DB_PREFIX_.'pulse_hr_grade` WHERE id_pulse_hr_grade='.(int) $e['id_pulse_hr_grade']); if ($g) { return (float) $g['annual_leave_days']; } }
+            if ($t['code'] === 'ANN') { $g = PulseDb::getRow('SELECT annual_leave_days FROM `'._DB_PREFIX_.'pulse_hr_grade` WHERE id_pulse_hr_grade='.(int) $e['id_pulse_hr_grade']); if ($g) { return (float) $g['annual_leave_days']; } }
         }
         return (float) $t['days_per_year'];
     }
@@ -57,11 +57,11 @@ class PulseHrLeave
         $year = (int) ($year ? $year : date('Y'));
         // one probe for the whole year rather than one per type — this runs for every employee on the liability report
         $have = array();
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_hr_leave_type FROM `'._DB_PREFIX_.'pulse_hr_leave_balance` WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND year='.$year) as $b) { $have[(int) $b['id_pulse_hr_leave_type']] = 1; }
+        foreach (PulseDb::executeS('SELECT id_pulse_hr_leave_type FROM `'._DB_PREFIX_.'pulse_hr_leave_balance` WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND year='.$year) as $b) { $have[(int) $b['id_pulse_hr_leave_type']] = 1; }
         foreach (self::types() as $t) {
             if (isset($have[(int) $t['id_pulse_hr_leave_type']])) { continue; }
             $opening = $t['accrual'] === 'annual' ? self::entitlementFor($idEmployee, (int) $t['id_pulse_hr_leave_type'], $year) : 0;
-            Db::getInstance()->insert('pulse_hr_leave_balance', array('id_pulse_hr_employee' => (int) $idEmployee, 'id_pulse_hr_leave_type' => (int) $t['id_pulse_hr_leave_type'],
+            PulseDb::insert('pulse_hr_leave_balance', array('id_pulse_hr_employee' => (int) $idEmployee, 'id_pulse_hr_leave_type' => (int) $t['id_pulse_hr_leave_type'],
                 'year' => $year, 'opening' => $opening, 'date_upd' => date('Y-m-d H:i:s')), true, true, Db::INSERT_IGNORE);
         }
         return true;
@@ -71,7 +71,7 @@ class PulseHrLeave
     {
         $year = (int) ($year ? $year : date('Y'));
         self::openBalances($idEmployee, $year);
-        $rows = Db::getInstance()->executeS('SELECT b.*, t.code, t.name, t.paid, t.encashable, t.colour, t.accrual FROM `'._DB_PREFIX_.'pulse_hr_leave_balance` b
+        $rows = PulseDb::executeS('SELECT b.*, t.code, t.name, t.paid, t.encashable, t.colour, t.accrual FROM `'._DB_PREFIX_.'pulse_hr_leave_balance` b
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_leave_type` t ON t.id_pulse_hr_leave_type=b.id_pulse_hr_leave_type
             WHERE b.id_pulse_hr_employee='.(int) $idEmployee.' AND b.year='.$year.' AND t.active=1 ORDER BY t.sort');
         foreach ($rows as &$r) {
@@ -95,7 +95,7 @@ class PulseHrLeave
         self::openBalances($idEmployee, $year);
         $set = array();
         foreach ($delta as $col => $v) { $set[] = '`'.bqSQL($col).'`=`'.bqSQL($col).'`+'.(float) $v; }
-        return Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_balance` SET '.implode(',', $set).', date_upd=NOW()
+        return PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_balance` SET '.implode(',', $set).', date_upd=NOW()
             WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND id_pulse_hr_leave_type='.(int) $idType.' AND year='.(int) $year);
     }
 
@@ -120,16 +120,16 @@ class PulseHrLeave
         $types = array();
         foreach (self::types() as $t) { if ($t['accrual'] === 'monthly') { $types[] = $t; } }
         if (!$types) { return 0; }
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_hr_employee, hire_date, status FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE status IN ("active","probation","on_leave","suspended")') as $e) {
+        foreach (PulseDb::executeS('SELECT id_pulse_hr_employee, hire_date, status FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE status IN ("active","probation","on_leave","suspended")') as $e) {
             foreach ($types as $t) {
                 self::openBalances((int) $e['id_pulse_hr_employee'], $year);
-                $b = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_balance` WHERE id_pulse_hr_employee='.(int) $e['id_pulse_hr_employee'].' AND id_pulse_hr_leave_type='.(int) $t['id_pulse_hr_leave_type'].' AND year='.$year);
+                $b = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_balance` WHERE id_pulse_hr_employee='.(int) $e['id_pulse_hr_employee'].' AND id_pulse_hr_leave_type='.(int) $t['id_pulse_hr_leave_type'].' AND year='.$year);
                 if (!$b || $b['last_accrued'] === $month) { continue; }
                 // a joiner accrues from the month they started, not from January
                 if ($e['hire_date'] && date('Y-m', strtotime($e['hire_date'])) > $month) { continue; }
                 $annual = self::entitlementFor((int) $e['id_pulse_hr_employee'], (int) $t['id_pulse_hr_leave_type'], $year);
-                if ($annual <= 0) { Db::getInstance()->update('pulse_hr_leave_balance', array('last_accrued' => pSQL($month)), 'id_pulse_hr_leave_balance='.(int) $b['id_pulse_hr_leave_balance'], 0, true); continue; }
-                Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_balance` SET accrued=accrued+'.round($annual / 12, 2).', last_accrued="'.pSQL($month).'", date_upd=NOW() WHERE id_pulse_hr_leave_balance='.(int) $b['id_pulse_hr_leave_balance']);
+                if ($annual <= 0) { PulseDb::update('pulse_hr_leave_balance', array('last_accrued' => pSQL($month)), 'id_pulse_hr_leave_balance='.(int) $b['id_pulse_hr_leave_balance'], 0, true); continue; }
+                PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_balance` SET accrued=accrued+'.round($annual / 12, 2).', last_accrued="'.pSQL($month).'", date_upd=NOW() WHERE id_pulse_hr_leave_balance='.(int) $b['id_pulse_hr_leave_balance']);
                 $done++;
             }
         }
@@ -141,7 +141,7 @@ class PulseHrLeave
     {
         $fromYear = (int) ($fromYear ? $fromYear : date('Y') - 1);
         $to = $fromYear + 1; $moved = 0;
-        foreach (Db::getInstance()->executeS('SELECT b.*, t.carry_over_cap FROM `'._DB_PREFIX_.'pulse_hr_leave_balance` b
+        foreach (PulseDb::executeS('SELECT b.*, t.carry_over_cap FROM `'._DB_PREFIX_.'pulse_hr_leave_balance` b
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_leave_type` t ON t.id_pulse_hr_leave_type=b.id_pulse_hr_leave_type
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=b.id_pulse_hr_employee
             WHERE b.year='.$fromYear.' AND e.status<>"exited" AND t.carry_over_cap>0') as $b) {
@@ -149,7 +149,7 @@ class PulseHrLeave
             $carry = max(0, min((float) $b['carry_over_cap'], $left));
             if ($carry <= 0) { continue; }
             self::openBalances((int) $b['id_pulse_hr_employee'], $to);
-            Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_balance` SET carried='.$carry.', date_upd=NOW()
+            PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_balance` SET carried='.$carry.', date_upd=NOW()
                 WHERE id_pulse_hr_employee='.(int) $b['id_pulse_hr_employee'].' AND id_pulse_hr_leave_type='.(int) $b['id_pulse_hr_leave_type'].' AND year='.$to);
             $moved++;
         }
@@ -169,7 +169,7 @@ class PulseHrLeave
     /** Who else in the department is already off across these dates — the coverage check before an approval. */
     public static function clash($from, $to, $dept, $excludeRequest = 0)
     {
-        return Db::getInstance()->executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, t.code type_code
+        return PulseDb::executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, t.code type_code
             FROM `'._DB_PREFIX_.self::T.'` r
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=r.id_pulse_hr_employee
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_leave_type` t ON t.id_pulse_hr_leave_type=r.id_pulse_hr_leave_type
@@ -180,7 +180,7 @@ class PulseHrLeave
 
     public static function blackouts($from, $to, $dept = null)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_blackout` WHERE active=1 AND date_from<="'.pSQL($to).'" AND date_to>="'.pSQL($from).'"'
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_blackout` WHERE active=1 AND date_from<="'.pSQL($to).'" AND date_to>="'.pSQL($from).'"'
             .($dept ? ' AND (department IS NULL OR department="" OR department="'.pSQL($dept).'")' : '').' ORDER BY date_from');
     }
 
@@ -191,7 +191,7 @@ class PulseHrLeave
             'max_off' => (int) (isset($d['max_off']) ? $d['max_off'] : 0), 'min_occupancy_pct' => (float) (isset($d['min_occupancy_pct']) ? $d['min_occupancy_pct'] : 0),
             'reason' => pSQL(isset($d['reason']) ? $d['reason'] : ''), 'active' => isset($d['active']) ? (int) $d['active'] : 1);
         if ($row['date_to'] < $row['date_from']) { throw new PrestaShopException('The blackout ends before it starts'); }
-        if ($id) { Db::getInstance()->update('pulse_hr_blackout', $row, 'id_pulse_hr_blackout='.(int) $id, 0, true); } else { Db::getInstance()->insert('pulse_hr_blackout', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_hr_blackout', $row, 'id_pulse_hr_blackout='.(int) $id, 0, true); } else { PulseDb::insert('pulse_hr_blackout', $row, true); $id = (int) PulseDb::Insert_ID(); }
         return $id;
     }
 
@@ -218,7 +218,7 @@ class PulseHrLeave
         $days = isset($d['days']) && $d['days'] !== '' ? round((float) $d['days'], 2) : self::days($from, $to, $half, (int) $t['working_days_only']);
         if ($days <= 0) { throw new PrestaShopException('That range contains no working days'); }
         if ((int) $t['max_consecutive'] > 0 && $days > (float) $t['max_consecutive']) { throw new PrestaShopException($t['name'].' is capped at '.(float) $t['max_consecutive'].' days at a time'); }
-        $overlap = Db::getInstance()->getValue('SELECT request_no FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.$idEmployee.' AND status IN ("pending","approved","taken") AND date_from<="'.pSQL($to).'" AND date_to>="'.pSQL($from).'"');
+        $overlap = PulseDb::getValue('SELECT request_no FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.$idEmployee.' AND status IN ("pending","approved","taken") AND date_from<="'.pSQL($to).'" AND date_to>="'.pSQL($from).'"');
         if ($overlap) { throw new PrestaShopException('Those dates overlap request '.$overlap); }
         $year = (int) date('Y', strtotime($from));
         if ($t['paid'] && $t['accrual'] !== 'on_event' && $t['accrual'] !== 'none') {
@@ -232,10 +232,10 @@ class PulseHrLeave
             'address_on_leave' => pSQL(isset($d['address_on_leave']) ? $d['address_on_leave'] : ''), 'status' => 'pending', 'current_level' => 1,
             'id_pulse_hr_document' => !empty($d['id_pulse_hr_document']) ? (int) $d['id_pulse_hr_document'] : null, 'source' => pSQL(isset($d['source']) ? $d['source'] : 'admin'),
             'business_date' => pSQL(PulseHrService::bd()), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'));
-        Db::getInstance()->insert(self::T, $row, true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert(self::T, $row, true);
+        $id = (int) PulseDb::Insert_ID();
         foreach (self::chainFor($e) as $lvl => $step) {
-            Db::getInstance()->insert('pulse_hr_leave_approval', array('id_pulse_hr_leave_request' => $id, 'level' => (int) $lvl + 1, 'role' => pSQL($step['role']),
+            PulseDb::insert('pulse_hr_leave_approval', array('id_pulse_hr_leave_request' => $id, 'level' => (int) $lvl + 1, 'role' => pSQL($step['role']),
                 'id_pulse_hr_employee' => $step['id'] ? (int) $step['id'] : null, 'action' => 'pending', 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), true);
         }
         self::move($idEmployee, (int) $t['id_pulse_hr_leave_type'], $year, array('pending' => $days));
@@ -267,7 +267,7 @@ class PulseHrLeave
     {
         $chain = array();
         if (!empty($e['id_manager'])) { $chain[] = array('role' => 'manager', 'id' => (int) $e['id_manager']); }
-        $head = $e['id_pulse_hr_department'] ? (int) Db::getInstance()->getValue('SELECT id_head FROM `'._DB_PREFIX_.'pulse_hr_department` WHERE id_pulse_hr_department='.(int) $e['id_pulse_hr_department']) : 0;
+        $head = $e['id_pulse_hr_department'] ? (int) PulseDb::getValue('SELECT id_head FROM `'._DB_PREFIX_.'pulse_hr_department` WHERE id_pulse_hr_department='.(int) $e['id_pulse_hr_department']) : 0;
         if ($head && $head !== (int) $e['id_manager'] && $head !== (int) $e['id_pulse_hr_employee']) { $chain[] = array('role' => 'hod', 'id' => $head); }
         $chain[] = array('role' => 'hr', 'id' => 0);
         return $chain;
@@ -275,7 +275,7 @@ class PulseHrLeave
 
     public static function get($id)
     {
-        $r = Db::getInstance()->getRow('SELECT r.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, e.phone, e.email, e.gender, d.code dept_code, d.name dept_name,
+        $r = PulseDb::getRow('SELECT r.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, e.phone, e.email, e.gender, d.code dept_code, d.name dept_name,
                 t.code type_code, t.name type_name, t.paid, t.encashable, CONCAT(rl.firstname," ",rl.lastname) relief_name
             FROM `'._DB_PREFIX_.self::T.'` r
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=r.id_pulse_hr_employee
@@ -283,13 +283,13 @@ class PulseHrLeave
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_employee` rl ON rl.id_pulse_hr_employee=r.id_relief
             WHERE r.id_pulse_hr_leave_request='.(int) $id);
-        if ($r) { $r['approvals'] = Db::getInstance()->executeS('SELECT a.*, CONCAT(e.firstname," ",e.lastname) approver_name FROM `'._DB_PREFIX_.'pulse_hr_leave_approval` a LEFT JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=a.id_pulse_hr_employee WHERE a.id_pulse_hr_leave_request='.(int) $id.' ORDER BY a.level'); }
+        if ($r) { $r['approvals'] = PulseDb::executeS('SELECT a.*, CONCAT(e.firstname," ",e.lastname) approver_name FROM `'._DB_PREFIX_.'pulse_hr_leave_approval` a LEFT JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=a.id_pulse_hr_employee WHERE a.id_pulse_hr_leave_request='.(int) $id.' ORDER BY a.level'); }
         return $r;
     }
 
     public static function requests($status = null, $dept = null, $idEmployee = 0, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.code dept_code, d.name dept_name, t.code type_code, t.name type_name, t.colour
+        return PulseDb::executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.code dept_code, d.name dept_name, t.code type_code, t.name type_name, t.colour
             FROM `'._DB_PREFIX_.self::T.'` r
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=r.id_pulse_hr_employee
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_leave_type` t ON t.id_pulse_hr_leave_type=r.id_pulse_hr_leave_type
@@ -311,28 +311,28 @@ class PulseHrLeave
         if ($r['status'] !== 'pending') { throw new PrestaShopException('That request is already '.$r['status']); }
         if (!in_array($action, array('approved', 'rejected'))) { throw new PrestaShopException('Unknown decision'); }
         $year = (int) date('Y', strtotime($r['date_from']));
-        $step = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_approval` WHERE id_pulse_hr_leave_request='.(int) $idRequest.' AND action="pending" ORDER BY level LIMIT 1');
+        $step = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_leave_approval` WHERE id_pulse_hr_leave_request='.(int) $idRequest.' AND action="pending" ORDER BY level');
         if ($step) {
-            Db::getInstance()->update('pulse_hr_leave_approval', array('action' => pSQL($action), 'comment' => pSQL($comment), 'id_employee' => PulseHrService::emp(),
+            PulseDb::update('pulse_hr_leave_approval', array('action' => pSQL($action), 'comment' => pSQL($comment), 'id_employee' => PulseHrService::emp(),
                 'id_pulse_hr_employee' => $idApproverEmployee ? (int) $idApproverEmployee : ($step['id_pulse_hr_employee'] ? (int) $step['id_pulse_hr_employee'] : null), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_approval='.(int) $step['id_pulse_hr_leave_approval'], 0, true);
         }
         if ($action === 'rejected') {
-            Db::getInstance()->update(self::T, array('status' => 'rejected', 'decision_note' => pSQL($comment), 'decided_by' => PulseHrService::emp(), 'decided_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_request='.(int) $idRequest, 0, true);
-            Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_approval` SET action="skipped", date_upd=NOW() WHERE id_pulse_hr_leave_request='.(int) $idRequest.' AND action="pending"');
+            PulseDb::update(self::T, array('status' => 'rejected', 'decision_note' => pSQL($comment), 'decided_by' => PulseHrService::emp(), 'decided_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_request='.(int) $idRequest, 0, true);
+            PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_approval` SET action="skipped", date_upd=NOW() WHERE id_pulse_hr_leave_request='.(int) $idRequest.' AND action="pending"');
             self::move((int) $r['id_pulse_hr_employee'], (int) $r['id_pulse_hr_leave_type'], $year, array('pending' => -(float) $r['days']));
             PulseCoreService::audit('pulsehr', 'leave_rejected', array('request_no' => $r['request_no'], 'comment' => $comment), self::T, (int) $idRequest);
             self::notify($r, 'rejected');
             return 'rejected';
         }
-        $more = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_leave_approval` WHERE id_pulse_hr_leave_request='.(int) $idRequest.' AND action="pending"');
+        $more = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_leave_approval` WHERE id_pulse_hr_leave_request='.(int) $idRequest.' AND action="pending"');
         if ($more > 0) {
-            Db::getInstance()->update(self::T, array('current_level' => (int) $r['current_level'] + 1, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_request='.(int) $idRequest, 0, true);
+            PulseDb::update(self::T, array('current_level' => (int) $r['current_level'] + 1, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_request='.(int) $idRequest, 0, true);
             return 'pending';
         }
-        Db::getInstance()->update(self::T, array('status' => 'approved', 'decision_note' => pSQL($comment), 'decided_by' => PulseHrService::emp(), 'decided_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_request='.(int) $idRequest, 0, true);
+        PulseDb::update(self::T, array('status' => 'approved', 'decision_note' => pSQL($comment), 'decided_by' => PulseHrService::emp(), 'decided_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_request='.(int) $idRequest, 0, true);
         self::move((int) $r['id_pulse_hr_employee'], (int) $r['id_pulse_hr_leave_type'], $year, array('pending' => -(float) $r['days'], 'taken' => (float) $r['days']));
         // the roster stops pretending they are coming in
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_roster` SET is_off=1, id_pulse_hr_shift=NULL, note=CONCAT("On leave ",COALESCE(note,"")), date_upd=NOW()
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_roster` SET is_off=1, id_pulse_hr_shift=NULL, note=CONCAT("On leave ",COALESCE(note,"")), date_upd=NOW()
             WHERE id_pulse_hr_employee='.(int) $r['id_pulse_hr_employee'].' AND roster_date BETWEEN "'.pSQL($r['date_from']).'" AND "'.pSQL($r['date_to']).'" AND status<>"cancelled"');
         PulseCoreService::audit('pulsehr', 'leave_approved', array('request_no' => $r['request_no'], 'days' => $r['days'], 'from' => $r['date_from'], 'to' => $r['date_to']), self::T, (int) $idRequest);
         PulseCoreService::event('actionPulseHrLeaveApproved', array('id_request' => (int) $idRequest, 'id_pulse_hr_employee' => (int) $r['id_pulse_hr_employee'],
@@ -364,8 +364,8 @@ class PulseHrLeave
         $year = (int) date('Y', strtotime($r['date_from']));
         $col = $r['status'] === 'pending' ? 'pending' : 'taken';
         self::move((int) $r['id_pulse_hr_employee'], (int) $r['id_pulse_hr_leave_type'], $year, array($col => -(float) $r['days']));
-        Db::getInstance()->update(self::T, array('status' => 'cancelled', 'decision_note' => pSQL($why), 'decided_by' => PulseHrService::emp(), 'decided_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_request='.(int) $idRequest, 0, true);
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_approval` SET action="skipped", date_upd=NOW() WHERE id_pulse_hr_leave_request='.(int) $idRequest.' AND action="pending"');
+        PulseDb::update(self::T, array('status' => 'cancelled', 'decision_note' => pSQL($why), 'decided_by' => PulseHrService::emp(), 'decided_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_leave_request='.(int) $idRequest, 0, true);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_approval` SET action="skipped", date_upd=NOW() WHERE id_pulse_hr_leave_request='.(int) $idRequest.' AND action="pending"');
         PulseCoreService::audit('pulsehr', 'leave_cancelled', array('request_no' => $r['request_no'], 'why' => $why), self::T, (int) $idRequest);
         return true;
     }
@@ -398,7 +398,7 @@ class PulseHrLeave
     public static function onLeave($date = null)
     {
         $d = pSQL($date ? $date : PulseHrService::bd());
-        return Db::getInstance()->executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name, t.code type_code, t.name type_name, t.colour
+        return PulseDb::executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name, t.code type_code, t.name type_name, t.colour
             FROM `'._DB_PREFIX_.self::T.'` r
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=r.id_pulse_hr_employee
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_leave_type` t ON t.id_pulse_hr_leave_type=r.id_pulse_hr_leave_type
@@ -409,7 +409,7 @@ class PulseHrLeave
     /** Calendar rows for the leave grid: one row per person with the days they are away inside the window. */
     public static function calendar($from, $to, $dept = null)
     {
-        $rows = Db::getInstance()->executeS('SELECT r.id_pulse_hr_employee, r.date_from, r.date_to, r.status, t.code type_code, t.colour,
+        $rows = PulseDb::executeS('SELECT r.id_pulse_hr_employee, r.date_from, r.date_to, r.status, t.code type_code, t.colour,
                 CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.code dept_code, d.name dept_name
             FROM `'._DB_PREFIX_.self::T.'` r
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=r.id_pulse_hr_employee
@@ -432,10 +432,10 @@ class PulseHrLeave
     public static function rollDay($date = null)
     {
         $d = pSQL($date ? $date : PulseHrService::bd()); $n = 0;
-        $n += (int) Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET status="taken", date_upd=NOW() WHERE status="approved" AND date_from<="'.$d.'"');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_employee` e INNER JOIN `'._DB_PREFIX_.self::T.'` r ON r.id_pulse_hr_employee=e.id_pulse_hr_employee AND r.status="taken"
+        $n += (int) PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` SET status="taken", date_upd=NOW() WHERE status="approved" AND date_from<="'.$d.'"');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_employee` e INNER JOIN `'._DB_PREFIX_.self::T.'` r ON r.id_pulse_hr_employee=e.id_pulse_hr_employee AND r.status="taken"
             SET e.status="on_leave", e.date_upd=NOW() WHERE e.status="active" AND "'.$d.'" BETWEEN r.date_from AND r.date_to');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_employee` e SET e.status="active", e.date_upd=NOW() WHERE e.status="on_leave"
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_employee` e SET e.status="active", e.date_upd=NOW() WHERE e.status="on_leave"
             AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.self::T.'` r WHERE r.id_pulse_hr_employee=e.id_pulse_hr_employee AND r.status IN ("approved","taken") AND "'.$d.'" BETWEEN r.date_from AND r.date_to)');
         return $n;
     }

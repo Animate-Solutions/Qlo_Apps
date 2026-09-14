@@ -46,7 +46,7 @@ class AdminPulseAccTaxController extends ModuleAdminController
             }
             if (Tools::isSubmit('sendEinvoice')) { $r = PulseAccTax::einvoiceSend((int) Tools::getValue('id_einvoice_s')); $this->confirmations[] = $r['status'] === 'accepted' ? $this->l('Accepted by the service') : sprintf($this->l('Status %s — %s'), $r['status'], isset($r['error']) ? $r['error'] : ''); }
             if (Tools::isSubmit('drainEinvoice')) { $r = PulseAccTax::einvoiceDrain(50); $this->confirmations[] = sprintf($this->l('Sent %d, still pending %d'), $r['sent'], $r['pending']); }
-            if (Tools::isSubmit('requeueEinvoice')) { Db::getInstance()->update('pulse_acc_einvoice', array('status' => 'queued', 'attempts' => 0, 'last_error' => null, 'next_retry_at' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) Tools::getValue('id_einvoice_s')); $this->confirmations[] = $this->l('Back on the queue'); }
+            if (Tools::isSubmit('requeueEinvoice')) { PulseDb::update('pulse_acc_einvoice', array('status' => 'queued', 'attempts' => 0, 'last_error' => null, 'next_retry_at' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) Tools::getValue('id_einvoice_s')); $this->confirmations[] = $this->l('Back on the queue'); }
         } catch (Exception $e) { $this->errors[] = $e->getMessage(); }
         return parent::postProcess();
     }

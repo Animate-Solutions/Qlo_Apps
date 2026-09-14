@@ -26,7 +26,7 @@ class PulseHrEss
 
     protected static function log($staffNo, $ok, $reason)
     {
-        Db::getInstance()->insert('pulse_hr_ess_login', array('staff_no' => pSQL(Tools::substr((string) $staffNo, 0, 32)), 'ip' => pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)),
+        PulseDb::insert('pulse_hr_ess_login', array('staff_no' => pSQL(Tools::substr((string) $staffNo, 0, 32)), 'ip' => pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)),
             'ok' => $ok ? 1 : 0, 'reason' => pSQL($reason), 'user_agent' => pSQL(Tools::substr(isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '', 0, 250)), 'date_add' => date('Y-m-d H:i:s')), true);
     }
     protected static function recentFails($staffNo)
@@ -34,7 +34,7 @@ class PulseHrEss
         $mins = max(1, (int) PulseHrService::cfg('ESS_FAIL_WINDOW_MIN', 15));
         // A refusal that was itself caused by the lockout does not count towards the lockout, or anyone who
         // knows a staff number could keep a colleague locked out for as long as they cared to keep typing.
-        return (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_ess_login` WHERE ok=0 AND reason<>"throttled" AND date_add>DATE_SUB(NOW(), INTERVAL '.$mins.' MINUTE)
+        return (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_ess_login` WHERE ok=0 AND reason<>"throttled" AND date_add>DATE_SUB(NOW(), INTERVAL '.$mins.' MINUTE)
             AND (staff_no="'.pSQL((string) $staffNo).'" OR ip="'.pSQL((string) Tools::getRemoteAddr()).'")');
     }
 
@@ -51,7 +51,7 @@ class PulseHrEss
         if ($staffNo === '' || $pin === '') { throw new PrestaShopException($bad, 401); }
         $max = (int) PulseHrService::cfg('ESS_MAX_FAILS', 5);
         if ($max > 0 && self::recentFails($staffNo) >= $max) { self::log($staffNo, 0, 'throttled'); throw new PrestaShopException('Too many attempts. Wait '.(int) PulseHrService::cfg('ESS_FAIL_WINDOW_MIN', 15).' minutes or see HR', 429); }
-        $e = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE staff_no="'.pSQL($staffNo).'"');
+        $e = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE staff_no="'.pSQL($staffNo).'"');
         if (!$e || !$e['pin_hash']) { self::log($staffNo, 0, 'unknown'); throw new PrestaShopException($bad, 401); }
         if (!hash_equals((string) $e['pin_hash'], PulseHrService::pinHash($pin))) { self::log($staffNo, 0, 'bad_pin'); throw new PrestaShopException($bad, 401); }
         if (!$e['ess_enabled']) { self::log($staffNo, 0, 'disabled'); throw new PrestaShopException('Your portal access is closed — please see HR', 403); }
@@ -67,7 +67,7 @@ class PulseHrEss
         $exp = time() + $ttl * 60;
         $sid = Tools::substr(md5(uniqid('ess', true).Tools::passwdGen(12)), 0, 32);
         $token = $sid.'.'.$exp.'.'.self::sign($sid, (int) $e['id_pulse_hr_employee'], $exp);
-        Db::getInstance()->insert(self::S, array('sid' => pSQL($sid), 'id_pulse_hr_employee' => (int) $e['id_pulse_hr_employee'], 'token_hash' => pSQL(hash('sha256', $token)),
+        PulseDb::insert(self::S, array('sid' => pSQL($sid), 'id_pulse_hr_employee' => (int) $e['id_pulse_hr_employee'], 'token_hash' => pSQL(hash('sha256', $token)),
             'expires_at' => date('Y-m-d H:i:s', $exp), 'ip' => pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)),
             'user_agent' => pSQL(Tools::substr(isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '', 0, 250)),
             'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), true);
@@ -82,23 +82,23 @@ class PulseHrEss
         $p = explode('.', (string) $token);
         if (count($p) !== 3 || !preg_match('/^[a-f0-9]{32}$/', $p[0]) || !ctype_digit($p[1])) { throw new PrestaShopException('Please sign in again', 401); }
         if ((int) $p[1] < time()) { throw new PrestaShopException('Your session has timed out', 401); }
-        $s = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::S.'` WHERE sid="'.pSQL($p[0]).'"');
+        $s = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::S.'` WHERE sid="'.pSQL($p[0]).'"');
         if (!$s || (int) $s['revoked']) { throw new PrestaShopException('Please sign in again', 401); }
         if (!hash_equals(self::sign($p[0], (int) $s['id_pulse_hr_employee'], (int) $p[1]), $p[2])) { throw new PrestaShopException('Please sign in again', 401); }
         if (!hash_equals($s['token_hash'], hash('sha256', $token))) { throw new PrestaShopException('Please sign in again', 401); }
         if (strtotime($s['expires_at']) < time()) { throw new PrestaShopException('Your session has timed out', 401); }
-        $e = Db::getInstance()->getRow('SELECT id_pulse_hr_employee, status, ess_enabled FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE id_pulse_hr_employee='.(int) $s['id_pulse_hr_employee']);
+        $e = PulseDb::getRow('SELECT id_pulse_hr_employee, status, ess_enabled FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE id_pulse_hr_employee='.(int) $s['id_pulse_hr_employee']);
         if (!$e || !$e['ess_enabled'] || $e['status'] === 'exited') { self::revoke((int) $s['id_pulse_hr_ess_session'], 'closed'); throw new PrestaShopException('Your portal access is closed — please see HR', 403); }
-        Db::getInstance()->update(self::S, array('date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_ess_session='.(int) $s['id_pulse_hr_ess_session'], 0, true);
+        PulseDb::update(self::S, array('date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_ess_session='.(int) $s['id_pulse_hr_ess_session'], 0, true);
         return $s;
     }
 
-    public static function revoke($idSession, $reason = 'signed out') { return Db::getInstance()->update(self::S, array('revoked' => 1, 'revoke_reason' => pSQL($reason), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_ess_session='.(int) $idSession, 0, true); }
-    public static function revokeForEmployee($idEmployee, $reason = 'admin') { return Db::getInstance()->update(self::S, array('revoked' => 1, 'revoke_reason' => pSQL($reason), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $idEmployee.' AND revoked=0', 0, true); }
+    public static function revoke($idSession, $reason = 'signed out') { return PulseDb::update(self::S, array('revoked' => 1, 'revoke_reason' => pSQL($reason), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_ess_session='.(int) $idSession, 0, true); }
+    public static function revokeForEmployee($idEmployee, $reason = 'admin') { return PulseDb::update(self::S, array('revoked' => 1, 'revoke_reason' => pSQL($reason), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $idEmployee.' AND revoked=0', 0, true); }
     public static function purge($days = 7)
     {
-        Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.self::S.'` WHERE expires_at<DATE_SUB(NOW(), INTERVAL '.(int) $days.' DAY)');
-        return Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_hr_ess_login` WHERE date_add<DATE_SUB(NOW(), INTERVAL 90 DAY)');
+        PulseDb::execute('DELETE FROM `'._DB_PREFIX_.self::S.'` WHERE expires_at<DATE_SUB(NOW(), INTERVAL '.(int) $days.' DAY)');
+        return PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_hr_ess_login` WHERE date_add<DATE_SUB(NOW(), INTERVAL 90 DAY)');
     }
 
     /** Which sections the portal may show, and why the missing ones are missing. */
@@ -139,16 +139,16 @@ class PulseHrEss
     /** Re-enter the PIN to open a short window in which salary may be served. */
     public static function confirmPin($session, $pin)
     {
-        $e = Db::getInstance()->getRow('SELECT staff_no, pin_hash FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE id_pulse_hr_employee='.(int) $session['id_pulse_hr_employee']);
+        $e = PulseDb::getRow('SELECT staff_no, pin_hash FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE id_pulse_hr_employee='.(int) $session['id_pulse_hr_employee']);
         PulseHrService::rateHit('esspin:'.(int) $session['id_pulse_hr_employee'], 6);
         if (!$e || !$e['pin_hash'] || !hash_equals((string) $e['pin_hash'], PulseHrService::pinHash(trim((string) $pin)))) { self::log($e ? $e['staff_no'] : '', 0, 'bad_pin_reveal'); throw new PrestaShopException('That PIN did not match', 401); }
         $mins = max(1, (int) PulseHrService::cfg('ESS_PAYSLIP_WINDOW_MIN', 5));
-        Db::getInstance()->update(self::S, array('payslip_until' => date('Y-m-d H:i:s', time() + $mins * 60), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_ess_session='.(int) $session['id_pulse_hr_ess_session'], 0, true);
+        PulseDb::update(self::S, array('payslip_until' => date('Y-m-d H:i:s', time() + $mins * 60), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_ess_session='.(int) $session['id_pulse_hr_ess_session'], 0, true);
         return array('ok' => 1, 'until' => date('c', time() + $mins * 60), 'seconds' => $mins * 60);
     }
     public static function payslipWindowOpen($session)
     {
-        $s = Db::getInstance()->getRow('SELECT payslip_until FROM `'._DB_PREFIX_.self::S.'` WHERE id_pulse_hr_ess_session='.(int) $session['id_pulse_hr_ess_session']);
+        $s = PulseDb::getRow('SELECT payslip_until FROM `'._DB_PREFIX_.self::S.'` WHERE id_pulse_hr_ess_session='.(int) $session['id_pulse_hr_ess_session']);
         return $s && $s['payslip_until'] && strtotime($s['payslip_until']) > time();
     }
 
@@ -164,7 +164,7 @@ class PulseHrEss
             return array('available' => 1, 'why' => '', 'rows' => PulsePrPayslip::forEmployee((int) $idEmployee, (int) $limit));
         }
         // no class to call, but the table is there: read the columns every payslip must have
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_hr_employee='.(int) $idEmployee.' ORDER BY id_pulse_pr_payslip DESC LIMIT '.(int) $limit);
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_hr_employee='.(int) $idEmployee.' ORDER BY id_pulse_pr_payslip DESC LIMIT '.(int) $limit);
         return array('available' => 1, 'why' => '', 'rows' => $rows ? $rows : array());
     }
 
@@ -182,17 +182,17 @@ class PulseHrEss
         if (in_array($field, array('phone', 'phone_alt', 'nok_phone')) && $value !== '' && !preg_match('/^[0-9 +()-]{7,20}$/', $value)) { throw new PrestaShopException('That phone number does not look right', 400); }
         if (in_array($field, array('account_no')) && $value !== '' && !preg_match('/^[0-9]{10}$/', $value)) { throw new PrestaShopException('A Nigerian account number is ten digits', 400); }
         if ((string) $e[$field] === $value) { throw new PrestaShopException('That is what we already have on file', 400); }
-        if (Db::getInstance()->getValue('SELECT id_pulse_hr_change_request FROM `'._DB_PREFIX_.'pulse_hr_change_request` WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND field="'.pSQL($field).'" AND status="pending"')) { throw new PrestaShopException('You already have a change to that detail waiting with HR', 400); }
-        Db::getInstance()->insert('pulse_hr_change_request', array('id_pulse_hr_employee' => (int) $idEmployee, 'field' => pSQL($field), 'old_value' => pSQL((string) $e[$field]),
+        if (PulseDb::getValue('SELECT id_pulse_hr_change_request FROM `'._DB_PREFIX_.'pulse_hr_change_request` WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND field="'.pSQL($field).'" AND status="pending"')) { throw new PrestaShopException('You already have a change to that detail waiting with HR', 400); }
+        PulseDb::insert('pulse_hr_change_request', array('id_pulse_hr_employee' => (int) $idEmployee, 'field' => pSQL($field), 'old_value' => pSQL((string) $e[$field]),
             'new_value' => pSQL($value), 'status' => 'pending', 'date_add' => date('Y-m-d H:i:s')), true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         PulseCoreService::audit('pulsehr', 'ess_change_request', array('field' => $field, 'staff_no' => $e['staff_no']), 'pulse_hr_change_request', $id);
         return array('id' => $id, 'field' => $field, 'status' => 'pending');
     }
 
     public static function changeRequests($status = 'pending')
     {
-        return Db::getInstance()->executeS('SELECT cr.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
+        return PulseDb::executeS('SELECT cr.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
             FROM `'._DB_PREFIX_.'pulse_hr_change_request` cr INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=cr.id_pulse_hr_employee
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
             WHERE 1'.($status ? ' AND cr.status="'.pSQL($status).'"' : '').' ORDER BY cr.date_add DESC LIMIT 200');
@@ -200,11 +200,11 @@ class PulseHrEss
 
     public static function decideChange($id, $approve, $note = '')
     {
-        $cr = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_change_request` WHERE id_pulse_hr_change_request='.(int) $id);
+        $cr = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_change_request` WHERE id_pulse_hr_change_request='.(int) $id);
         if (!$cr || $cr['status'] !== 'pending') { throw new PrestaShopException('Change request not found'); }
         if (!in_array($cr['field'], PulseHrEmployee::selfServiceFields())) { throw new PrestaShopException('That field is not self-service'); }
         if ($approve) { PulseHrEmployee::save(array($cr['field'] => $cr['new_value']), (int) $cr['id_pulse_hr_employee']); }
-        Db::getInstance()->update('pulse_hr_change_request', array('status' => $approve ? 'approved' : 'rejected', 'note' => pSQL($note),
+        PulseDb::update('pulse_hr_change_request', array('status' => $approve ? 'approved' : 'rejected', 'note' => pSQL($note),
             'decided_by' => PulseHrService::emp(), 'decided_at' => date('Y-m-d H:i:s')), 'id_pulse_hr_change_request='.(int) $id, 0, true);
         PulseCoreService::audit('pulsehr', 'ess_change_'.($approve ? 'approved' : 'rejected'), array('field' => $cr['field'], 'value' => $cr['new_value']), 'pulse_hr_change_request', (int) $id);
         return true;
@@ -254,7 +254,7 @@ class PulseHrEss
 
         $direction = isset($p['direction']) && in_array($p['direction'], array('in', 'out')) ? $p['direction'] : self::nextDirection($idEmployee);
         $dedupe = (int) PulseHrService::cfg('PUNCH_DEDUPE_SEC', 120);
-        $last = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_punch` WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND direction="'.pSQL($direction).'"
+        $last = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_punch` WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND direction="'.pSQL($direction).'"
             AND punched_at>DATE_SUB(NOW(), INTERVAL '.max(1, $dedupe).' SECOND) ORDER BY punched_at DESC');
         if ($last) { return array('id' => (int) $last['id_pulse_hr_punch'], 'duplicate' => 1, 'direction' => $last['direction'], 'punched_at' => $last['punched_at'], 'status' => $last['status'], 'message' => 'That punch is already recorded'); }
 
@@ -277,14 +277,14 @@ class PulseHrEss
         elseif ($flag && $flag !== 'no_site_geofence') { $status = 'flagged'; }
 
         $cell = PulseHrRoster::cellForPunch($idEmployee, $at);
-        Db::getInstance()->insert('pulse_hr_punch', array(
+        PulseDb::insert('pulse_hr_punch', array(
             'id_pulse_hr_employee' => (int) $idEmployee, 'punched_at' => pSQL($at), 'direction' => pSQL($direction), 'source' => $viaQr ? 'qr' : 'mobile',
             'lat' => $lat === null ? null : $lat, 'lng' => $lng === null ? null : $lng, 'accuracy_m' => $acc === null ? null : $acc, 'distance_m' => $distance === null ? null : $distance,
             'inside_geofence' => $inside ? 1 : 0, 'status' => pSQL($status), 'flag_reason' => pSQL($flag), 'device' => pSQL($device),
             'ip' => pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)), 'id_pulse_hr_roster' => $cell ? (int) $cell['id_pulse_hr_roster'] : null,
             'note' => pSQL(isset($p['note']) ? Tools::substr((string) $p['note'], 0, 250) : ''), 'business_date' => pSQL(PulseHrService::bd()), 'date_add' => date('Y-m-d H:i:s'),
         ), true, true, Db::INSERT_IGNORE);
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         PulseCoreService::audit('pulsehr', 'ess_punch', array('staff_no' => $e['staff_no'], 'direction' => $direction, 'status' => $status, 'flag' => $flag,
             'distance_m' => $distance, 'accuracy_m' => $acc, 'via_qr' => $viaQr ? 1 : 0), 'pulse_hr_punch', $id);
         if ($status !== 'rejected') { self::handOver($id); }
@@ -303,8 +303,8 @@ class PulseHrEss
     /** In or out? The last punch of the day decides, so nobody has to remember which button they pressed. */
     public static function nextDirection($idEmployee)
     {
-        $last = Db::getInstance()->getValue('SELECT direction FROM `'._DB_PREFIX_.'pulse_hr_punch` WHERE id_pulse_hr_employee='.(int) $idEmployee.'
-            AND status<>"rejected" AND punched_at>DATE_SUB(NOW(), INTERVAL 18 HOUR) ORDER BY punched_at DESC LIMIT 1');
+        $last = PulseDb::getValue('SELECT direction FROM `'._DB_PREFIX_.'pulse_hr_punch` WHERE id_pulse_hr_employee='.(int) $idEmployee.'
+            AND status<>"rejected" AND punched_at>DATE_SUB(NOW(), INTERVAL 18 HOUR) ORDER BY punched_at DESC');
         return $last === 'in' ? 'out' : 'in';
     }
 
@@ -315,7 +315,7 @@ class PulseHrEss
     public static function handOver($idPunch)
     {
         if (!PulseHrService::ta()) { return false; }
-        $p = Db::getInstance()->getRow('SELECT p.*, e.staff_no FROM `'._DB_PREFIX_.'pulse_hr_punch` p INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=p.id_pulse_hr_employee WHERE p.id_pulse_hr_punch='.(int) $idPunch);
+        $p = PulseDb::getRow('SELECT p.*, e.staff_no FROM `'._DB_PREFIX_.'pulse_hr_punch` p INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=p.id_pulse_hr_employee WHERE p.id_pulse_hr_punch='.(int) $idPunch);
         if (!$p || (int) $p['synced']) { return false; }
         if (!class_exists('PulseTaPunch') || !class_exists('PulseTaService') || !method_exists('PulseTaPunch', 'manual')) { return false; }
         // Pulse Time keys punches on its own staff row: prefer the HR link, fall back to the staff number.
@@ -327,7 +327,7 @@ class PulseHrEss
             'accuracy_m' => $p['accuracy_m'] !== null && $p['accuracy_m'] !== '' ? (int) $p['accuracy_m'] : '');
         try {
             PulseTaPunch::manual((int) $s['id_pulse_ta_staff'], $p['punched_at'], $p['direction'], $p['source'] === 'qr' ? 'mobile' : $p['source'], $extra);
-            Db::getInstance()->update('pulse_hr_punch', array('synced' => 1), 'id_pulse_hr_punch='.(int) $idPunch, 0, true);
+            PulseDb::update('pulse_hr_punch', array('synced' => 1), 'id_pulse_hr_punch='.(int) $idPunch, 0, true);
             return true;
         } catch (Exception $e) {
             PulseCoreService::audit('pulsehr', 'punch_handover_failed', array('id' => (int) $idPunch, 'error' => $e->getMessage()));
@@ -339,7 +339,7 @@ class PulseHrEss
 
     public static function punches($from, $to, $status = null, $idEmployee = 0, $limit = 300)
     {
-        return Db::getInstance()->executeS('SELECT p.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
+        return PulseDb::executeS('SELECT p.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
             FROM `'._DB_PREFIX_.'pulse_hr_punch` p INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=p.id_pulse_hr_employee
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
             WHERE p.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'
@@ -349,7 +349,7 @@ class PulseHrEss
     public static function flaggedPunches($date = null, $limit = 20)
     {
         $d = pSQL($date ? $date : PulseHrService::bd());
-        return Db::getInstance()->executeS('SELECT p.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
+        return PulseDb::executeS('SELECT p.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
             FROM `'._DB_PREFIX_.'pulse_hr_punch` p INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=p.id_pulse_hr_employee
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
             WHERE p.status IN ("flagged","rejected") AND p.reviewed_at IS NULL AND p.business_date>=DATE_SUB("'.$d.'", INTERVAL 7 DAY) ORDER BY p.punched_at DESC LIMIT '.(int) $limit);
@@ -357,7 +357,7 @@ class PulseHrEss
     /** A supervisor accepts or dismisses a flagged punch; an accepted one is then handed to Pulse Time. */
     public static function reviewPunch($idPunch, $accept, $note = '')
     {
-        Db::getInstance()->update('pulse_hr_punch', array('status' => $accept ? 'accepted' : 'rejected', 'reviewed_by' => PulseHrService::emp(),
+        PulseDb::update('pulse_hr_punch', array('status' => $accept ? 'accepted' : 'rejected', 'reviewed_by' => PulseHrService::emp(),
             'reviewed_at' => date('Y-m-d H:i:s'), 'review_note' => pSQL($note)), 'id_pulse_hr_punch='.(int) $idPunch, 0, true);
         if ($accept) { self::handOver($idPunch); }
         PulseCoreService::audit('pulsehr', 'punch_review', array('accepted' => $accept ? 1 : 0, 'note' => $note), 'pulse_hr_punch', (int) $idPunch);
@@ -367,7 +367,7 @@ class PulseHrEss
     /** Hours worked from paired punches — used when Pulse Time is not installed. */
     public static function workedHours($from, $to, $idEmployee = 0)
     {
-        $rows = Db::getInstance()->executeS('SELECT id_pulse_hr_employee, punched_at, direction FROM `'._DB_PREFIX_.'pulse_hr_punch`
+        $rows = PulseDb::executeS('SELECT id_pulse_hr_employee, punched_at, direction FROM `'._DB_PREFIX_.'pulse_hr_punch`
             WHERE status="accepted" AND business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'.($idEmployee ? ' AND id_pulse_hr_employee='.(int) $idEmployee : '').'
             ORDER BY id_pulse_hr_employee, punched_at');
         $open = array(); $hours = 0; $maxShift = (float) PulseHrService::cfg('MAX_SHIFT_HOURS', 16);

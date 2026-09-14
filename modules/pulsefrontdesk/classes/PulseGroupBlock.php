@@ -23,17 +23,17 @@ class PulseGroupBlock extends ObjectModel
 
     public function setAllotment($idProduct, $blocked)
     {
-        Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_group_block_allot` (id_pulse_group_block,id_product,blocked) VALUES ('.(int) $this->id.','.(int) $idProduct.','.(int) $blocked.') ON DUPLICATE KEY UPDATE blocked=VALUES(blocked)');
+        PulseDb::execute('INSERT INTO `'._DB_PREFIX_.'pulse_group_block_allot` (id_pulse_group_block,id_product,blocked) VALUES ('.(int) $this->id.','.(int) $idProduct.','.(int) $blocked.') ON DUPLICATE KEY UPDATE blocked=VALUES(blocked)');
     }
 
     public function allotments()
     {
-        return Db::getInstance()->executeS('SELECT a.*, pl.name room_type FROM `'._DB_PREFIX_.'pulse_group_block_allot` a INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=a.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' WHERE a.id_pulse_group_block='.(int) $this->id);
+        return PulseDb::executeS('SELECT a.*, pl.name room_type FROM `'._DB_PREFIX_.'pulse_group_block_allot` a INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=a.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' WHERE a.id_pulse_group_block='.(int) $this->id);
     }
 
     public function bookings()
     {
-        return Db::getInstance()->executeS('SELECT b.id, b.room_num, b.room_type_name, b.date_from, b.date_to, b.id_status, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_booking_ext` x INNER JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=x.id_htl_booking LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer WHERE x.id_pulse_group_block='.(int) $this->id.' AND b.is_cancelled=0 ORDER BY b.room_num');
+        return PulseDb::executeS('SELECT b.id, b.room_num, b.room_type_name, b.date_from, b.date_to, b.id_status, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_booking_ext` x INNER JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=x.id_htl_booking LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer WHERE x.id_pulse_group_block='.(int) $this->id.' AND b.is_cancelled=0 ORDER BY b.room_num');
     }
 
     /**
@@ -60,10 +60,10 @@ class PulseGroupBlock extends ObjectModel
     /** Night audit: release un-picked-up allotments past cut-off. */
     public static function releaseExpired($businessDate)
     {
-        $ids = Db::getInstance()->executeS('SELECT id_pulse_group_block FROM `'._DB_PREFIX_.'pulse_group_block` WHERE status IN ("tentative","definite") AND cutoff_date<"'.pSQL($businessDate).'"');
+        $ids = PulseDb::executeS('SELECT id_pulse_group_block FROM `'._DB_PREFIX_.'pulse_group_block` WHERE status IN ("tentative","definite") AND cutoff_date<"'.pSQL($businessDate).'"');
         foreach ($ids as $r) {
-            Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_group_block_allot` SET blocked=picked_up WHERE id_pulse_group_block='.(int) $r['id_pulse_group_block']);
-            Db::getInstance()->update('pulse_group_block', array('status' => 'released'), 'id_pulse_group_block='.(int) $r['id_pulse_group_block']);
+            PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_group_block_allot` SET blocked=picked_up WHERE id_pulse_group_block='.(int) $r['id_pulse_group_block']);
+            PulseDb::update('pulse_group_block', array('status' => 'released'), 'id_pulse_group_block='.(int) $r['id_pulse_group_block']);
         }
         return count($ids);
     }

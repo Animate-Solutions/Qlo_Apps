@@ -7,12 +7,12 @@ class PulseUpsell
     {
         $b = PulseFdService::booking($idBooking); if (!$b) { return array(); }
         $out = array(); $nights = max(1, (int) $b['nights']); $pax = max(1, (int) $b['adults'] + (int) $b['children']);
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_upsell_offer` WHERE active=1 ORDER BY sort') as $o) {
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_upsell_offer` WHERE active=1 ORDER BY sort') as $o) {
             $qty = $o['per'] === 'night' ? $nights : ($o['per'] === 'person' ? $pax * $nights : 1);
             if ($o['type'] === 'room_upgrade') {
                 // next room types priced above the current one with availability over the stay
                 $cur = (float) Product::getPriceStatic((int) $b['id_product'], true);
-                $types = Db::getInstance()->executeS('SELECT rt.id_product, pl.name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' WHERE rt.id_hotel='.(int) $b['id_hotel'].' AND rt.id_product<>'.(int) $b['id_product']);
+                $types = PulseDb::executeS('SELECT rt.id_product, pl.name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' WHERE rt.id_hotel='.(int) $b['id_hotel'].' AND rt.id_product<>'.(int) $b['id_product']);
                 foreach ($types as $t) {
                     $price = (float) Product::getPriceStatic((int) $t['id_product'], true); if ($price <= $cur) { continue; }
                     $av = PulseReservation::availability($t['id_product'], max($b['date_from'], PulseCoreService::businessDate()), $b['date_to']);
@@ -32,7 +32,7 @@ class PulseUpsell
     {
         if ($offer['type'] === 'room_upgrade') { PulseReservation::changeRoomType($idBooking, (int) $offer['target_room'], (float) $offer['price_tax_excl'], 'Upsell upgrade'); $amt = $offer['total_excl']; }
         else { $f = PulseFolio::ensureForBooking(PulseFdService::booking($idBooking)); $f->post($offer['charge_code'], $offer['name'], (float) $offer['qty'], (float) $offer['price_tax_excl']); $amt = $offer['total_excl']; }
-        Db::getInstance()->insert('pulse_upsell_sale', array('id_pulse_upsell_offer' => (int) $offer['id'], 'id_htl_booking' => (int) $idBooking, 'amount_tax_incl' => (float) $amt, 'id_employee' => isset(Context::getContext()->employee) ? (int) Context::getContext()->employee->id : 0, 'stage' => pSQL($stage), 'date_add' => date('Y-m-d H:i:s')));
+        PulseDb::insert('pulse_upsell_sale', array('id_pulse_upsell_offer' => (int) $offer['id'], 'id_htl_booking' => (int) $idBooking, 'amount_tax_incl' => (float) $amt, 'id_employee' => isset(Context::getContext()->employee) ? (int) Context::getContext()->employee->id : 0, 'stage' => pSQL($stage), 'date_add' => date('Y-m-d H:i:s')));
         return true;
     }
 }

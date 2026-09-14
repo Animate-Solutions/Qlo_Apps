@@ -60,8 +60,8 @@ class AdminPulsePaySettingsController extends ModuleAdminController
                 if (!$a) { throw new PrestaShopException($this->l('Adapter not available')); }
                 $probe = PulsePayService::createTx(array('gateway' => $code, 'amount' => 100, 'purpose' => 'other', 'channel' => 'desk', 'description' => 'Connection test', 'state' => 'intent', 'ref_prefix' => 'TST'));
                 $r = $a->verify($probe['reference'], $probe);
-                Db::getInstance()->update('pulse_pay_gateway', array('last_error' => pSQL(Tools::substr(isset($r['error']) ? $r['error'] : '', 0, 255)), 'last_ok_at' => empty($r['error']) ? date('Y-m-d H:i:s') : null), 'code="'.pSQL($code).'"', 0, true);
-                Db::getInstance()->update('pulse_pay_transaction', array('state' => 'voided', 'failed_reason' => 'connection test'), 'id_pulse_pay_transaction='.(int) $probe['id_pulse_pay_transaction']);
+                PulseDb::update('pulse_pay_gateway', array('last_error' => pSQL(Tools::substr(isset($r['error']) ? $r['error'] : '', 0, 255)), 'last_ok_at' => empty($r['error']) ? date('Y-m-d H:i:s') : null), 'code="'.pSQL($code).'"', 0, true);
+                PulseDb::update('pulse_pay_transaction', array('state' => 'voided', 'failed_reason' => 'connection test'), 'id_pulse_pay_transaction='.(int) $probe['id_pulse_pay_transaction']);
                 $this->confirmations[] = $this->l('Reached ').$code.' — '.$this->l('gateway replied: ').(isset($r['error']) && $r['error'] ? $r['error'] : $this->l('reference unknown, which is the expected answer for a test reference'));
             }
             if (Tools::isSubmit('saveTerminal')) { PulsePayTerminal::save(array('id' => Tools::getValue('id_terminal'), 'code' => Tools::getValue('tcode'), 'label' => Tools::getValue('tlabel'), 'bank' => Tools::getValue('tbank'), 'terminal_id' => Tools::getValue('ttid'), 'merchant_id' => Tools::getValue('tmid'), 'station' => Tools::getValue('tstation'), 'mode' => Tools::getValue('tmode'), 'active' => Tools::getValue('tactive', 1))); $this->confirmations[] = $this->l('Terminal saved'); }

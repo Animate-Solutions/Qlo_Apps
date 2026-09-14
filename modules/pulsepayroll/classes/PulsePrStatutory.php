@@ -28,7 +28,7 @@ class PulsePrStatutory
     /** Tax bands in force on a date, ordered from the bottom band up. */
     public static function bands($country, $onDate, $regime = 'paye')
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tax_band` WHERE country="'.pSQL($country).'" AND regime="'.pSQL($regime).'" AND effective_from<="'.pSQL($onDate).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($onDate).'") ORDER BY seq, band_from');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tax_band` WHERE country="'.pSQL($country).'" AND regime="'.pSQL($regime).'" AND effective_from<="'.pSQL($onDate).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($onDate).'") ORDER BY seq, band_from');
     }
 
     /**
@@ -57,19 +57,19 @@ class PulsePrStatutory
 
     public static function reliefRows($country, $onDate)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_relief` WHERE country="'.pSQL($country).'" AND active=1 AND effective_from<="'.pSQL($onDate).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($onDate).'") ORDER BY sort, code');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_relief` WHERE country="'.pSQL($country).'" AND active=1 AND effective_from<="'.pSQL($onDate).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($onDate).'") ORDER BY sort, code');
     }
 
     /* ---------------- contributions ---------------- */
 
     public static function contributionRows($country, $onDate)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_contribution` WHERE country="'.pSQL($country).'" AND active=1 AND effective_from<="'.pSQL($onDate).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($onDate).'") ORDER BY sort, code');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_contribution` WHERE country="'.pSQL($country).'" AND active=1 AND effective_from<="'.pSQL($onDate).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($onDate).'") ORDER BY sort, code');
     }
 
     public static function contribution($country, $code, $onDate)
     {
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_contribution` WHERE country="'.pSQL($country).'" AND code="'.pSQL($code).'" AND active=1 AND effective_from<="'.pSQL($onDate).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($onDate).'") ORDER BY effective_from DESC LIMIT 1');
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_contribution` WHERE country="'.pSQL($country).'" AND code="'.pSQL($code).'" AND active=1 AND effective_from<="'.pSQL($onDate).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($onDate).'") ORDER BY effective_from DESC');
     }
 
     /**
@@ -105,8 +105,8 @@ class PulsePrStatutory
         );
         if ($row['band_to'] !== null && $row['band_to'] <= $row['band_from']) { throw new PrestaShopException('A band ceiling must be above its floor'); }
         $id = (int) (isset($d['id_pulse_pr_tax_band']) ? $d['id_pulse_pr_tax_band'] : 0);
-        if ($id) { Db::getInstance()->update('pulse_pr_tax_band', $row, 'id_pulse_pr_tax_band='.$id, 0, true); }
-        else { Db::getInstance()->insert('pulse_pr_tax_band', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_pr_tax_band', $row, 'id_pulse_pr_tax_band='.$id, 0, true); }
+        else { PulseDb::insert('pulse_pr_tax_band', $row, true); $id = (int) PulseDb::Insert_ID(); }
         PulsePrService::log(null, 'band_save', 'tax_band', $row, $id);
         return $id;
     }
@@ -129,8 +129,8 @@ class PulsePrStatutory
             'active' => isset($d['active']) ? (int) (bool) $d['active'] : 1,
         );
         $id = (int) (isset($d['id_pulse_pr_relief']) ? $d['id_pulse_pr_relief'] : 0);
-        if ($id) { Db::getInstance()->update('pulse_pr_relief', $row, 'id_pulse_pr_relief='.$id, 0, true); }
-        else { Db::getInstance()->insert('pulse_pr_relief', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_pr_relief', $row, 'id_pulse_pr_relief='.$id, 0, true); }
+        else { PulseDb::insert('pulse_pr_relief', $row, true); $id = (int) PulseDb::Insert_ID(); }
         PulsePrService::log(null, 'relief_save', 'relief', $row, $id);
         return $id;
     }
@@ -161,8 +161,8 @@ class PulsePrStatutory
             'active' => isset($d['active']) ? (int) (bool) $d['active'] : 1,
         );
         $id = (int) (isset($d['id_pulse_pr_contribution']) ? $d['id_pulse_pr_contribution'] : 0);
-        if ($id) { Db::getInstance()->update('pulse_pr_contribution', $row, 'id_pulse_pr_contribution='.$id, 0, true); }
-        else { Db::getInstance()->insert('pulse_pr_contribution', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_pr_contribution', $row, 'id_pulse_pr_contribution='.$id, 0, true); }
+        else { PulseDb::insert('pulse_pr_contribution', $row, true); $id = (int) PulseDb::Insert_ID(); }
         PulsePrService::log(null, 'contribution_save', 'contribution', $row, $id);
         return $id;
     }
@@ -182,9 +182,9 @@ class PulsePrStatutory
             'verified' => !empty($d['verified']) ? 1 : 0, 'active' => isset($d['active']) ? (int) (bool) $d['active'] : 1,
             'note' => pSQL(Tools::substr(isset($d['note']) ? $d['note'] : '', 0, 255)), 'date_upd' => date('Y-m-d H:i:s'),
         );
-        $ex = (int) Db::getInstance()->getValue('SELECT id_pulse_pr_country FROM `'._DB_PREFIX_.'pulse_pr_country` WHERE code="'.$row['code'].'"');
-        if ($ex) { Db::getInstance()->update('pulse_pr_country', $row, 'id_pulse_pr_country='.$ex, 0, true); $id = $ex; }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_pr_country', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        $ex = (int) PulseDb::getValue('SELECT id_pulse_pr_country FROM `'._DB_PREFIX_.'pulse_pr_country` WHERE code="'.$row['code'].'"');
+        if ($ex) { PulseDb::update('pulse_pr_country', $row, 'id_pulse_pr_country='.$ex, 0, true); $id = $ex; }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert('pulse_pr_country', $row, true); $id = (int) PulseDb::Insert_ID(); }
         self::reset();
         PulsePrService::log(null, 'country_save', 'country', $row, $id);
         return $id;
@@ -195,7 +195,7 @@ class PulsePrStatutory
     {
         $allowed = array('pulse_pr_tax_band' => 'id_pulse_pr_tax_band', 'pulse_pr_relief' => 'id_pulse_pr_relief', 'pulse_pr_contribution' => 'id_pulse_pr_contribution');
         if (!isset($allowed[$table])) { throw new PrestaShopException('Not a rate table'); }
-        Db::getInstance()->delete($table, $allowed[$table].'='.(int) $id);
+        PulseDb::delete($table, $allowed[$table].'='.(int) $id);
         PulsePrService::log(null, 'rate_delete', 'rate', array('table' => $table), (int) $id);
         return true;
     }

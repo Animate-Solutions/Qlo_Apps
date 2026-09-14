@@ -15,20 +15,20 @@ class PulsePrTronc
 {
     public static function pools($limit = 60)
     {
-        return Db::getInstance()->executeS('SELECT p.*, CONCAT(e.firstname," ",e.lastname) approver FROM `'._DB_PREFIX_.'pulse_pr_tronc_pool` p LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=p.approved_by ORDER BY p.period DESC, p.id_pulse_pr_tronc_pool DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT p.*, CONCAT(e.firstname," ",e.lastname) approver FROM `'._DB_PREFIX_.'pulse_pr_tronc_pool` p LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=p.approved_by ORDER BY p.period DESC, p.id_pulse_pr_tronc_pool DESC LIMIT '.(int) $limit);
     }
 
     public static function pool($id)
     {
-        $p = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tronc_pool` WHERE id_pulse_pr_tronc_pool='.(int) $id);
-        if ($p) { $p['lines'] = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` WHERE id_pulse_pr_tronc_pool='.(int) $id.' ORDER BY department, employee_name'); }
+        $p = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tronc_pool` WHERE id_pulse_pr_tronc_pool='.(int) $id);
+        if ($p) { $p['lines'] = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` WHERE id_pulse_pr_tronc_pool='.(int) $id.' ORDER BY department, employee_name'); }
         return $p;
     }
 
     public static function weights()
     {
         $out = array();
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tronc_weight` WHERE active=1 ORDER BY department') as $w) { $out[$w['department']] = $w; }
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tronc_weight` WHERE active=1 ORDER BY department') as $w) { $out[$w['department']] = $w; }
         return $out;
     }
 
@@ -38,10 +38,10 @@ class PulsePrTronc
         $row = array('department' => pSQL(Tools::substr($d['department'], 0, 32)), 'weight' => (float) (isset($d['weight']) ? $d['weight'] : 1),
             'default_points' => (float) (isset($d['default_points']) ? $d['default_points'] : 10), 'is_management' => !empty($d['is_management']) ? 1 : 0,
             'active' => isset($d['active']) ? (int) (bool) $d['active'] : 1);
-        $ex = (int) Db::getInstance()->getValue('SELECT id_pulse_pr_tronc_weight FROM `'._DB_PREFIX_.'pulse_pr_tronc_weight` WHERE department="'.$row['department'].'"');
-        if ($ex) { Db::getInstance()->update('pulse_pr_tronc_weight', $row, 'id_pulse_pr_tronc_weight='.$ex, 0, true); return $ex; }
-        Db::getInstance()->insert('pulse_pr_tronc_weight', $row, true);
-        return (int) Db::getInstance()->Insert_ID();
+        $ex = (int) PulseDb::getValue('SELECT id_pulse_pr_tronc_weight FROM `'._DB_PREFIX_.'pulse_pr_tronc_weight` WHERE department="'.$row['department'].'"');
+        if ($ex) { PulseDb::update('pulse_pr_tronc_weight', $row, 'id_pulse_pr_tronc_weight='.$ex, 0, true); return $ex; }
+        PulseDb::insert('pulse_pr_tronc_weight', $row, true);
+        return (int) PulseDb::Insert_ID();
     }
 
     /**
@@ -53,14 +53,14 @@ class PulsePrTronc
     {
         $fnb = 0; $rooms = 0;
         if (PulsePrService::pos()) {
-            $fnb = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(service_charge),0) FROM `'._DB_PREFIX_.'pulse_pos_check` WHERE status="settled" AND business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'), 2);
+            $fnb = round((float) PulseDb::getValue('SELECT COALESCE(SUM(service_charge),0) FROM `'._DB_PREFIX_.'pulse_pos_check` WHERE status="settled" AND business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'), 2);
         }
         if (PulsePrService::fd() && PulsePrService::tableExists('pulse_folio_line')) {
             $pct = (float) PulsePrService::cfg('TRONC_PCT', 10);
-            $rooms = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.amount_tax_incl),0) FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_charge_code` c ON c.id_pulse_charge_code=l.id_pulse_charge_code WHERE l.voided=0 AND l.is_payment=0 AND c.code="SVC" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'), 2);
+            $rooms = round((float) PulseDb::getValue('SELECT COALESCE(SUM(l.amount_tax_incl),0) FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_charge_code` c ON c.id_pulse_charge_code=l.id_pulse_charge_code WHERE l.voided=0 AND l.is_payment=0 AND c.code="SVC" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'), 2);
             if ($rooms <= 0 && $pct > 0) {
                 // no explicit service-charge code in use: derive it from room revenue at the configured rate
-                $roomRev = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.amount_tax_incl),0) FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_charge_code` c ON c.id_pulse_charge_code=l.id_pulse_charge_code WHERE l.voided=0 AND l.is_payment=0 AND c.code="ROOM" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'), 2);
+                $roomRev = round((float) PulseDb::getValue('SELECT COALESCE(SUM(l.amount_tax_incl),0) FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_charge_code` c ON c.id_pulse_charge_code=l.id_pulse_charge_code WHERE l.voided=0 AND l.is_payment=0 AND c.code="ROOM" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'), 2);
                 $rooms = round($roomRev * $pct / (100 + $pct), 2);
             }
         }
@@ -87,8 +87,8 @@ class PulsePrTronc
             'status' => 'draft', 'source_note' => pSQL(Tools::substr('F&B '.number_format($c['fnb'], 2).', rooms '.number_format($c['rooms'], 2).', keyed in '.number_format($manual, 2), 0, 255)),
             'note' => pSQL(Tools::substr(isset($d['note']) ? $d['note'] : '', 0, 255)), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         );
-        Db::getInstance()->insert('pulse_pr_tronc_pool', $row, true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pr_tronc_pool', $row, true);
+        $id = (int) PulseDb::Insert_ID();
         PulsePrService::log(null, 'tronc_create', 'tronc', $row, $id);
         return $id;
     }
@@ -103,7 +103,7 @@ class PulsePrTronc
         if (isset($d['basis']) && in_array($d['basis'], array('points', 'hours', 'equal'))) { $upd['basis'] = pSQL($d['basis']); }
         if (isset($d['note'])) { $upd['note'] = pSQL(Tools::substr($d['note'], 0, 255)); }
         $upd['gross_pool'] = round((isset($upd['collected_fnb']) ? $upd['collected_fnb'] : (float) $p['collected_fnb']) + (isset($upd['collected_rooms']) ? $upd['collected_rooms'] : (float) $p['collected_rooms']) + (isset($upd['collected_manual']) ? $upd['collected_manual'] : (float) $p['collected_manual']), 2);
-        Db::getInstance()->update('pulse_pr_tronc_pool', $upd, 'id_pulse_pr_tronc_pool='.(int) $id, 0, true);
+        PulseDb::update('pulse_pr_tronc_pool', $upd, 'id_pulse_pr_tronc_pool='.(int) $id, 0, true);
         return true;
     }
 
@@ -182,15 +182,15 @@ class PulsePrTronc
         $residue = round($distributable - $allocated, 2);
         if (abs($residue) >= 0.005) { $rows[$largest]['amount'] = round($rows[$largest]['amount'] + $residue, 2); $rows[$largest]['note'] = 'Carries the '.number_format($residue, 2).' rounding residue'; }
 
-        Db::getInstance()->delete('pulse_pr_tronc_line', 'id_pulse_pr_tronc_pool='.(int) $id);
+        PulseDb::delete('pulse_pr_tronc_line', 'id_pulse_pr_tronc_pool='.(int) $id);
         $distributed = 0;
         foreach ($rows as $r) {
             $r['id_pulse_pr_tronc_pool'] = (int) $id;
             foreach ($r as $k => $v) { if (is_string($v)) { $r[$k] = pSQL($v); } }
-            Db::getInstance()->insert('pulse_pr_tronc_line', $r, true);
+            PulseDb::insert('pulse_pr_tronc_line', $r, true);
             $distributed = round($distributed + (float) $r['amount'], 2);
         }
-        Db::getInstance()->update('pulse_pr_tronc_pool', array(
+        PulseDb::update('pulse_pr_tronc_pool', array(
             'admin_amount' => $admin, 'distributable' => $distributable, 'distributed' => $distributed, 'participants' => count($rows),
             'management_capped_amount' => $cappedAmount, 'rounding_residue' => $residue, 'status' => 'distributed', 'date_upd' => date('Y-m-d H:i:s'),
         ), 'id_pulse_pr_tronc_pool='.(int) $id);
@@ -212,9 +212,9 @@ class PulsePrTronc
         $p = self::pool($id);
         if (!$p) { throw new PrestaShopException('Unknown pool'); }
         if ($p['status'] !== 'distributed') { throw new PrestaShopException('Pool '.$p['pool_no'].' is '.$p['status'].' — distribute it first'); }
-        $sum = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(amount),0) FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` WHERE id_pulse_pr_tronc_pool='.(int) $id), 2);
+        $sum = round((float) PulseDb::getValue('SELECT COALESCE(SUM(amount),0) FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` WHERE id_pulse_pr_tronc_pool='.(int) $id), 2);
         if (abs($sum - (float) $p['distributable']) > 0.009) { throw new PrestaShopException('The shares total '.number_format($sum, 2).' against a distributable pool of '.number_format((float) $p['distributable'], 2).' — redistribute before approving'); }
-        Db::getInstance()->update('pulse_pr_tronc_pool', array('status' => 'approved', 'approved_by' => PulsePrService::emp(), 'date_approved' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_tronc_pool='.(int) $id);
+        PulseDb::update('pulse_pr_tronc_pool', array('status' => 'approved', 'approved_by' => PulsePrService::emp(), 'date_approved' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_tronc_pool='.(int) $id);
         PulsePrService::log(null, 'tronc_approve', 'tronc', array('pool' => $p['pool_no'], 'total' => $sum), (int) $id);
         return true;
     }
@@ -223,7 +223,7 @@ class PulsePrTronc
     public static function statement($idEmployee, $from = null, $to = null)
     {
         $from = $from ? $from : date('Y-01'); $to = $to ? $to : date('Y-m');
-        return Db::getInstance()->executeS('SELECT p.period, p.pool_no, p.basis, p.gross_pool, p.distributable, p.participants, l.points, l.hours, l.dept_weight, l.weighted_units, l.share_pct, l.amount, l.capped, p.status
+        return PulseDb::executeS('SELECT p.period, p.pool_no, p.basis, p.gross_pool, p.distributable, p.participants, l.points, l.hours, l.dept_weight, l.weighted_units, l.share_pct, l.amount, l.capped, p.status
             FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` l INNER JOIN `'._DB_PREFIX_.'pulse_pr_tronc_pool` p ON p.id_pulse_pr_tronc_pool=l.id_pulse_pr_tronc_pool
             WHERE l.id_pulse_pr_employee='.(int) $idEmployee.' AND p.period BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND p.status<>"cancelled" ORDER BY p.period DESC');
     }
@@ -231,8 +231,8 @@ class PulsePrTronc
     /** Mark the shares as paid through a payroll run so they are not distributed twice. */
     public static function markPaidInRun($idPool, $idRun)
     {
-        Db::getInstance()->update('pulse_pr_tronc_line', array('paid_in_run' => (int) $idRun), 'id_pulse_pr_tronc_pool='.(int) $idPool);
-        Db::getInstance()->update('pulse_pr_tronc_pool', array('status' => 'paid', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_tronc_pool='.(int) $idPool);
+        PulseDb::update('pulse_pr_tronc_line', array('paid_in_run' => (int) $idRun), 'id_pulse_pr_tronc_pool='.(int) $idPool);
+        PulseDb::update('pulse_pr_tronc_pool', array('status' => 'paid', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_tronc_pool='.(int) $idPool);
         return true;
     }
 }

@@ -7,7 +7,7 @@
 if (!defined('_PS_VERSION_')) { exit; }
 function upgrade_module_1_0_0($module)
 {
-    $D = Db::getInstance();
+    $D = PulseDb::handle();
     // scaffold detection: 0.1.0 outlet table has no `code` column
     $isScaffold = $D->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_pos_outlet"') && !$D->executeS('SHOW COLUMNS FROM `'._DB_PREFIX_.'pulse_pos_outlet` LIKE "code"');
     if ($isScaffold) { foreach (array('outlet', 'table', 'menu_item', 'bill', 'bill_line') as $t) { $D->execute('DROP TABLE IF EXISTS `'._DB_PREFIX_.'pulse_pos_'.$t.'`'); } }

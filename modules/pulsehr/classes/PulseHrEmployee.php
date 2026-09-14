@@ -22,9 +22,9 @@ class PulseHrEmployee
             LEFT JOIN `'._DB_PREFIX_.'employee` pe ON pe.id_employee=e.id_employee ';
     }
 
-    public static function get($id) { return Db::getInstance()->getRow(self::select().' WHERE e.id_pulse_hr_employee='.(int) $id); }
-    public static function byStaffNo($no) { return Db::getInstance()->getRow(self::select().' WHERE e.staff_no="'.pSQL($no).'"'); }
-    public static function byPsEmployee($idEmployee) { return $idEmployee ? Db::getInstance()->getRow(self::select().' WHERE e.id_employee='.(int) $idEmployee) : null; }
+    public static function get($id) { return PulseDb::getRow(self::select().' WHERE e.id_pulse_hr_employee='.(int) $id); }
+    public static function byStaffNo($no) { return PulseDb::getRow(self::select().' WHERE e.staff_no="'.pSQL($no).'"'); }
+    public static function byPsEmployee($idEmployee) { return $idEmployee ? PulseDb::getRow(self::select().' WHERE e.id_employee='.(int) $idEmployee) : null; }
 
     /** The employee list, filtered the way the screen filters: free text, department, status, grade. */
     public static function search(array $f = array())
@@ -37,7 +37,7 @@ class PulseHrEmployee
         if (!empty($f['status'])) { $w .= ' AND e.status IN ("'.implode('","', array_map('pSQL', explode(',', $f['status']))).'")'; }
         elseif (empty($f['include_exited'])) { $w .= ' AND e.status<>"exited"'; }
         $limit = isset($f['limit']) ? max(1, min(500, (int) $f['limit'])) : 200;
-        return Db::getInstance()->executeS(self::select().$w.' ORDER BY d.sort, e.lastname, e.firstname LIMIT '.$limit);
+        return PulseDb::executeS(self::select().$w.' ORDER BY d.sort, e.lastname, e.firstname LIMIT '.$limit);
     }
 
     /** Next staff number in the configured series, e.g. PH0043. */
@@ -48,7 +48,7 @@ class PulseHrEmployee
             $n = (int) PulseCoreService::setting('pulsehr', 'seq_staff') + 1;
             PulseCoreService::setting('pulsehr', 'seq_staff', $n);
             $no = $prefix.str_pad($n, 4, '0', STR_PAD_LEFT);
-            if (!Db::getInstance()->getValue('SELECT id_pulse_hr_employee FROM `'._DB_PREFIX_.self::T.'` WHERE staff_no="'.pSQL($no).'"')) { return $no; }
+            if (!PulseDb::getValue('SELECT id_pulse_hr_employee FROM `'._DB_PREFIX_.self::T.'` WHERE staff_no="'.pSQL($no).'"')) { return $no; }
         }
         return $prefix.date('ymdHis');
     }
@@ -75,7 +75,7 @@ class PulseHrEmployee
         if (array_key_exists('exit_type', $d) && $d['exit_type']) { $row['exit_type'] = pSQL($d['exit_type']); }
         if (!empty($row['email']) && !Validate::isEmail($row['email'])) { throw new PrestaShopException('That email address does not look right'); }
         if (!empty($row['id_employee'])) {
-            $clash = (int) Db::getInstance()->getValue('SELECT id_pulse_hr_employee FROM `'._DB_PREFIX_.self::T.'` WHERE id_employee='.(int) $row['id_employee'].($id ? ' AND id_pulse_hr_employee<>'.(int) $id : ''));
+            $clash = (int) PulseDb::getValue('SELECT id_pulse_hr_employee FROM `'._DB_PREFIX_.self::T.'` WHERE id_employee='.(int) $row['id_employee'].($id ? ' AND id_pulse_hr_employee<>'.(int) $id : ''));
             if ($clash) { throw new PrestaShopException('That back-office user is already linked to staff record #'.$clash); }
         }
         // NHF consent is a dated, evidenced decision — the date is stamped the moment the box is ticked, never back-filled silently
@@ -85,20 +85,20 @@ class PulseHrEmployee
         foreach (array('firstname', 'lastname') as $c) { if (array_key_exists($c, $row) && trim((string) $row[$c]) === '') { throw new PrestaShopException('A first name and a surname are required'); } }
         $row['date_upd'] = date('Y-m-d H:i:s');
         if ($id) {
-            Db::getInstance()->update(self::T, $row, 'id_pulse_hr_employee='.(int) $id, 0, true);
+            PulseDb::update(self::T, $row, 'id_pulse_hr_employee='.(int) $id, 0, true);
             PulseCoreService::audit('pulsehr', 'employee_update', array('id' => (int) $id, 'fields' => array_keys($row)), self::T, $id);
             return (int) $id;
         }
         if (empty($row['firstname']) || empty($row['lastname'])) { throw new PrestaShopException('A first name and a surname are required'); }
         $row['staff_no'] = pSQL(!empty($d['staff_no']) ? $d['staff_no'] : self::nextStaffNo());
-        if (Db::getInstance()->getValue('SELECT id_pulse_hr_employee FROM `'._DB_PREFIX_.self::T.'` WHERE staff_no="'.$row['staff_no'].'"')) { throw new PrestaShopException('Staff number '.$row['staff_no'].' is already in use'); }
+        if (PulseDb::getValue('SELECT id_pulse_hr_employee FROM `'._DB_PREFIX_.self::T.'` WHERE staff_no="'.$row['staff_no'].'"')) { throw new PrestaShopException('Staff number '.$row['staff_no'].' is already in use'); }
         if (empty($row['hire_date'])) { $row['hire_date'] = date('Y-m-d'); }
         if (empty($row['status'])) { $row['status'] = 'probation'; }
         $months = (int) (isset($d['probation_months']) ? $d['probation_months'] : PulseHrService::cfg('PROBATION_MONTHS', 6));
         if (empty($row['probation_end']) && $months > 0) { $row['probation_end'] = date('Y-m-d', strtotime($row['hire_date'].' +'.$months.' month')); }
         $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert(self::T, $row, true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert(self::T, $row, true);
+        $id = (int) PulseDb::Insert_ID();
         if (!empty($d['pay_rate']) || !empty($d['id_pulse_hr_position'])) {
             PulseHrContract::save(array('id_pulse_hr_employee' => $id, 'type' => isset($d['contract_type']) ? $d['contract_type'] : 'permanent', 'effective_from' => $row['hire_date'], 'start_date' => $row['hire_date'],
                 'id_pulse_hr_position' => isset($d['id_pulse_hr_position']) ? $d['id_pulse_hr_position'] : null, 'id_pulse_hr_department' => isset($d['id_pulse_hr_department']) ? $d['id_pulse_hr_department'] : null,
@@ -118,7 +118,7 @@ class PulseHrEmployee
     {
         $c = $c ? $c : PulseHrContract::onDate($idEmployee, PulseHrService::bd());
         if (!$c) { return false; }
-        return Db::getInstance()->update(self::T, array(
+        return PulseDb::update(self::T, array(
             'id_pulse_hr_department' => $c['id_pulse_hr_department'] ? (int) $c['id_pulse_hr_department'] : null,
             'id_pulse_hr_section' => $c['id_pulse_hr_section'] ? (int) $c['id_pulse_hr_section'] : null,
             'id_pulse_hr_position' => $c['id_pulse_hr_position'] ? (int) $c['id_pulse_hr_position'] : null,
@@ -132,7 +132,7 @@ class PulseHrEmployee
         $e = self::get($id);
         if (!$e) { throw new PrestaShopException('Employee not found'); }
         if (!in_array($status, array('probation', 'active', 'suspended', 'on_leave', 'exited'))) { throw new PrestaShopException('Unknown status'); }
-        Db::getInstance()->update(self::T, array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true);
+        PulseDb::update(self::T, array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true);
         if ($status === 'suspended' || $status === 'exited') { PulseHrEss::revokeForEmployee((int) $id, $status); }
         PulseCoreService::audit('pulsehr', 'employee_status', array('from' => $e['status'], 'to' => $status, 'note' => $note), self::T, $id);
         return true;
@@ -145,7 +145,7 @@ class PulseHrEmployee
         if (!$e) { throw new PrestaShopException('Employee not found'); }
         $date = $date ? date('Y-m-d', strtotime($date)) : date('Y-m-d');
         $c = PulseHrContract::onDate($id, $date);
-        Db::getInstance()->update(self::T, array('status' => 'active', 'confirmation_date' => pSQL($date), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true);
+        PulseDb::update(self::T, array('status' => 'active', 'confirmation_date' => pSQL($date), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true);
         if ($c) {
             $n = $c; $n['effective_from'] = $date; $n['reason'] = 'confirmation'; $n['note'] = 'Confirmed after probation';
             if ($newRate !== null && $newRate !== '') { $n['pay_rate'] = (float) $newRate; }
@@ -167,11 +167,11 @@ class PulseHrEmployee
         if (!$e) { throw new PrestaShopException('Employee not found'); }
         if ($e['status'] === 'exited') { throw new PrestaShopException($e['firstname'].' has already been exited'); }
         $date = date('Y-m-d', strtotime($date ? $date : 'now'));
-        Db::getInstance()->update(self::T, array('status' => 'exited', 'exit_date' => pSQL($date), 'exit_type' => pSQL($type), 'exit_reason' => pSQL($reason),
+        PulseDb::update(self::T, array('status' => 'exited', 'exit_date' => pSQL($date), 'exit_type' => pSQL($type), 'exit_reason' => pSQL($reason),
             'rehire_eligible' => (int) $rehire ? 1 : 0, 'ess_enabled' => 0, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true);
         PulseHrContract::endAll($id, $date, 'exit');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_request` SET status="cancelled", decision_note="Employee exited", date_upd=NOW() WHERE id_pulse_hr_employee='.(int) $id.' AND status="pending"');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_roster` SET status="cancelled", date_upd=NOW() WHERE id_pulse_hr_employee='.(int) $id.' AND roster_date>"'.pSQL($date).'" AND status<>"cancelled"');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_leave_request` SET status="cancelled", decision_note="Employee exited", date_upd=NOW() WHERE id_pulse_hr_employee='.(int) $id.' AND status="pending"');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_roster` SET status="cancelled", date_upd=NOW() WHERE id_pulse_hr_employee='.(int) $id.' AND roster_date>"'.pSQL($date).'" AND status<>"cancelled"');
         PulseHrEss::revokeForEmployee((int) $id, 'exited');
         $idChecklist = PulseHrLifecycle::open($id, 'offboarding');
         $bal = PulseHrLeave::balances($id, (int) date('Y', strtotime($date)));
@@ -190,36 +190,36 @@ class PulseHrEmployee
         $min = (int) PulseHrService::cfg('PIN_MIN_LENGTH', 4);
         if (!ctype_digit($pin) || strlen($pin) < $min) { throw new PrestaShopException('The PIN must be at least '.$min.' digits'); }
         if (preg_match('/^(\d)\1+$/', $pin) || in_array($pin, array('1234', '12345', '123456', '0000'))) { throw new PrestaShopException('That PIN is too easy to guess'); }
-        Db::getInstance()->update(self::T, array('pin_hash' => PulseHrService::pinHash($pin), 'pin_set_at' => date('Y-m-d H:i:s'), 'ess_locked_until' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true);
+        PulseDb::update(self::T, array('pin_hash' => PulseHrService::pinHash($pin), 'pin_set_at' => date('Y-m-d H:i:s'), 'ess_locked_until' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true);
         PulseCoreService::audit('pulsehr', 'ess_pin_set', array('id' => (int) $id), self::T, $id);
         return true;
     }
-    public static function clearPin($id) { return Db::getInstance()->update(self::T, array('pin_hash' => null, 'pin_set_at' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true); }
+    public static function clearPin($id) { return PulseDb::update(self::T, array('pin_hash' => null, 'pin_set_at' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_employee='.(int) $id, 0, true); }
 
     /** POS link goes through the PrestaShop employee row that pulse_pos_staff itself keys on. */
     public static function posStaff($idEmployee)
     {
         if (!$idEmployee || !PulseHrService::pos()) { return null; }
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_staff` WHERE id_employee='.(int) $idEmployee);
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_staff` WHERE id_employee='.(int) $idEmployee);
     }
 
     /* ---------- watch lists ---------- */
 
     public static function probationDue($days = 30)
     {
-        return Db::getInstance()->executeS(self::select().' WHERE e.status="probation" AND e.probation_end IS NOT NULL AND e.probation_end<=DATE_ADD(CURDATE(), INTERVAL '.(int) $days.' DAY) ORDER BY e.probation_end');
+        return PulseDb::executeS(self::select().' WHERE e.status="probation" AND e.probation_end IS NOT NULL AND e.probation_end<=DATE_ADD(CURDATE(), INTERVAL '.(int) $days.' DAY) ORDER BY e.probation_end');
     }
     public static function birthdays($days = 7)
     {
-        return Db::getInstance()->executeS(self::select().' WHERE e.status<>"exited" AND e.dob IS NOT NULL
+        return PulseDb::executeS(self::select().' WHERE e.status<>"exited" AND e.dob IS NOT NULL
             AND (DAYOFYEAR(e.dob) - DAYOFYEAR(CURDATE()) BETWEEN 0 AND '.(int) $days.' OR DAYOFYEAR(e.dob) - DAYOFYEAR(CURDATE()) + 365 BETWEEN 0 AND '.(int) $days.') ORDER BY DAYOFYEAR(e.dob)');
     }
-    public static function directReports($id) { return Db::getInstance()->executeS(self::select().' WHERE e.id_manager='.(int) $id.' AND e.status<>"exited" ORDER BY e.lastname'); }
+    public static function directReports($id) { return PulseDb::executeS(self::select().' WHERE e.id_manager='.(int) $id.' AND e.status<>"exited" ORDER BY e.lastname'); }
 
     /** The org chart as a nested array from the people with no manager down. */
     public static function orgChart()
     {
-        $all = Db::getInstance()->executeS(self::select().' WHERE e.status<>"exited" ORDER BY g.level DESC, e.lastname');
+        $all = PulseDb::executeS(self::select().' WHERE e.status<>"exited" ORDER BY g.level DESC, e.lastname');
         $byParent = array();
         foreach ($all as $e) { $byParent[(int) $e['id_manager']][] = $e; }
         return self::branch($byParent, 0, 0);

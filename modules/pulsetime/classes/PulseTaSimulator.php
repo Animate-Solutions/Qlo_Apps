@@ -18,7 +18,7 @@ class PulseTaSimulator extends PulseTaDeviceBase
 
     public function testConnection()
     {
-        $staff = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_staff` WHERE status="active"');
+        $staff = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_staff` WHERE status="active"');
         return array('ok' => true, 'firmware' => 'pulse-simulator 1.0', 'model' => 'Pulse Simulator', 'serial' => $this->dev['serial'],
             'users' => $staff, 'punches' => 0, 'device_time' => $this->deviceNow(), 'drift_sec' => 0,
             'message' => 'Simulator ready — punches are generated from the published roster for '.$staff.' active staff, no hardware needed.');
@@ -37,7 +37,7 @@ class PulseTaSimulator extends PulseTaDeviceBase
         if (strtotime($from) < strtotime('-60 day')) { $from = date('Y-m-d', strtotime('-60 day')); }
         $latePct = (int) $this->opt('late_pct', 18); $missPct = (int) $this->opt('missing_out_pct', 6);
         $absentPct = (int) $this->opt('absent_pct', 3); $earlyMin = (int) $this->opt('early_min', 25); $otPct = (int) $this->opt('ot_pct', 12);
-        $rows = Db::getInstance()->executeS('SELECT r.roster_date, r.day_type, s.id_pulse_ta_staff, e.device_user_id, sh.start_time, sh.end_time, sh.crosses_midnight, sh.break_punched, sh.break_minutes
+        $rows = PulseDb::executeS('SELECT r.roster_date, r.day_type, s.id_pulse_ta_staff, e.device_user_id, sh.start_time, sh.end_time, sh.crosses_midnight, sh.break_punched, sh.break_minutes
             FROM `'._DB_PREFIX_.'pulse_ta_roster` r
             INNER JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=r.id_pulse_ta_staff AND s.status="active"
             INNER JOIN `'._DB_PREFIX_.'pulse_ta_enrolment` e ON e.id_pulse_ta_staff=s.id_pulse_ta_staff AND e.id_pulse_ta_device='.(int) $this->dev['id_pulse_ta_device'].' AND e.status<>"removed"
@@ -73,7 +73,7 @@ class PulseTaSimulator extends PulseTaDeviceBase
 
     public function pullUsers()
     {
-        $rows = Db::getInstance()->executeS('SELECT e.device_user_id, CONCAT(s.firstname," ",s.lastname) name, e.card_no, e.privilege FROM `'._DB_PREFIX_.'pulse_ta_enrolment` e INNER JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=e.id_pulse_ta_staff WHERE e.id_pulse_ta_device='.(int) $this->dev['id_pulse_ta_device'].' AND e.status<>"removed"');
+        $rows = PulseDb::executeS('SELECT e.device_user_id, CONCAT(s.firstname," ",s.lastname) name, e.card_no, e.privilege FROM `'._DB_PREFIX_.'pulse_ta_enrolment` e INNER JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=e.id_pulse_ta_staff WHERE e.id_pulse_ta_device='.(int) $this->dev['id_pulse_ta_device'].' AND e.status<>"removed"');
         $out = array();
         foreach ((array) $rows as $r) { $out[] = array('device_user_id' => $r['device_user_id'], 'name' => $r['name'], 'card_no' => $r['card_no'], 'privilege' => (int) $r['privilege'], 'has_finger' => 1, 'has_face' => 0, 'has_card' => $r['card_no'] ? 1 : 0, 'has_password' => 0); }
         return $out;
@@ -84,8 +84,8 @@ class PulseTaSimulator extends PulseTaDeviceBase
     public function deviceInfo()
     {
         return array('vendor' => 'simulator', 'name' => 'Pulse Simulator', 'serial' => $this->dev['serial'], 'firmware' => 'pulse-simulator 1.0',
-            'users' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_enrolment` WHERE id_pulse_ta_device='.(int) $this->dev['id_pulse_ta_device']),
-            'punches' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_punch` WHERE id_pulse_ta_device='.(int) $this->dev['id_pulse_ta_device']));
+            'users' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_enrolment` WHERE id_pulse_ta_device='.(int) $this->dev['id_pulse_ta_device']),
+            'punches' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_punch` WHERE id_pulse_ta_device='.(int) $this->dev['id_pulse_ta_device']));
     }
 
     public function capabilities()

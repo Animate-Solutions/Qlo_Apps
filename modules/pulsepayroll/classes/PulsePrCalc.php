@@ -183,7 +183,7 @@ class PulsePrCalc
     protected static function segments(array $emp, $from, $to, array $pro)
     {
         $id = (int) $emp['id_pulse_pr_employee'];
-        $changes = Db::getInstance()->executeS('SELECT DISTINCT effective_from FROM `'._DB_PREFIX_.'pulse_pr_employee_element` WHERE id_pulse_pr_employee='.$id.' AND effective_from>"'.pSQL($from).'" AND effective_from<="'.pSQL($to).'" ORDER BY effective_from');
+        $changes = PulseDb::executeS('SELECT DISTINCT effective_from FROM `'._DB_PREFIX_.'pulse_pr_employee_element` WHERE id_pulse_pr_employee='.$id.' AND effective_from>"'.pSQL($from).'" AND effective_from<="'.pSQL($to).'" ORDER BY effective_from');
         if (!$changes || $pro['factor'] <= 0) { return array(array('from' => $from, 'to' => $to, 'effective_on' => $to, 'factor' => $pro['factor'])); }
         $bounds = array($from);
         foreach ($changes as $c) { $bounds[] = $c['effective_from']; }
@@ -360,10 +360,10 @@ class PulsePrCalc
         $c = PulsePrService::countryRow($country);
         $startMonth = (int) Tools::substr($c && $c['tax_year_start'] ? $c['tax_year_start'] : '01-01', 0, 2);
         $yearFrom = date('Y-m', mktime(0, 0, 0, $startMonth, 1, $year));
-        $r = Db::getInstance()->getRow('SELECT COUNT(*) periods, COALESCE(SUM(p.gross),0) gross, COALESCE(SUM(p.taxable_gross),0) taxable, COALESCE(SUM(p.paye),0) paye, COALESCE(SUM(p.pension_ee),0) pension_ee, COALESCE(SUM(p.nhf),0) nhf, COALESCE(SUM(p.net_pay),0) net
+        $r = PulseDb::getRow('SELECT COUNT(*) periods, COALESCE(SUM(p.gross),0) gross, COALESCE(SUM(p.taxable_gross),0) taxable, COALESCE(SUM(p.paye),0) paye, COALESCE(SUM(p.pension_ee),0) pension_ee, COALESCE(SUM(p.nhf),0) nhf, COALESCE(SUM(p.net_pay),0) net
             FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run
             WHERE p.id_pulse_pr_employee='.(int) $emp['id_pulse_pr_employee'].' AND p.period>="'.pSQL($yearFrom).'" AND p.period<"'.pSQL($run['period']).'" AND r.status<>"cancelled"');
-        $o = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_opening` WHERE id_pulse_pr_employee='.(int) $emp['id_pulse_pr_employee'].' AND tax_year='.(int) $year);
+        $o = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_opening` WHERE id_pulse_pr_employee='.(int) $emp['id_pulse_pr_employee'].' AND tax_year='.(int) $year);
         $inWindow = (int) PulsePrService::num($r, 'periods');
         return array(
             'periods' => (int) PulsePrService::num($r, 'periods') + ($o ? (int) PulsePrService::num($o, 'periods') : 0), 'periods_paid_here' => $inWindow,

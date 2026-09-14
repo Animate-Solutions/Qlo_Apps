@@ -19,10 +19,10 @@ class PulsePrRun
         if (!empty($f['period'])) { $w[] = 'r.period="'.pSQL($f['period']).'"'; }
         if (!empty($f['status'])) { $w[] = 'r.status IN ("'.implode('","', array_map('pSQL', explode(',', $f['status']))).'")'; }
         if (!empty($f['run_type'])) { $w[] = 'r.run_type="'.pSQL($f['run_type']).'"'; }
-        return Db::getInstance()->executeS('SELECT r.*, CONCAT(a.firstname," ",a.lastname) approver FROM `'._DB_PREFIX_.'pulse_pr_run` r LEFT JOIN `'._DB_PREFIX_.'employee` a ON a.id_employee=r.approved_by WHERE '.implode(' AND ', $w).' ORDER BY r.period DESC, r.id_pulse_pr_run DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT r.*, CONCAT(a.firstname," ",a.lastname) approver FROM `'._DB_PREFIX_.'pulse_pr_run` r LEFT JOIN `'._DB_PREFIX_.'employee` a ON a.id_employee=r.approved_by WHERE '.implode(' AND ', $w).' ORDER BY r.period DESC, r.id_pulse_pr_run DESC LIMIT '.(int) $limit);
     }
 
-    public static function get($id) { return Db::getInstance()->getRow('SELECT r.*, CONCAT(a.firstname," ",a.lastname) approver FROM `'._DB_PREFIX_.'pulse_pr_run` r LEFT JOIN `'._DB_PREFIX_.'employee` a ON a.id_employee=r.approved_by WHERE r.id_pulse_pr_run='.(int) $id); }
+    public static function get($id) { return PulseDb::getRow('SELECT r.*, CONCAT(a.firstname," ",a.lastname) approver FROM `'._DB_PREFIX_.'pulse_pr_run` r LEFT JOIN `'._DB_PREFIX_.'employee` a ON a.id_employee=r.approved_by WHERE r.id_pulse_pr_run='.(int) $id); }
 
     /** Create a run. A period may hold one regular run plus any number of supplementary or bonus runs. */
     public static function create(array $d)
@@ -30,7 +30,7 @@ class PulsePrRun
         $period = Tools::substr((string) (isset($d['period']) ? $d['period'] : date('Y-m')), 0, 7);
         if (!preg_match('/^[0-9]{4}-[0-9]{2}$/', $period)) { throw new PrestaShopException('The period must look like 2026-08'); }
         $type = in_array(isset($d['run_type']) ? $d['run_type'] : '', array('regular', 'supplementary', 'bonus', 'final_settlement', 'casual')) ? $d['run_type'] : 'regular';
-        if ($type === 'regular' && Db::getInstance()->getValue('SELECT id_pulse_pr_run FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE period="'.pSQL($period).'" AND run_type="regular" AND status<>"cancelled"')) {
+        if ($type === 'regular' && PulseDb::getValue('SELECT id_pulse_pr_run FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE period="'.pSQL($period).'" AND run_type="regular" AND status<>"cancelled"')) {
             throw new PrestaShopException('A regular run for '.$period.' already exists — create a supplementary run instead, or cancel the existing one');
         }
         $from = PulsePrService::periodFrom($period); $to = PulsePrService::periodTo($period);
@@ -45,8 +45,8 @@ class PulsePrRun
             'note' => pSQL(Tools::substr(isset($d['note']) ? $d['note'] : '', 0, 255)),
             'business_date' => pSQL(PulsePrService::bd()), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         );
-        Db::getInstance()->insert('pulse_pr_run', $row, true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pr_run', $row, true);
+        $id = (int) PulseDb::Insert_ID();
         PulsePrService::log($id, 'run_create', 'run', $row, $id);
         return $id;
     }
@@ -61,7 +61,7 @@ class PulsePrRun
         $w[] = 'e.on_hold=0';
         if ($run['run_type'] === 'final_settlement') { $w[] = 'e.status="exited" AND e.exit_date BETWEEN "'.pSQL($run['period_from']).'" AND "'.pSQL($run['period_to']).'"'; }
         else { $w[] = 'e.status IN ("active","probation","on_leave","exited")'; $w[] = 'e.employment_type<>"casual"'; $w[] = 'e.pay_basis="monthly"'; }
-        return Db::getInstance()->executeS('SELECT e.* FROM `'._DB_PREFIX_.'pulse_pr_employee` e WHERE '.implode(' AND ', $w).' ORDER BY e.department, e.lastname, e.firstname, e.id_pulse_pr_employee');
+        return PulseDb::executeS('SELECT e.* FROM `'._DB_PREFIX_.'pulse_pr_employee` e WHERE '.implode(' AND ', $w).' ORDER BY e.department, e.lastname, e.firstname, e.id_pulse_pr_employee');
     }
 
     /**
@@ -75,8 +75,8 @@ class PulsePrRun
         if (!$run) { throw new PrestaShopException('Unknown run'); }
         if (in_array($run['status'], array('approved', 'paid', 'posted'))) { throw new PrestaShopException('Run '.$run['run_no'].' is '.$run['status'].' — reopen it before recalculating'); }
         PulsePrLoan::unwindRun($id);
-        Db::getInstance()->delete('pulse_pr_payslip_line', 'id_pulse_pr_run='.(int) $id);
-        Db::getInstance()->delete('pulse_pr_payslip', 'id_pulse_pr_run='.(int) $id);
+        PulseDb::delete('pulse_pr_payslip_line', 'id_pulse_pr_run='.(int) $id);
+        PulseDb::delete('pulse_pr_payslip', 'id_pulse_pr_run='.(int) $id);
 
         $tronc = self::troncFor($run);
         $errors = array(); $t = self::emptyTotals(); $canon = array();
@@ -95,7 +95,7 @@ class PulsePrRun
         }
         sort($canon);
         $hash = sha1(implode("\n", $canon));
-        Db::getInstance()->update('pulse_pr_run', array(
+        PulseDb::update('pulse_pr_run', array(
             'status' => 'calculated', 'headcount' => (int) $t['headcount'], 'total_gross' => $t['gross'], 'total_taxable' => $t['taxable'],
             'total_paye' => $t['paye'], 'total_pension_ee' => $t['pension_ee'], 'total_pension_er' => $t['pension_er'], 'total_nhf' => $t['nhf'],
             'total_nsitf' => $t['nsitf'], 'total_itf' => $t['itf'], 'total_other_ded' => $t['other_ded'], 'total_loan' => $t['loan'],
@@ -132,12 +132,12 @@ class PulsePrRun
         $s['token'] = self::payslipToken($idRun, (int) $s['id_pulse_pr_employee']);
         $s['date_add'] = date('Y-m-d H:i:s');
         foreach ($s as $k => $v) { if (is_string($v)) { $s[$k] = pSQL($v); } }
-        Db::getInstance()->insert('pulse_pr_payslip', $s, true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pr_payslip', $s, true);
+        $id = (int) PulseDb::Insert_ID();
         foreach ($r['lines'] as $l) {
             $l['id_pulse_pr_payslip'] = $id; $l['id_pulse_pr_run'] = (int) $idRun;
             foreach ($l as $k => $v) { if (is_string($v)) { $l[$k] = pSQL($v); } }
-            Db::getInstance()->insert('pulse_pr_payslip_line', $l, true);
+            PulseDb::insert('pulse_pr_payslip_line', $l, true);
         }
         return $id;
     }
@@ -186,7 +186,7 @@ class PulsePrRun
     protected static function troncFor(array $run)
     {
         $out = array();
-        foreach (Db::getInstance()->executeS('SELECT l.id_pulse_pr_employee, ROUND(SUM(l.amount),2) amount FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` l INNER JOIN `'._DB_PREFIX_.'pulse_pr_tronc_pool` p ON p.id_pulse_pr_tronc_pool=l.id_pulse_pr_tronc_pool WHERE p.period="'.pSQL($run['period']).'" AND p.status IN ("approved","paid") AND (l.paid_in_run IS NULL OR l.paid_in_run='.(int) $run['id_pulse_pr_run'].') GROUP BY l.id_pulse_pr_employee') as $r) {
+        foreach (PulseDb::executeS('SELECT l.id_pulse_pr_employee, ROUND(SUM(l.amount),2) amount FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` l INNER JOIN `'._DB_PREFIX_.'pulse_pr_tronc_pool` p ON p.id_pulse_pr_tronc_pool=l.id_pulse_pr_tronc_pool WHERE p.period="'.pSQL($run['period']).'" AND p.status IN ("approved","paid") AND (l.paid_in_run IS NULL OR l.paid_in_run='.(int) $run['id_pulse_pr_run'].') GROUP BY l.id_pulse_pr_employee') as $r) {
             $out[(int) $r['id_pulse_pr_employee']] = (float) $r['amount'];
         }
         return $out;
@@ -205,7 +205,7 @@ class PulsePrRun
         if (!(int) $run['headcount']) { throw new PrestaShopException('Run '.$run['run_no'].' has no payslips'); }
         $check = self::verify($id);
         if (!$check['ok']) { throw new PrestaShopException('Run '.$run['run_no'].' does not reconcile: '.implode('; ', $check['problems'])); }
-        Db::getInstance()->update('pulse_pr_run', array('status' => 'approved', 'approved_by' => PulsePrService::emp(), 'date_approved' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id);
+        PulseDb::update('pulse_pr_run', array('status' => 'approved', 'approved_by' => PulsePrService::emp(), 'date_approved' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id);
         self::markTroncPaid($id, $run);
         self::raiseRemittances($run);
         PulsePrService::log($id, 'run_approve', 'run', array('run_no' => $run['run_no'], 'net' => $run['total_net'], 'hash' => $run['result_hash']), $id);
@@ -222,16 +222,16 @@ class PulsePrRun
         $run = self::get($id);
         $problems = array();
         if (!$run) { return array('ok' => false, 'problems' => array('Unknown run')); }
-        $sum = Db::getInstance()->getRow('SELECT COUNT(*) n, ROUND(SUM(gross),2) gross, ROUND(SUM(total_deductions),2) ded, ROUND(SUM(net_pay),2) net, ROUND(SUM(employer_cost),2) cost FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id);
+        $sum = PulseDb::getRow('SELECT COUNT(*) n, ROUND(SUM(gross),2) gross, ROUND(SUM(total_deductions),2) ded, ROUND(SUM(net_pay),2) net, ROUND(SUM(employer_cost),2) cost FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id);
         if ((int) $sum['n'] !== (int) $run['headcount']) { $problems[] = 'the run says '.(int) $run['headcount'].' payslips but '.(int) $sum['n'].' are stored'; }
         if (abs((float) $sum['gross'] - (float) $run['total_gross']) > 0.009) { $problems[] = 'the payslips total '.number_format((float) $sum['gross'], 2).' gross against the run header '.number_format((float) $run['total_gross'], 2); }
         if (abs((float) $sum['net'] - (float) $run['total_net']) > 0.009) { $problems[] = 'the payslips total '.number_format((float) $sum['net'], 2).' net against the run header '.number_format((float) $run['total_net'], 2); }
         if (abs(((float) $sum['gross'] - (float) $sum['ded']) - (float) $sum['net']) > 0.009) { $problems[] = 'gross less deductions does not equal net across the run'; }
-        $bad = Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id.' AND net_pay<0');
+        $bad = PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id.' AND net_pay<0');
         if ((int) $bad) { $problems[] = (int) $bad.' payslips have negative net pay'; }
-        $lineMismatch = Db::getInstance()->getValue('SELECT COUNT(*) FROM (SELECT p.id_pulse_pr_payslip, p.gross, ROUND(COALESCE(SUM(IF(l.type="earning",l.amount,0)),0),2) e FROM `'._DB_PREFIX_.'pulse_pr_payslip` p LEFT JOIN `'._DB_PREFIX_.'pulse_pr_payslip_line` l ON l.id_pulse_pr_payslip=p.id_pulse_pr_payslip WHERE p.id_pulse_pr_run='.(int) $id.' GROUP BY p.id_pulse_pr_payslip HAVING ABS(p.gross-e)>0.004) x');
+        $lineMismatch = PulseDb::getValue('SELECT COUNT(*) FROM (SELECT p.id_pulse_pr_payslip, p.gross, ROUND(COALESCE(SUM(IF(l.type="earning",l.amount,0)),0),2) e FROM `'._DB_PREFIX_.'pulse_pr_payslip` p LEFT JOIN `'._DB_PREFIX_.'pulse_pr_payslip_line` l ON l.id_pulse_pr_payslip=p.id_pulse_pr_payslip WHERE p.id_pulse_pr_run='.(int) $id.' GROUP BY p.id_pulse_pr_payslip HAVING ABS(p.gross-e)>0.004) x');
         if ((int) $lineMismatch) { $problems[] = (int) $lineMismatch.' payslips whose earning lines do not sum to the printed gross'; }
-        $noBank = Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id.' AND pay_method="bank" AND net_pay>0 AND (COALESCE(account_no,"")="" OR COALESCE(bank_code,"")="")');
+        $noBank = PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id.' AND pay_method="bank" AND net_pay>0 AND (COALESCE(account_no,"")="" OR COALESCE(bank_code,"")="")');
         if ((int) $noBank) { $problems[] = (int) $noBank.' staff are paid by bank but have no account number or bank code — the payment file would be short'; }
         return array('ok' => !$problems, 'problems' => $problems, 'totals' => $sum);
     }
@@ -243,9 +243,9 @@ class PulsePrRun
         if (!$run) { throw new PrestaShopException('Unknown run'); }
         if (in_array($run['status'], array('paid', 'posted'))) { throw new PrestaShopException('Run '.$run['run_no'].' is '.$run['status'].' — it can no longer be reopened. Correct it with a supplementary run.'); }
         if ($run['status'] !== 'approved') { throw new PrestaShopException('Only an approved run can be reopened'); }
-        if (Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_bank_file` WHERE id_pulse_pr_run='.(int) $id.' AND status<>"void"')) { throw new PrestaShopException('A bank payment file has already been generated from run '.$run['run_no'].'. Void it first.'); }
+        if (PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_bank_file` WHERE id_pulse_pr_run='.(int) $id.' AND status<>"void"')) { throw new PrestaShopException('A bank payment file has already been generated from run '.$run['run_no'].'. Void it first.'); }
         if (trim((string) $reason) === '') { throw new PrestaShopException('A reopen needs a reason — it goes on the audit trail'); }
-        Db::getInstance()->update('pulse_pr_run', array('status' => 'calculated', 'approved_by' => null, 'date_approved' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id, 0, true);
+        PulseDb::update('pulse_pr_run', array('status' => 'calculated', 'approved_by' => null, 'date_approved' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id, 0, true);
         PulsePrService::log($id, 'run_reopen', 'run', array('run_no' => $run['run_no'], 'reason' => $reason), $id);
         return true;
     }
@@ -256,7 +256,7 @@ class PulsePrRun
         $run = self::get($id);
         if (!$run) { throw new PrestaShopException('Unknown run'); }
         if ($run['status'] !== 'approved') { throw new PrestaShopException('Run '.$run['run_no'].' is '.$run['status'].' — approve it first'); }
-        Db::getInstance()->update('pulse_pr_run', array('status' => 'paid', 'paid_by' => PulsePrService::emp(), 'date_paid' => date('Y-m-d H:i:s'), 'note' => pSQL(Tools::substr($run['note'].' '.$note, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id);
+        PulseDb::update('pulse_pr_run', array('status' => 'paid', 'paid_by' => PulsePrService::emp(), 'date_paid' => date('Y-m-d H:i:s'), 'note' => pSQL(Tools::substr($run['note'].' '.$note, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id);
         PulsePrService::log($id, 'run_paid', 'run', array('run_no' => $run['run_no'], 'note' => $note), $id);
         return true;
     }
@@ -269,13 +269,13 @@ class PulsePrRun
         PulsePrLoan::unwindRun($id);
         // hand any service-charge pool this run had claimed back, or nobody could ever pay it
         $pools = array();
-        foreach (Db::getInstance()->executeS('SELECT DISTINCT id_pulse_pr_tronc_pool FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` WHERE paid_in_run='.(int) $id) as $p) { $pools[] = (int) $p['id_pulse_pr_tronc_pool']; }
-        Db::getInstance()->update('pulse_pr_tronc_line', array('paid_in_run' => null), 'paid_in_run='.(int) $id, 0, true);
+        foreach (PulseDb::executeS('SELECT DISTINCT id_pulse_pr_tronc_pool FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` WHERE paid_in_run='.(int) $id) as $p) { $pools[] = (int) $p['id_pulse_pr_tronc_pool']; }
+        PulseDb::update('pulse_pr_tronc_line', array('paid_in_run' => null), 'paid_in_run='.(int) $id, 0, true);
         foreach ($pools as $ip) {
-            if ((int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` WHERE id_pulse_pr_tronc_pool='.$ip.' AND paid_in_run IS NOT NULL')) { continue; }
-            Db::getInstance()->update('pulse_pr_tronc_pool', array('status' => 'approved', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_tronc_pool='.$ip.' AND status="paid"');
+            if ((int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_tronc_line` WHERE id_pulse_pr_tronc_pool='.$ip.' AND paid_in_run IS NOT NULL')) { continue; }
+            PulseDb::update('pulse_pr_tronc_pool', array('status' => 'approved', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_tronc_pool='.$ip.' AND status="paid"');
         }
-        Db::getInstance()->update('pulse_pr_run', array('status' => 'cancelled', 'note' => pSQL(Tools::substr('Cancelled: '.$reason, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id);
+        PulseDb::update('pulse_pr_run', array('status' => 'cancelled', 'note' => pSQL(Tools::substr('Cancelled: '.$reason, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id);
         PulsePrService::log($id, 'run_cancel', 'run', array('reason' => $reason), $id);
         return true;
     }
@@ -308,7 +308,7 @@ class PulsePrRun
         $ref = $run['run_type'] === 'regular' ? $run['period'] : $run['period'].'/'.$run['run_no'];
         $idJournal = PulseAccPosting::payroll($ref, $agg['departments'], $agg['deductions'], $run['pay_date']);
         self::postLoanReclass($run, $agg);
-        Db::getInstance()->update('pulse_pr_run', array('status' => 'posted', 'id_acc_journal' => (int) $idJournal, 'date_posted' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id);
+        PulseDb::update('pulse_pr_run', array('status' => 'posted', 'id_acc_journal' => (int) $idJournal, 'date_posted' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_run='.(int) $id);
         PulsePrService::log($id, 'run_post', 'run', array('run_no' => $run['run_no'], 'journal' => $idJournal, 'debit' => $lhs), $id);
         PulseCoreService::event('actionPulsePayrollPosted', array('id_run' => $id, 'period' => $run['period'], 'id_journal' => $idJournal, 'amount' => $lhs));
         return (int) $idJournal;
@@ -348,10 +348,10 @@ class PulsePrRun
      */
     public static function glAggregation($id)
     {
-        $rows = Db::getInstance()->executeS('SELECT COALESCE(NULLIF(cost_centre,""),department) dept, ROUND(SUM(gross),2) gross, ROUND(SUM(employer_cost),2) employer_cost FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id.' GROUP BY dept');
+        $rows = PulseDb::executeS('SELECT COALESCE(NULLIF(cost_centre,""),department) dept, ROUND(SUM(gross),2) gross, ROUND(SUM(employer_cost),2) employer_cost FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id.' GROUP BY dept');
         $departments = array();
         foreach ($rows as $r) { $departments[$r['dept']] = round((float) $r['gross'] + (float) $r['employer_cost'], 2); }
-        $t = Db::getInstance()->getRow('SELECT ROUND(SUM(paye),2) paye, ROUND(SUM(pension_ee),2) pension_ee, ROUND(SUM(pension_er),2) pension_er, ROUND(SUM(nhf),2) nhf, ROUND(SUM(nhis),2) nhis, ROUND(SUM(nsitf_er),2) nsitf, ROUND(SUM(itf_er),2) itf, ROUND(SUM(employer_cost),2) employer_cost, ROUND(SUM(loan_recovered),2) loan, ROUND(SUM(arrears_recovered),2) arrears, ROUND(SUM(net_pay),2) net, ROUND(SUM(gross),2) gross, ROUND(SUM(total_deductions),2) ded FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id);
+        $t = PulseDb::getRow('SELECT ROUND(SUM(paye),2) paye, ROUND(SUM(pension_ee),2) pension_ee, ROUND(SUM(pension_er),2) pension_er, ROUND(SUM(nhf),2) nhf, ROUND(SUM(nhis),2) nhis, ROUND(SUM(nsitf_er),2) nsitf, ROUND(SUM(itf_er),2) itf, ROUND(SUM(employer_cost),2) employer_cost, ROUND(SUM(loan_recovered),2) loan, ROUND(SUM(arrears_recovered),2) arrears, ROUND(SUM(net_pay),2) net, ROUND(SUM(gross),2) gross, ROUND(SUM(total_deductions),2) ded FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $id);
         $other = round((float) $t['ded'] - (float) $t['paye'] - (float) $t['pension_ee'] - (float) $t['nhf'] - (float) $t['nhis'], 2);
         // the debit side carries the whole employer cost, so every employer-borne scheme has to reach a
         // credit bucket. Pension has its own; NSITF and ITF are named; anything else the country pack adds
@@ -374,8 +374,8 @@ class PulsePrRun
      */
     protected static function markTroncPaid($id, array $run)
     {
-        if (!(int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_payslip_line` WHERE id_pulse_pr_run='.(int) $id.' AND element_code="TRONC"')) { return false; }
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_pr_tronc_pool FROM `'._DB_PREFIX_.'pulse_pr_tronc_pool` WHERE period="'.pSQL($run['period']).'" AND status="approved"') as $p) {
+        if (!(int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_payslip_line` WHERE id_pulse_pr_run='.(int) $id.' AND element_code="TRONC"')) { return false; }
+        foreach (PulseDb::executeS('SELECT id_pulse_pr_tronc_pool FROM `'._DB_PREFIX_.'pulse_pr_tronc_pool` WHERE period="'.pSQL($run['period']).'" AND status="approved"') as $p) {
             PulsePrTronc::markPaidInRun((int) $p['id_pulse_pr_tronc_pool'], (int) $id);
         }
         return true;
@@ -384,7 +384,7 @@ class PulsePrRun
     /** Statutory remittance rows with their due dates, raised the moment a run is approved. */
     protected static function raiseRemittances(array $run)
     {
-        $t = Db::getInstance()->getRow('SELECT ROUND(SUM(paye),2) paye, ROUND(SUM(pension_ee),2) pension_ee, ROUND(SUM(pension_er),2) pension_er, ROUND(SUM(nhf),2) nhf, ROUND(SUM(nsitf_er),2) nsitf, ROUND(SUM(itf_er),2) itf FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.period="'.pSQL($run['period']).'" AND r.status IN ("approved","paid","posted")');
+        $t = PulseDb::getRow('SELECT ROUND(SUM(paye),2) paye, ROUND(SUM(pension_ee),2) pension_ee, ROUND(SUM(pension_er),2) pension_er, ROUND(SUM(nhf),2) nhf, ROUND(SUM(nsitf_er),2) nsitf, ROUND(SUM(itf_er),2) itf FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.period="'.pSQL($run['period']).'" AND r.status IN ("approved","paid","posted")');
         $pay = $run['pay_date'];
         $monthEnd = date('Y-m-t', strtotime($run['period'].'-01'));
         if ((float) $t['paye'] > 0) { PulsePrService::upsertRemittance('paye', $run['period'], PulsePrService::cfg('TAX_STATE', 'State Internal Revenue Service'), (float) $t['paye'], date('Y-m-10', strtotime('+1 month', strtotime($monthEnd)))); }
@@ -393,7 +393,7 @@ class PulsePrRun
         if ((float) $t['nsitf'] > 0) { PulsePrService::upsertRemittance('nsitf', $run['period'], 'Nigeria Social Insurance Trust Fund', (float) $t['nsitf'], date('Y-m-10', strtotime('+1 month', strtotime($monthEnd)))); }
         if ((float) $t['nhf'] > 0) { PulsePrService::upsertRemittance('nhf', $run['period'], 'Federal Mortgage Bank of Nigeria (NHF)', (float) $t['nhf'], date('Y-m-t', strtotime('+1 month', strtotime($monthEnd)))); }
         $year = (int) Tools::substr($run['period'], 0, 4);
-        $itfYear = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(p.itf_er),0) FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.period LIKE "'.pSQL((string) $year).'-%" AND r.status IN ("approved","paid","posted")'), 2);
+        $itfYear = round((float) PulseDb::getValue('SELECT COALESCE(SUM(p.itf_er),0) FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.period LIKE "'.pSQL((string) $year).'-%" AND r.status IN ("approved","paid","posted")'), 2);
         if ($itfYear > 0) { PulsePrService::upsertRemittance('itf', $year.'-12', 'Industrial Training Fund', $itfYear, ($year + 1).'-04-01'); }
         return true;
     }
@@ -402,12 +402,12 @@ class PulsePrRun
 
     public static function payslips($idRun, $department = null)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.($department ? ' AND department="'.pSQL($department).'"' : '').' ORDER BY department, employee_name');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.($department ? ' AND department="'.pSQL($department).'"' : '').' ORDER BY department, employee_name');
     }
 
     public static function byDepartment($idRun)
     {
-        return Db::getInstance()->executeS('SELECT department, COUNT(*) headcount, ROUND(SUM(gross),2) gross, ROUND(SUM(paye),2) paye, ROUND(SUM(pension_ee),2) pension_ee, ROUND(SUM(pension_er),2) pension_er, ROUND(SUM(nsitf_er),2) nsitf, ROUND(SUM(itf_er),2) itf, ROUND(SUM(total_deductions),2) deductions, ROUND(SUM(net_pay),2) net, ROUND(SUM(gross+employer_cost),2) total_cost FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' GROUP BY department ORDER BY department');
+        return PulseDb::executeS('SELECT department, COUNT(*) headcount, ROUND(SUM(gross),2) gross, ROUND(SUM(paye),2) paye, ROUND(SUM(pension_ee),2) pension_ee, ROUND(SUM(pension_er),2) pension_er, ROUND(SUM(nsitf_er),2) nsitf, ROUND(SUM(itf_er),2) itf, ROUND(SUM(total_deductions),2) deductions, ROUND(SUM(net_pay),2) net, ROUND(SUM(gross+employer_cost),2) total_cost FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' GROUP BY department ORDER BY department');
     }
 
     /**
@@ -421,7 +421,7 @@ class PulsePrRun
         if (!$run) { return array(); }
         $threshold = $threshold === null ? (float) PulsePrService::cfg('VARIANCE_PCT', 15) : (float) $threshold;
         $prev = date('Y-m', strtotime($run['period'].'-01 -1 month'));
-        $rows = Db::getInstance()->executeS('SELECT c.id_pulse_pr_employee, c.staff_no, c.employee_name, c.department, c.gross, c.net_pay, c.paye,
+        $rows = PulseDb::executeS('SELECT c.id_pulse_pr_employee, c.staff_no, c.employee_name, c.department, c.gross, c.net_pay, c.paye,
                 COALESCE(p.gross,0) prev_gross, COALESCE(p.net_pay,0) prev_net, COALESCE(p.paye,0) prev_paye, (p.id_pulse_pr_payslip IS NULL) is_new
             FROM `'._DB_PREFIX_.'pulse_pr_payslip` c
             LEFT JOIN (SELECT x.* FROM `'._DB_PREFIX_.'pulse_pr_payslip` x INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=x.id_pulse_pr_run WHERE x.period="'.pSQL($prev).'" AND r.status<>"cancelled") p ON p.id_pulse_pr_employee=c.id_pulse_pr_employee
@@ -436,7 +436,7 @@ class PulsePrRun
             $out[] = $r;
         }
         // anyone paid last period who is not in this one at all
-        foreach (Db::getInstance()->executeS('SELECT p.id_pulse_pr_employee, p.staff_no, p.employee_name, p.department, p.gross prev_gross, p.net_pay prev_net, p.paye prev_paye FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.period="'.pSQL($prev).'" AND r.status<>"cancelled" AND p.id_pulse_pr_employee NOT IN (SELECT id_pulse_pr_employee FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.')') as $r) {
+        foreach (PulseDb::executeS('SELECT p.id_pulse_pr_employee, p.staff_no, p.employee_name, p.department, p.gross prev_gross, p.net_pay prev_net, p.paye prev_paye FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.period="'.pSQL($prev).'" AND r.status<>"cancelled" AND p.id_pulse_pr_employee NOT IN (SELECT id_pulse_pr_employee FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.')') as $r) {
             $out[] = array_merge($r, array('gross' => 0, 'net_pay' => 0, 'paye' => 0, 'is_new' => 0, 'delta' => -round((float) $r['prev_gross'], 2), 'pct' => -100.0, 'flag' => 'dropped'));
         }
         return $out;
@@ -446,22 +446,22 @@ class PulsePrRun
     public static function dashboard()
     {
         $period = date('Y-m');
-        $last = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE status IN ("approved","paid","posted") ORDER BY period DESC, id_pulse_pr_run DESC');
-        $open = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE status IN ("draft","calculated","approved") ORDER BY period DESC');
-        $heads = Db::getInstance()->getRow('SELECT COUNT(*) total, SUM(status="active") active, SUM(status="probation") probation, SUM(employment_type="casual") casuals, SUM(on_hold=1) on_hold FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status<>"exited"');
+        $last = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE status IN ("approved","paid","posted") ORDER BY period DESC, id_pulse_pr_run DESC');
+        $open = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_run` WHERE status IN ("draft","calculated","approved") ORDER BY period DESC');
+        $heads = PulseDb::getRow('SELECT COUNT(*) total, SUM(status="active") active, SUM(status="probation") probation, SUM(employment_type="casual") casuals, SUM(on_hold=1) on_hold FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status<>"exited"');
         $pack = PulsePrStatutory::pack(PulsePrService::country());
         return array(
             'period' => $period, 'business_date' => PulsePrService::bd(), 'last_run' => $last, 'open_runs' => $open,
             'headcount' => $heads, 'country' => PulsePrService::country(), 'pack' => $pack->label(), 'pack_verified' => $pack->verified(),
             'warnings' => $pack->warnings(),
-            'loans_out' => round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(balance),0) FROM `'._DB_PREFIX_.'pulse_pr_loan` WHERE status IN ("disbursed","repaying")'), 2),
-            'arrears_out' => round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(balance),0) FROM `'._DB_PREFIX_.'pulse_pr_arrears` WHERE status IN ("open","part")'), 2),
+            'loans_out' => round((float) PulseDb::getValue('SELECT COALESCE(SUM(balance),0) FROM `'._DB_PREFIX_.'pulse_pr_loan` WHERE status IN ("disbursed","repaying")'), 2),
+            'arrears_out' => round((float) PulseDb::getValue('SELECT COALESCE(SUM(balance),0) FROM `'._DB_PREFIX_.'pulse_pr_arrears` WHERE status IN ("open","part")'), 2),
             'remittances_due' => PulsePrService::remittances('due', 12),
-            'remittances_overdue' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_remittance` WHERE status IN ("due","part") AND due_date<"'.pSQL(date('Y-m-d')).'" ORDER BY due_date'),
+            'remittances_overdue' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_remittance` WHERE status IN ("due","part") AND due_date<"'.pSQL(date('Y-m-d')).'" ORDER BY due_date'),
             'acc' => PulsePrService::acc(), 'hr' => PulsePrService::hr(), 'ta' => PulsePrService::ta(), 'fd' => PulsePrService::fd(),
-            'no_structure' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_employee` e WHERE e.status IN ("active","probation") AND e.pay_rate<=0'),
-            'tronc_draft' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_tronc_pool` WHERE status="draft"'),
-            'casual_draft' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_casual_batch` WHERE status="draft"'),
+            'no_structure' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_employee` e WHERE e.status IN ("active","probation") AND e.pay_rate<=0'),
+            'tronc_draft' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_tronc_pool` WHERE status="draft"'),
+            'casual_draft' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_casual_batch` WHERE status="draft"'),
         );
     }
 }

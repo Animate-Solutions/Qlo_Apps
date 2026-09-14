@@ -14,7 +14,7 @@ class PulseAccReport
 
     public static function trialBalance($from, $to, $includeZero = false)
     {
-        $rows = Db::getInstance()->executeS('SELECT a.code, a.name, a.type, a.subtype, a.usali_dept, a.normal_balance,
+        $rows = PulseDb::executeS('SELECT a.code, a.name, a.type, a.subtype, a.usali_dept, a.normal_balance,
             ROUND(COALESCE(ob.d,0)-COALESCE(ob.c,0),2) opening,
             ROUND(COALESCE(SUM(l.debit),0),2) debit, ROUND(COALESCE(SUM(l.credit),0),2) credit
             FROM `'._DB_PREFIX_.'pulse_acc_account` a
@@ -43,8 +43,8 @@ class PulseAccReport
     {
         $a = PulseAccService::account($accountCode);
         if (!$a) { return null; }
-        $opening = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(debit-credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE posted=1 AND account_code="'.pSQL($accountCode).'" AND business_date<"'.pSQL($from).'"'), 2);
-        $rows = Db::getInstance()->executeS('SELECT l.*, j.journal_no, j.source, j.source_ref, j.reference, j.type, j.status FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_journal` j ON j.id_pulse_acc_journal=l.id_pulse_acc_journal
+        $opening = round((float) PulseDb::getValue('SELECT COALESCE(SUM(debit-credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE posted=1 AND account_code="'.pSQL($accountCode).'" AND business_date<"'.pSQL($from).'"'), 2);
+        $rows = PulseDb::executeS('SELECT l.*, j.journal_no, j.source, j.source_ref, j.reference, j.type, j.status FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_journal` j ON j.id_pulse_acc_journal=l.id_pulse_acc_journal
             WHERE l.posted=1 AND l.account_code="'.pSQL($accountCode).'" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"
             ORDER BY l.business_date, l.id_pulse_acc_journal, l.line_no LIMIT '.(int) $limit);
         $bal = $opening; $dr = 0; $cr = 0;
@@ -56,16 +56,16 @@ class PulseAccReport
     public static function sourceDocument($entity, $idEntity)
     {
         switch ($entity) {
-            case 'pulse_folio_line': return Db::getInstance()->getRow('SELECT l.*, f.folio_no, f.type folio_type FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_folio` f ON f.id_pulse_folio=l.id_pulse_folio WHERE l.id_pulse_folio_line='.(int) $idEntity);
-            case 'pulse_pos_check': return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_check` WHERE id_pulse_pos_check='.(int) $idEntity);
-            case 'pulse_expense': return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_expense` WHERE id_pulse_expense='.(int) $idEntity);
-            case 'pulse_inv_grn': return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_inv_grn` WHERE id_pulse_inv_grn='.(int) $idEntity);
+            case 'pulse_folio_line': return PulseDb::getRow('SELECT l.*, f.folio_no, f.type folio_type FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_folio` f ON f.id_pulse_folio=l.id_pulse_folio WHERE l.id_pulse_folio_line='.(int) $idEntity);
+            case 'pulse_pos_check': return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_check` WHERE id_pulse_pos_check='.(int) $idEntity);
+            case 'pulse_expense': return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_expense` WHERE id_pulse_expense='.(int) $idEntity);
+            case 'pulse_inv_grn': return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_inv_grn` WHERE id_pulse_inv_grn='.(int) $idEntity);
             case 'pulse_acc_bill': return PulseAccAp::billRow((int) $idEntity);
-            case 'pulse_acc_invoice': return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_invoice` WHERE id_pulse_acc_invoice='.(int) $idEntity);
+            case 'pulse_acc_invoice': return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_invoice` WHERE id_pulse_acc_invoice='.(int) $idEntity);
             case 'pulse_acc_receipt': return PulseAccAr::receiptRow((int) $idEntity);
-            case 'pulse_acc_payment': return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_payment` WHERE id_pulse_acc_payment='.(int) $idEntity);
-            case 'pulse_acc_asset': return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE id_pulse_acc_asset='.(int) $idEntity);
-            case 'pulse_acc_bank_line': return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_bank_line` WHERE id_pulse_acc_bank_line='.(int) $idEntity);
+            case 'pulse_acc_payment': return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_payment` WHERE id_pulse_acc_payment='.(int) $idEntity);
+            case 'pulse_acc_asset': return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE id_pulse_acc_asset='.(int) $idEntity);
+            case 'pulse_acc_bank_line': return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_bank_line` WHERE id_pulse_acc_bank_line='.(int) $idEntity);
         }
         return null;
     }
@@ -150,7 +150,7 @@ class PulseAccReport
 
     protected static function plRows($from, $to)
     {
-        $rows = Db::getInstance()->executeS('SELECT a.code, a.name, a.type, a.subtype, a.usali_dept, ROUND(SUM(l.debit),2) debit, ROUND(SUM(l.credit),2) credit
+        $rows = PulseDb::executeS('SELECT a.code, a.name, a.type, a.subtype, a.usali_dept, ROUND(SUM(l.debit),2) debit, ROUND(SUM(l.credit),2) credit
             FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account
             WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.type IN ("revenue","expense")
             GROUP BY a.id_pulse_acc_account ORDER BY a.code');
@@ -170,9 +170,9 @@ class PulseAccReport
         $nights = max(1, (int) ((strtotime($to) - strtotime($from)) / 86400) + 1);
         $rooms = 0; $sold = 0;
         if (PulseAccService::fd()) {
-            $rooms = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information`');
+            $rooms = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information`');
             // one ROOM posting per occupied room per night, which is exactly what the night audit writes
-            $sold = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_charge_code` c ON c.id_pulse_charge_code=l.id_pulse_charge_code WHERE c.code="ROOM" AND l.voided=0 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');
+            $sold = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_charge_code` c ON c.id_pulse_charge_code=l.id_pulse_charge_code WHERE c.code="ROOM" AND l.voided=0 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');
         }
         $available = $rooms * $nights;
         return array(
@@ -187,7 +187,7 @@ class PulseAccReport
 
     public static function balanceSheet($asOf)
     {
-        $rows = Db::getInstance()->executeS('SELECT a.code, a.name, a.type, a.subtype, a.is_contra, ROUND(SUM(l.debit-l.credit),2) balance
+        $rows = PulseDb::executeS('SELECT a.code, a.name, a.type, a.subtype, a.is_contra, ROUND(SUM(l.debit-l.credit),2) balance
             FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account
             WHERE l.posted=1 AND l.business_date<="'.pSQL($asOf).'" AND a.type IN ("asset","liability","equity") GROUP BY a.id_pulse_acc_account HAVING ABS(balance)>0.004 ORDER BY a.code');
         $groups = array(
@@ -206,7 +206,7 @@ class PulseAccReport
             $groups[$g]['total'] = round($groups[$g]['total'] + $r['amount'], 2);
         }
         // the year's result is not in an equity account until the close, so it is shown separately
-        $result = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.credit-l.debit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date<="'.pSQL($asOf).'" AND l.business_date>="'.pSQL(Tools::substr($asOf, 0, 4).'-01-01').'" AND a.type IN ("revenue","expense")'), 2);
+        $result = round((float) PulseDb::getValue('SELECT COALESCE(SUM(l.credit-l.debit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date<="'.pSQL($asOf).'" AND l.business_date>="'.pSQL(Tools::substr($asOf, 0, 4).'-01-01').'" AND a.type IN ("revenue","expense")'), 2);
         $assets = round($groups['current_assets']['total'] + $groups['fixed_assets']['total'], 2);
         $liabilities = round($groups['current_liabilities']['total'] + $groups['long_term']['total'], 2);
         $equity = round($groups['equity']['total'] + $result, 2);
@@ -223,10 +223,10 @@ class PulseAccReport
 
     public static function cashFlow($from, $to)
     {
-        $profit = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(IF(a.type="revenue",l.credit-l.debit,-(l.debit-l.credit))),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.type IN ("revenue","expense")'), 2);
-        $nonCash = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.subtype IN ("depreciation")'), 2);
+        $profit = round((float) PulseDb::getValue('SELECT COALESCE(SUM(IF(a.type="revenue",l.credit-l.debit,-(l.debit-l.credit))),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.type IN ("revenue","expense")'), 2);
+        $nonCash = round((float) PulseDb::getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.subtype IN ("depreciation")'), 2);
         $movement = function ($subtypes, $sign) use ($from, $to) {
-            $v = (float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.subtype IN ('.$subtypes.')');
+            $v = (float) PulseDb::getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.subtype IN ('.$subtypes.')');
             return round($sign * $v, 2);
         };
         $receivables = $movement('"receivable"', -1);
@@ -236,10 +236,10 @@ class PulseAccReport
         $taxes = $movement('"tax"', -1);
         $deposits = $movement('"deposit"', -1);
         $operating = round($profit + $nonCash + $receivables + $inventory + $prepayments + $payables + $taxes + $deposits, 2);
-        $investing = round(-1 * (float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.subtype="fixed_asset"'), 2);
-        $financing = round(-1 * (float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND (a.subtype IN ("borrowing","capital","drawings","reserve","retained"))'), 2);
-        $openCash = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date<"'.pSQL($from).'" AND a.subtype="cash"'), 2);
-        $moveCash = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.subtype="cash"'), 2);
+        $investing = round(-1 * (float) PulseDb::getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.subtype="fixed_asset"'), 2);
+        $financing = round(-1 * (float) PulseDb::getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND (a.subtype IN ("borrowing","capital","drawings","reserve","retained"))'), 2);
+        $openCash = round((float) PulseDb::getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date<"'.pSQL($from).'" AND a.subtype="cash"'), 2);
+        $moveCash = round((float) PulseDb::getValue('SELECT COALESCE(SUM(l.debit-l.credit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND a.subtype="cash"'), 2);
         return array(
             'from' => $from, 'to' => $to, 'profit' => $profit, 'depreciation' => $nonCash,
             'working_capital' => array('receivables' => $receivables, 'inventory' => $inventory, 'prepayments' => $prepayments, 'payables' => $payables, 'taxes' => $taxes, 'deposits' => $deposits),
@@ -263,11 +263,11 @@ class PulseAccReport
         if (!PulseAccService::tableExists('pulse_budget')) { return array('rows' => array(), 'note' => 'Pulse Reports is not installed — there is no budget table to compare against'); }
         $from = $month ? sprintf('%04d-%02d-01', $year, $month) : $year.'-01-01';
         $to = $month ? date('Y-m-t', strtotime($from)) : $year.'-12-31';
-        $budget = Db::getInstance()->executeS('SELECT `line`, ROUND(SUM(amount),2) amount FROM `'._DB_PREFIX_.'pulse_budget` WHERE `year`='.$year.($month ? ' AND `month`='.(int) $month : '').' GROUP BY `line`');
+        $budget = PulseDb::executeS('SELECT `line`, ROUND(SUM(amount),2) amount FROM `'._DB_PREFIX_.'pulse_budget` WHERE `year`='.$year.($month ? ' AND `month`='.(int) $month : '').' GROUP BY `line`');
         $actualByDept = array();
-        foreach (Db::getInstance()->executeS('SELECT a.usali_dept, ROUND(SUM(l.credit-l.debit),2) amount FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND a.type="revenue" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY a.usali_dept') as $r) { $actualByDept[$r['usali_dept']] = (float) $r['amount']; }
+        foreach (PulseDb::executeS('SELECT a.usali_dept, ROUND(SUM(l.credit-l.debit),2) amount FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND a.type="revenue" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY a.usali_dept') as $r) { $actualByDept[$r['usali_dept']] = (float) $r['amount']; }
         $actualByAccount = array();
-        foreach (Db::getInstance()->executeS('SELECT l.account_code, ROUND(SUM(l.debit-l.credit),2) amount FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND a.type="expense" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY l.account_code') as $r) { $actualByAccount[$r['account_code']] = (float) $r['amount']; }
+        foreach (PulseDb::executeS('SELECT l.account_code, ROUND(SUM(l.debit-l.credit),2) amount FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND a.type="expense" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY l.account_code') as $r) { $actualByAccount[$r['account_code']] = (float) $r['amount']; }
         $out = array();
         foreach ($budget as $b) {
             $line = $b['line']; $amount = (float) $b['amount']; $actual = 0; $label = $line; $kind = 'other';
@@ -281,7 +281,7 @@ class PulseAccReport
                 $label = ($m && $m['label'] ? $m['label'] : $cat).($acct ? ' ('.$acct.')' : ''); $kind = 'expense';
             } elseif (strpos($line, 'capex:') === 0) {
                 $cls = Tools::substr($line, 6);
-                $actual = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(cost),0) FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE class_code="'.pSQL($cls).'" AND acquisition_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'), 2);
+                $actual = round((float) PulseDb::getValue('SELECT COALESCE(SUM(cost),0) FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE class_code="'.pSQL($cls).'" AND acquisition_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'), 2);
                 $label = 'CAPEX — '.$cls; $kind = 'capex';
             } elseif (in_array($line, array('occupancy_pct', 'adr'))) { continue; }
             $variance = $kind === 'revenue' ? round($actual - $amount, 2) : round($amount - $actual, 2);
@@ -294,14 +294,14 @@ class PulseAccReport
 
     public static function revenueByDepartment($from, $to)
     {
-        return Db::getInstance()->executeS('SELECT a.usali_dept department, ROUND(SUM(l.credit-l.debit),2) revenue, COUNT(DISTINCT l.id_pulse_acc_journal) journals
+        return PulseDb::executeS('SELECT a.usali_dept department, ROUND(SUM(l.credit-l.debit),2) revenue, COUNT(DISTINCT l.id_pulse_acc_journal) journals
             FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account
             WHERE l.posted=1 AND a.type="revenue" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY a.usali_dept ORDER BY revenue DESC');
     }
 
     public static function revenueByAccount($from, $to)
     {
-        return Db::getInstance()->executeS('SELECT l.account_code, l.account_name, a.usali_dept, ROUND(SUM(l.credit-l.debit),2) revenue
+        return PulseDb::executeS('SELECT l.account_code, l.account_name, a.usali_dept, ROUND(SUM(l.credit-l.debit),2) revenue
             FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account
             WHERE l.posted=1 AND a.type="revenue" AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY l.account_code HAVING ABS(revenue)>0.004 ORDER BY revenue DESC');
     }
@@ -310,7 +310,7 @@ class PulseAccReport
     public static function revenueByChargeCode($from, $to)
     {
         if (!PulseAccService::fd()) { return array(); }
-        return Db::getInstance()->executeS('SELECT c.code, c.name, c.department, COUNT(*) postings, ROUND(SUM(l.amount_tax_incl),2) gross,
+        return PulseDb::executeS('SELECT c.code, c.name, c.department, COUNT(*) postings, ROUND(SUM(l.amount_tax_incl),2) gross,
             ROUND(SUM(l.amount_tax_incl/(1+l.tax_rate/100)),2) net, ROUND(SUM(l.amount_tax_incl-(l.amount_tax_incl/(1+l.tax_rate/100))),2) tax
             FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_charge_code` c ON c.id_pulse_charge_code=l.id_pulse_charge_code
             WHERE l.voided=0 AND l.is_payment=0 AND l.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY c.id_pulse_charge_code ORDER BY gross DESC');
@@ -322,19 +322,19 @@ class PulseAccReport
      */
     public static function dailyRevenueJournal($date)
     {
-        $gl = Db::getInstance()->executeS('SELECT a.usali_dept, a.code, a.name, ROUND(SUM(l.credit-l.debit),2) amount
+        $gl = PulseDb::executeS('SELECT a.usali_dept, a.code, a.name, ROUND(SUM(l.credit-l.debit),2) amount
             FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account
             WHERE l.posted=1 AND l.business_date="'.pSQL($date).'" AND a.type="revenue" GROUP BY a.id_pulse_acc_account HAVING ABS(amount)>0.004 ORDER BY a.code');
         $glTotal = 0; $byDept = array();
         foreach ($gl as $g) { $glTotal += (float) $g['amount']; if (!isset($byDept[$g['usali_dept']])) { $byDept[$g['usali_dept']] = 0; } $byDept[$g['usali_dept']] = round($byDept[$g['usali_dept']] + (float) $g['amount'], 2); }
         $glTotal = round($glTotal, 2);
-        $audit = PulseAccService::fd() ? Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_night_audit` WHERE business_date="'.pSQL($date).'"') : null;
-        $folio = PulseAccService::fd() ? Db::getInstance()->getRow('SELECT ROUND(COALESCE(SUM(IF(is_payment=0,amount_tax_incl,0)),0),2) charges, ROUND(COALESCE(SUM(IF(is_payment=1,amount_tax_incl,0)),0),2) payments, ROUND(COALESCE(SUM(IF(is_payment=0,amount_tax_incl-(amount_tax_incl/(1+tax_rate/100)),0)),0),2) tax FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE voided=0 AND business_date="'.pSQL($date).'"') : null;
+        $audit = PulseAccService::fd() ? PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_night_audit` WHERE business_date="'.pSQL($date).'"') : null;
+        $folio = PulseAccService::fd() ? PulseDb::getRow('SELECT ROUND(COALESCE(SUM(IF(is_payment=0,amount_tax_incl,0)),0),2) charges, ROUND(COALESCE(SUM(IF(is_payment=1,amount_tax_incl,0)),0),2) payments, ROUND(COALESCE(SUM(IF(is_payment=0,amount_tax_incl-(amount_tax_incl/(1+tax_rate/100)),0)),0),2) tax FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE voided=0 AND business_date="'.pSQL($date).'"') : null;
         $auditRevenue = $audit ? round((float) $audit['room_revenue'] + (float) $audit['fnb_revenue'] + (float) $audit['other_revenue'], 2) : null;
         $folioNet = $folio ? round((float) $folio['charges'] - (float) $folio['tax'], 2) : null;
-        $queue = Db::getInstance()->getRow('SELECT SUM(status="pending") pending, SUM(status="failed") failed FROM `'._DB_PREFIX_.'pulse_acc_queue` WHERE business_date="'.pSQL($date).'"');
-        $tax = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(credit-debit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE posted=1 AND business_date="'.pSQL($date).'" AND account_code IN ("2210","2240")'), 2);
-        $settlements = Db::getInstance()->executeS('SELECT l.account_code, l.account_name, ROUND(SUM(l.debit-l.credit),2) amount FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date="'.pSQL($date).'" AND a.subtype IN ("cash","receivable","deposit") GROUP BY l.account_code HAVING ABS(amount)>0.004 ORDER BY l.account_code');
+        $queue = PulseDb::getRow('SELECT SUM(status="pending") pending, SUM(status="failed") failed FROM `'._DB_PREFIX_.'pulse_acc_queue` WHERE business_date="'.pSQL($date).'"');
+        $tax = round((float) PulseDb::getValue('SELECT COALESCE(SUM(credit-debit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE posted=1 AND business_date="'.pSQL($date).'" AND account_code IN ("2210","2240")'), 2);
+        $settlements = PulseDb::executeS('SELECT l.account_code, l.account_name, ROUND(SUM(l.debit-l.credit),2) amount FROM `'._DB_PREFIX_.'pulse_acc_journal_line` l INNER JOIN `'._DB_PREFIX_.'pulse_acc_account` a ON a.id_pulse_acc_account=l.id_pulse_acc_account WHERE l.posted=1 AND l.business_date="'.pSQL($date).'" AND a.subtype IN ("cash","receivable","deposit") GROUP BY l.account_code HAVING ABS(amount)>0.004 ORDER BY l.account_code');
         return array(
             'date' => $date, 'gl' => $gl, 'gl_total' => $glTotal, 'by_department' => $byDept, 'tax' => $tax,
             'night_audit' => $audit, 'audit_revenue' => $auditRevenue, 'folio' => $folio, 'folio_net' => $folioNet,

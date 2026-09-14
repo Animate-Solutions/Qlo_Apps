@@ -9,7 +9,7 @@ class AdminPulseNightAuditController extends ModuleAdminController
         $bd = PulseCoreService::businessDate(); $na = new PulseNightAudit($bd);
         $this->context->smarty->assign(array(
             'business_date' => $bd, 'issues' => $na->preChecks(), 'in_house' => PulseFdService::inHouse(), 'no_shows' => PulseFdService::noShowCandidates($bd),
-            'history' => Db::getInstance()->executeS('SELECT a.*, CONCAT(e.firstname," ",e.lastname) auditor FROM `'._DB_PREFIX_.'pulse_night_audit` a LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=a.id_employee ORDER BY business_date DESC LIMIT 30'),
+            'history' => PulseDb::executeS('SELECT a.*, CONCAT(e.firstname," ",e.lastname) auditor FROM `'._DB_PREFIX_.'pulse_night_audit` a LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=a.id_employee ORDER BY business_date DESC LIMIT 30'),
             'self_url' => self::$currentIndex.'&token='.$this->token, 'cron_url' => Tools::getShopDomainSsl(true).__PS_BASE_URI__.'modules/pulsefrontdesk/cron/night_audit.php?token='.Configuration::get('PULSE_FD_CRON_TOKEN'),
         ));
         $this->setTemplate('audit.tpl');

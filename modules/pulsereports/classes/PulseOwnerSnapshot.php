@@ -64,7 +64,7 @@ class PulseOwnerSnapshot
 
     public static function send($idSchedule, $bd = null, $force = false)
     {
-        $s = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_report_schedule` WHERE id_pulse_report_schedule='.(int) $idSchedule);
+        $s = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_report_schedule` WHERE id_pulse_report_schedule='.(int) $idSchedule);
         if (!$s || (!$s['active'] && !$force)) { return false; }
         $bd = $bd ?: date('Y-m-d', strtotime(PulseCoreService::businessDate().' -1 day'));
         if (!$force && $s['last_business_date'] === $bd) { return false; }
@@ -73,8 +73,8 @@ class PulseOwnerSnapshot
         $ok = true; $err = '';
         foreach ($emails as $e) { if (!Validate::isEmail($e)) { continue; } try { $sent = Mail::Send((int) Configuration::get('PS_LANG_DEFAULT'), 'pulse_report', $r['subject'], array('{content}' => $r['html'], '{subject}' => $r['subject']), $e, null, null, null, null, null, _PS_MODULE_DIR_.'pulsereports/mails/', true); if (!$sent) { $ok = false; $err .= 'mail fail '.$e.'; '; } } catch (Exception $x) { $ok = false; $err .= $x->getMessage().'; '; } }
         if ($phones && class_exists('PulseComms')) { foreach ($phones as $p) { try { PulseComms::sendRaw(null, $p, 'owner_snapshot', array('text' => $r['sms'])); } catch (Exception $x) { $err .= 'sms '.$x->getMessage().'; '; } } }
-        Db::getInstance()->insert('pulse_report_log', array('id_pulse_report_schedule' => (int) $idSchedule, 'report' => pSQL($s['report']), 'business_date' => pSQL($bd), 'recipients' => pSQL(implode(',', array_merge($emails, $phones))), 'status' => $ok ? 'sent' : 'failed', 'error' => pSQL(substr($err, 0, 250)), 'html' => pSQL($r['html'], true), 'date_add' => date('Y-m-d H:i:s')));
-        Db::getInstance()->update('pulse_report_schedule', array('last_sent' => date('Y-m-d H:i:s'), 'last_business_date' => pSQL($bd)), 'id_pulse_report_schedule='.(int) $idSchedule);
+        PulseDb::insert('pulse_report_log', array('id_pulse_report_schedule' => (int) $idSchedule, 'report' => pSQL($s['report']), 'business_date' => pSQL($bd), 'recipients' => pSQL(implode(',', array_merge($emails, $phones))), 'status' => $ok ? 'sent' : 'failed', 'error' => pSQL(substr($err, 0, 250)), 'html' => pSQL($r['html'], true), 'date_add' => date('Y-m-d H:i:s')));
+        PulseDb::update('pulse_report_schedule', array('last_sent' => date('Y-m-d H:i:s'), 'last_business_date' => pSQL($bd)), 'id_pulse_report_schedule='.(int) $idSchedule);
         return $ok;
     }
 
@@ -83,7 +83,7 @@ class PulseOwnerSnapshot
     {
         $bd = date('Y-m-d', strtotime(PulseCoreService::businessDate().' -1 day')); $sent = array();
         if (class_exists('PulseExpense')) { PulseExpense::syncFeeds($bd); }
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_report_schedule` WHERE active=1') as $s) {
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_report_schedule` WHERE active=1') as $s) {
             if ($s['last_business_date'] === $bd) { continue; }
             $due = false; $now = date('H:i:s'); $dow = (int) date('N'); $dom = (int) date('j');
             if ($s['report'] === 'weekly' && $dow !== (int) $s['weekday']) { continue; }

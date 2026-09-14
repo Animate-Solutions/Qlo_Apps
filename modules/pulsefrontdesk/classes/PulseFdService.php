@@ -7,6 +7,28 @@ class PulseFdService
 {
     const BOOKING = 'htl_booking_detail';
 
+    /**
+     * The property a guest self-service link acts for.
+     *
+     * Pre-check-in and express check-out are both reached with an emailed token that belongs to one
+     * booking, and a booking belongs to one hotel — so the stay is what names the property, not the
+     * link. $column is the token column in pulse_booking_ext: precheckin_token or checkout_token.
+     * Returns the hotel entered, or 0 when the token matches no stay and the caller must refuse.
+     */
+    public static function enterHotelFromToken($column, $token)
+    {
+        $t = preg_replace('/[^a-f0-9]/', '', (string) $token);
+        if ($t === '') { return 0; }
+        // Finding the token at all takes one unscoped read, because the row it lives in is itself scoped
+        // and a scoped read would come back empty. The hotel then comes from the booking, which is where
+        // a stay's property is actually recorded — the extension row only carries a copy of it.
+        $idBooking = (int) PulseDb::unscoped(function () use ($column, $t) {
+            return (int) PulseDb::getValue('SELECT `id_htl_booking` FROM `'._DB_PREFIX_.'pulse_booking_ext`
+                WHERE `'.bqSQL($column).'` = "'.pSQL($t).'"');
+        });
+        return $idBooking ? PulseCoreService::enterHotel(PulseHotelContext::ofBooking($idBooking)) : 0;
+    }
+
     /* ---------- queries ---------- */
 
     protected static function bookingSelect()
@@ -27,30 +49,30 @@ class PulseFdService
 
     public static function booking($id)
     {
-        return Db::getInstance()->getRow(self::bookingSelect().' AND b.id='.(int) $id);
+        return PulseDb::getRow(self::bookingSelect().' AND b.id='.(int) $id);
     }
 
     public static function arrivals($date = null)
     {
         $d = $date ? pSQL($date) : PulseCoreService::businessDate();
-        return Db::getInstance()->executeS(self::bookingSelect().' AND b.date_from="'.$d.'" AND b.id_status='.(int) HotelBookingDetail::STATUS_ALLOTED.' ORDER BY gp.vip_level DESC, r.room_num');
+        return PulseDb::executeS(self::bookingSelect().' AND b.date_from="'.$d.'" AND b.id_status='.(int) HotelBookingDetail::STATUS_ALLOTED.' ORDER BY gp.vip_level DESC, r.room_num');
     }
 
     public static function departures($date = null)
     {
         $d = $date ? pSQL($date) : PulseCoreService::businessDate();
-        return Db::getInstance()->executeS(self::bookingSelect().' AND b.date_to="'.$d.'" AND b.id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY r.room_num');
+        return PulseDb::executeS(self::bookingSelect().' AND b.date_to="'.$d.'" AND b.id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY r.room_num');
     }
 
     public static function inHouse()
     {
-        return Db::getInstance()->executeS(self::bookingSelect().' AND b.id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY r.room_num');
+        return PulseDb::executeS(self::bookingSelect().' AND b.id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY r.room_num');
     }
 
     /** Booked but never checked in and stay date has passed. */
     public static function noShowCandidates($businessDate)
     {
-        return Db::getInstance()->executeS(self::bookingSelect().' AND b.date_from<"'.pSQL($businessDate).'" AND b.id_status='.(int) HotelBookingDetail::STATUS_ALLOTED);
+        return PulseDb::executeS(self::bookingSelect().' AND b.date_from<"'.pSQL($businessDate).'" AND b.id_status='.(int) HotelBookingDetail::STATUS_ALLOTED);
     }
 
     /* ---------- operations ---------- */
@@ -72,10 +94,10 @@ class PulseFdService
             $free = array_map(function ($r) { return (int) $r['id_room']; }, PulseRoom::availableRooms($b['id_product'], $b['date_from'], $b['date_to'], $idBooking));
             if (!in_array((int) $idRoom, $free)) { throw new PrestaShopException('Selected room is not available'); }
             $room = new HotelRoomInformation((int) $idRoom);
-            Db::getInstance()->update(self::BOOKING, array('id_room' => (int) $idRoom, 'room_num' => pSQL($room->room_num)), 'id='.(int) $idBooking);
+            PulseDb::update(self::BOOKING, array('id_room' => (int) $idRoom, 'room_num' => pSQL($room->room_num)), 'id='.(int) $idBooking);
             $b['id_room'] = (int) $idRoom; $b['room_num'] = $room->room_num;
         }
-        $hk = Db::getInstance()->getValue('SELECT hk_status FROM `'._DB_PREFIX_.'pulse_room_status` WHERE id_room='.(int) $b['id_room']);
+        $hk = PulseDb::getValue('SELECT hk_status FROM `'._DB_PREFIX_.'pulse_room_status` WHERE id_room='.(int) $b['id_room']);
         if (in_array($hk, array('vacant_dirty', 'out_of_order', 'out_of_service')) && empty($opts['override_dirty'])) {
             throw new PrestaShopException('Room '.$b['room_num'].' is '.str_replace('_', ' ', $hk).' — assign another room or override');
         }
@@ -84,7 +106,7 @@ class PulseFdService
             if (empty($identity['id_number']) || empty($identity['id_type'])) { throw new PrestaShopException('Guest ID is required at check-in'); }
         }
         if (!empty($identity['id_number'])) {
-            Db::getInstance()->insert('pulse_guest_identity', array(
+            PulseDb::insert('pulse_guest_identity', array(
                 'id_customer' => (int) $b['id_customer'], 'id_htl_booking' => (int) $idBooking,
                 'id_type' => pSQL($identity['id_type']), 'id_number' => pSQL($identity['id_number']),
                 'issuing_country' => pSQL(isset($identity['issuing_country']) ? $identity['issuing_country'] : ''),
@@ -94,7 +116,7 @@ class PulseFdService
             ));
         }
         // status
-        Db::getInstance()->update(self::BOOKING, array('id_status' => HotelBookingDetail::STATUS_CHECKED_IN, 'check_in' => date('Y-m-d H:i:s')), 'id='.(int) $idBooking);
+        PulseDb::update(self::BOOKING, array('id_status' => HotelBookingDetail::STATUS_CHECKED_IN, 'check_in' => date('Y-m-d H:i:s')), 'id='.(int) $idBooking);
         self::syncOrderState($b['id_order'], 'checkin');
         PulseRoom::setFoStatus($b['id_room'], 'occupied', $idBooking);
         PulseRoom::setHkStatus($b['id_room'], 'occupied_clean', 'checkin');
@@ -108,7 +130,7 @@ class PulseFdService
         if (!empty($opts['signature'])) { PulseRegistrationCard::sign($idBooking, $opts['signature'], isset($opts['signed_name']) ? $opts['signed_name'] : $b['guest'], 'desk'); }
         if (!empty($opts['preauth']) && (float) $opts['preauth'] > 0) { PulsePaymentBridge::preAuthorize($idBooking, (float) $opts['preauth']); }
         if (!empty($opts['upsells']) && is_array($opts['upsells'])) { foreach ($opts['upsells'] as $u) { PulseUpsell::accept($idBooking, $u, 'checkin'); } }
-        Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_booking_ext` (id_htl_booking, source, precheckin_token, checkout_token) VALUES ('.(int) $idBooking.',"web","'.sha1(uniqid('pc', true)).'","'.sha1(uniqid('co', true)).'")');
+        PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_booking_ext` (id_htl_booking, source, precheckin_token, checkout_token) VALUES ('.(int) $idBooking.',"web","'.sha1(uniqid('pc', true)).'","'.sha1(uniqid('co', true)).'")');
         if (($pabx = PulsePabx::driver()) && Configuration::get('PULSE_FD_PABX_URL')) { $pabx->setRoomPhone(PulsePabx::extensionForRoom($b['id_room']), true, $b['guest']); }
         PulseComms::send('welcome', new Customer((int) $b['id_customer']), array('id_htl_booking' => $idBooking));
         PulseCoreService::audit('pulsefrontdesk', 'check_in', array('room' => $b['room_num']), 'htl_booking_detail', $idBooking);
@@ -149,7 +171,7 @@ class PulseFdService
             $folio->post('ADJ', 'Refund of credit balance', 1, $folio->balance, 0, false, strtolower($opts['refund_method']), 'frontdesk', 'refund');
         }
         $folio->close();
-        Db::getInstance()->update(self::BOOKING, array('id_status' => HotelBookingDetail::STATUS_CHECKED_OUT, 'check_out' => date('Y-m-d H:i:s')), 'id='.(int) $idBooking);
+        PulseDb::update(self::BOOKING, array('id_status' => HotelBookingDetail::STATUS_CHECKED_OUT, 'check_out' => date('Y-m-d H:i:s')), 'id='.(int) $idBooking);
         self::syncOrderState($b['id_order'], 'checkout');
         PulseRoom::setFoStatus($b['id_room'], 'vacant', null);
         PulseRoom::setHkStatus($b['id_room'], 'vacant_dirty', 'checkout');
@@ -169,9 +191,9 @@ class PulseFdService
         $free = array_map(function ($r) { return (int) $r['id_room']; }, PulseRoom::availableRooms($b['id_product'], PulseCoreService::businessDate(), $b['date_to'], $idBooking));
         if (!in_array((int) $toRoom, $free)) { throw new PrestaShopException('Target room not available (or different room type — upgrade via rate change first)'); }
         $room = new HotelRoomInformation((int) $toRoom);
-        Db::getInstance()->update(self::BOOKING, array('id_room' => (int) $toRoom, 'room_num' => pSQL($room->room_num)), 'id='.(int) $idBooking);
-        Db::getInstance()->update('pulse_folio', array('id_room' => (int) $toRoom), 'id_htl_booking='.(int) $idBooking.' AND status="open"');
-        Db::getInstance()->insert('pulse_room_move', array('id_htl_booking' => (int) $idBooking, 'from_room' => (int) $b['id_room'], 'to_room' => (int) $toRoom, 'reason' => pSQL($reason), 'id_employee' => (int) Context::getContext()->employee->id, 'date_add' => date('Y-m-d H:i:s')));
+        PulseDb::update(self::BOOKING, array('id_room' => (int) $toRoom, 'room_num' => pSQL($room->room_num)), 'id='.(int) $idBooking);
+        PulseDb::update('pulse_folio', array('id_room' => (int) $toRoom), 'id_htl_booking='.(int) $idBooking.' AND status="open"');
+        PulseDb::insert('pulse_room_move', array('id_htl_booking' => (int) $idBooking, 'from_room' => (int) $b['id_room'], 'to_room' => (int) $toRoom, 'reason' => pSQL($reason), 'id_employee' => (int) Context::getContext()->employee->id, 'date_add' => date('Y-m-d H:i:s')));
         PulseRoom::setFoStatus($b['id_room'], 'vacant', null);
         PulseRoom::setHkStatus($b['id_room'], 'vacant_dirty', 'room_move');
         PulseHousekeeping::createTask($b['id_room'], 'clean', 3, 'Room move — clean');
@@ -192,7 +214,7 @@ class PulseFdService
             $folio->post('ROOM', 'No-show charge (1 night)', 1, (float) $b['total_price_tax_excl'] / max(1, (int) $b['nights']), null, false, null, 'night_audit', 'no_show');
             if ($folio->balance <= 0.009) { $folio->close(); }
         }
-        Db::getInstance()->update(self::BOOKING, array('is_cancelled' => 1, 'comment' => pSQL(trim($b['comment'].' [NO-SHOW '.PulseCoreService::businessDate().']'))), 'id='.(int) $idBooking);
+        PulseDb::update(self::BOOKING, array('is_cancelled' => 1, 'comment' => pSQL(trim($b['comment'].' [NO-SHOW '.PulseCoreService::businessDate().']'))), 'id='.(int) $idBooking);
         PulseRoom::setFoStatus($b['id_room'], 'vacant', null);
         PulseCoreService::audit('pulsefrontdesk', 'no_show', null, 'htl_booking_detail', $idBooking);
         PulseCoreService::event('actionPulseNoShow', array('booking' => $b));
@@ -210,7 +232,7 @@ class PulseFdService
         if (!$idState) { return; }
         // Only move the order when every room on it has reached the same state
         $target = $which === 'checkin' ? HotelBookingDetail::STATUS_CHECKED_IN : HotelBookingDetail::STATUS_CHECKED_OUT;
-        $pending = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::BOOKING.'` WHERE id_order='.(int) $idOrder.' AND is_refunded=0 AND is_cancelled=0 AND id_status<'.(int) $target);
+        $pending = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::BOOKING.'` WHERE id_order='.(int) $idOrder.' AND is_refunded=0 AND is_cancelled=0 AND id_status<'.(int) $target);
         if ($pending === 0) {
             $order = new Order((int) $idOrder);
             if (Validate::isLoadedObject($order) && (int) $order->current_state !== $idState) {
@@ -239,11 +261,11 @@ class PulseFdService
         $checkout = Configuration::get('PULSE_FD_CHECKOUT_TIME') ?: '12:00'; $grace = (int) (Configuration::get('PULSE_FD_LATE_GRACE') ?: 60); $fee = (float) Configuration::get('PULSE_FD_LATE_FEE');
         $deadline = date('H:i', strtotime($bd.' '.$checkout) + $grace * 60);
         foreach (self::departures($bd) as $d) {
-            $x = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_booking_ext` WHERE id_htl_booking='.(int) $d['id']);
+            $x = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_booking_ext` WHERE id_htl_booking='.(int) $d['id']);
             if (date('H:i') < '10:30' && (!$x || empty($x['express_sent']))) { /* express link once per morning */ }
             if ($fee > 0 && date('H:i') >= $deadline && date('Y-m-d') === $bd && (!$x || !$x['late_fee_posted'])) {
                 $f = PulseFolio::ensureForBooking($d); $f->post('LATE', 'Late check-out after '.$checkout.' (auto)', 1, $fee);
-                Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_booking_ext` (id_htl_booking, late_fee_posted) VALUES ('.(int) $d['id'].',1) ON DUPLICATE KEY UPDATE late_fee_posted=1');
+                PulseDb::execute('INSERT INTO `'._DB_PREFIX_.'pulse_booking_ext` (id_htl_booking, late_fee_posted) VALUES ('.(int) $d['id'].',1) ON DUPLICATE KEY UPDATE late_fee_posted=1');
                 PulseTrace::add('alert', 'Late check-out fee auto-posted — room '.$d['room_num'], date('Y-m-d H:i:s'), $d['id'], $d['id_room'], $d['id_customer']); $n++;
             }
         }
@@ -255,7 +277,7 @@ class PulseFdService
     {
         $bd = PulseCoreService::businessDate(); $n = 0;
         foreach (self::departures($bd) as $d) {
-            if (Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_comms_log` WHERE template="express_checkout" AND id_htl_booking='.(int) $d['id'])) { continue; }
+            if (PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_comms_log` WHERE template="express_checkout" AND id_htl_booking='.(int) $d['id'])) { continue; }
             if (PulseComms::send('express_checkout', new Customer((int) $d['id_customer']), array('id_htl_booking' => $d['id']))) { $n++; }
         }
         return $n;
@@ -266,8 +288,8 @@ class PulseFdService
     {
         $d = date('Y-m-d', strtotime(PulseCoreService::businessDate()." +$daysAhead day")); $n = 0;
         foreach (self::arrivals($d) as $a) {
-            if (Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_comms_log` WHERE template="precheckin" AND id_htl_booking='.(int) $a['id'])) { continue; }
-            Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_booking_ext` (id_htl_booking, source, precheckin_token, checkout_token) VALUES ('.(int) $a['id'].',"web","'.sha1(uniqid('pc', true)).'","'.sha1(uniqid('co', true)).'")');
+            if (PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_comms_log` WHERE template="precheckin" AND id_htl_booking='.(int) $a['id'])) { continue; }
+            PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_booking_ext` (id_htl_booking, source, precheckin_token, checkout_token) VALUES ('.(int) $a['id'].',"web","'.sha1(uniqid('pc', true)).'","'.sha1(uniqid('co', true)).'")');
             if (PulseComms::send('precheckin', new Customer((int) $a['id_customer']), array('id_htl_booking' => $a['id']))) { $n++; }
         }
         return $n;

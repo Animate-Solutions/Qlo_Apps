@@ -26,8 +26,8 @@ class PulseHrDocument
         return $base;
     }
 
-    public static function get($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_document='.(int) $id); }
-    public static function forEmployee($idEmployee) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.(int) $idEmployee.' ORDER BY (expires_on IS NULL), expires_on, type'); }
+    public static function get($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_document='.(int) $id); }
+    public static function forEmployee($idEmployee) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.(int) $idEmployee.' ORDER BY (expires_on IS NULL), expires_on, type'); }
 
     public static function save(array $d, $id = 0)
     {
@@ -42,13 +42,13 @@ class PulseHrDocument
         if ($row['issued_on'] && $row['expires_on'] && $row['expires_on'] < $row['issued_on']) { throw new PrestaShopException('The document expires before it was issued'); }
         if (!empty($row['verified'])) { $row['verified_by'] = PulseHrService::emp(); }
         $row['status'] = self::statusFor($row['expires_on'], $row['remind_days'], isset($d['status']) && $d['status'] === 'revoked');
-        if ($id) { Db::getInstance()->update(self::T, $row, 'id_pulse_hr_document='.(int) $id, 0, true); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert(self::T, $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update(self::T, $row, 'id_pulse_hr_document='.(int) $id, 0, true); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert(self::T, $row, true); $id = (int) PulseDb::Insert_ID(); }
         PulseCoreService::audit('pulsehr', 'document_save', array('type' => $row['type'], 'expires_on' => $row['expires_on'], 'id_employee' => $row['id_pulse_hr_employee']), self::T, $id);
         return $id;
     }
 
-    public static function remove($id) { $d = self::get($id); if ($d) { PulseCoreService::audit('pulsehr', 'document_delete', array('type' => $d['type'], 'id_employee' => $d['id_pulse_hr_employee']), self::T, (int) $id); } return Db::getInstance()->delete(self::T, 'id_pulse_hr_document='.(int) $id); }
+    public static function remove($id) { $d = self::get($id); if ($d) { PulseCoreService::audit('pulsehr', 'document_delete', array('type' => $d['type'], 'id_employee' => $d['id_pulse_hr_employee']), self::T, (int) $id); } return PulseDb::delete(self::T, 'id_pulse_hr_document='.(int) $id); }
 
     public static function statusFor($expiresOn, $remindDays = 30, $revoked = false)
     {
@@ -62,7 +62,7 @@ class PulseHrDocument
     /** Documents lapsing inside N days (and anything already lapsed), newest problem first. */
     public static function expiring($days = 30, $includeExpired = true)
     {
-        return Db::getInstance()->executeS('SELECT dc.*, e.staff_no, CONCAT(e.firstname," ",e.lastname) employee_name, e.phone, e.status employee_status, d.code dept_code, d.name dept_name,
+        return PulseDb::executeS('SELECT dc.*, e.staff_no, CONCAT(e.firstname," ",e.lastname) employee_name, e.phone, e.status employee_status, d.code dept_code, d.name dept_name,
                 DATEDIFF(dc.expires_on, CURDATE()) days_left
             FROM `'._DB_PREFIX_.self::T.'` dc
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=dc.id_pulse_hr_employee
@@ -92,7 +92,7 @@ class PulseHrDocument
      */
     public static function refreshStatuses()
     {
-        $db = Db::getInstance();
+        $db = PulseDb::handle();
         $db->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET status="valid" WHERE status<>"revoked" AND (expires_on IS NULL OR expires_on>DATE_ADD(CURDATE(), INTERVAL remind_days DAY))');
         $db->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET status="expiring" WHERE status<>"revoked" AND expires_on IS NOT NULL AND expires_on>=CURDATE() AND expires_on<=DATE_ADD(CURDATE(), INTERVAL remind_days DAY)');
         $db->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET status="expired" WHERE status<>"revoked" AND expires_on IS NOT NULL AND expires_on<CURDATE()');

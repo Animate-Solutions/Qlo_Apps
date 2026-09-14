@@ -31,12 +31,12 @@ class PulseChAri
         foreach (PulseChService::channels(true) as $c) {
             if ($idChannel && (int) $c['id_pulse_ch_channel'] !== (int) $idChannel) { continue; }
             if (!in_array($c['sync_mode'], array('push', 'both'))) { continue; }
-            if ($idProduct && !Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND id_product='.(int) $idProduct.' AND active=1')) { continue; }
-            $existing = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_queue` WHERE id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND id_product='.(int) $idProduct.' AND status="pending" AND date_from<="'.pSQL(date('Y-m-d', strtotime($to.' +1 day'))).'" AND date_to>="'.pSQL(date('Y-m-d', strtotime($from.' -1 day'))).'" ORDER BY id_pulse_ch_queue LIMIT 1');
+            if ($idProduct && !PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND id_product='.(int) $idProduct.' AND active=1')) { continue; }
+            $existing = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_queue` WHERE id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND id_product='.(int) $idProduct.' AND status="pending" AND date_from<="'.pSQL(date('Y-m-d', strtotime($to.' +1 day'))).'" AND date_to>="'.pSQL(date('Y-m-d', strtotime($from.' -1 day'))).'" ORDER BY id_pulse_ch_queue');
             if ($existing) {
-                Db::getInstance()->update('pulse_ch_queue', array('date_from' => pSQL(min($existing['date_from'], $from)), 'date_to' => pSQL(max($existing['date_to'], $to)), 'reason' => pSQL($reason), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $existing['id_pulse_ch_queue']);
+                PulseDb::update('pulse_ch_queue', array('date_from' => pSQL(min($existing['date_from'], $from)), 'date_to' => pSQL(max($existing['date_to'], $to)), 'reason' => pSQL($reason), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $existing['id_pulse_ch_queue']);
             } else {
-                Db::getInstance()->insert('pulse_ch_queue', array('id_pulse_ch_channel' => (int) $c['id_pulse_ch_channel'], 'id_product' => (int) $idProduct, 'id_pulse_ch_rate_plan' => 0,
+                PulseDb::insert('pulse_ch_queue', array('id_pulse_ch_channel' => (int) $c['id_pulse_ch_channel'], 'id_product' => (int) $idProduct, 'id_pulse_ch_rate_plan' => 0,
                     'date_from' => pSQL($from), 'date_to' => pSQL($to), 'type' => 'ari', 'reason' => pSQL($reason), 'status' => 'pending', 'next_attempt_at' => date('Y-m-d H:i:s'),
                     'business_date' => pSQL($bd), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')));
             }
@@ -47,7 +47,7 @@ class PulseChAri
 
     public static function queue($status = null, $idChannel = 0, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT q.*, c.name channel, pl.name room_type FROM `'._DB_PREFIX_.'pulse_ch_queue` q
+        return PulseDb::executeS('SELECT q.*, c.name channel, pl.name room_type FROM `'._DB_PREFIX_.'pulse_ch_queue` q
             LEFT JOIN `'._DB_PREFIX_.'pulse_ch_channel` c ON c.id_pulse_ch_channel=q.id_pulse_ch_channel
             LEFT JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=q.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' AND pl.id_shop='.(int) Context::getContext()->shop->id.'
             WHERE 1'.($status ? ' AND q.status IN ("'.implode('","', array_map('pSQL', explode(',', $status))).'")' : '').($idChannel ? ' AND q.id_pulse_ch_channel='.(int) $idChannel : '').'
@@ -57,7 +57,7 @@ class PulseChAri
     /** Put a failed or poisoned batch back at the front of the queue (the "retry now" button). */
     public static function requeue($idQueue)
     {
-        Db::getInstance()->update('pulse_ch_queue', array('status' => 'pending', 'attempts' => 0, 'last_error' => null, 'next_attempt_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $idQueue);
+        PulseDb::update('pulse_ch_queue', array('status' => 'pending', 'attempts' => 0, 'last_error' => null, 'next_attempt_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $idQueue);
         return true;
     }
 
@@ -70,16 +70,16 @@ class PulseChAri
     public static function baseGrid($idProduct, $from, $to)
     {
         $fd = PulseChService::fd();
-        $total = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information` WHERE id_product='.(int) $idProduct);
-        $oooRooms = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information` r'.($fd ? ' LEFT JOIN `'._DB_PREFIX_.'pulse_room_status` s ON s.id_room=r.id' : '').'
+        $total = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information` WHERE id_product='.(int) $idProduct);
+        $oooRooms = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information` r'.($fd ? ' LEFT JOIN `'._DB_PREFIX_.'pulse_room_status` s ON s.id_room=r.id' : '').'
             WHERE r.id_product='.(int) $idProduct.' AND (r.id_status<>1'.($fd ? ' OR s.hk_status IN ("out_of_order","out_of_service")' : '').')');
         $grid = array();
         for ($d = strtotime($from); $d <= strtotime($to); $d += 86400) { $grid[date('Y-m-d', $d)] = array('physical' => max(0, $total - $oooRooms), 'ooo' => $oooRooms, 'booked' => 0, 'blocked' => 0); }
-        foreach (Db::getInstance()->executeS('SELECT date_from, date_to FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_product='.(int) $idProduct.' AND is_refunded=0 AND is_cancelled=0 AND id_status<>'.(int) HotelBookingDetail::STATUS_CHECKED_OUT.' AND date_from<="'.pSQL($to).'" AND date_to>"'.pSQL($from).'"') as $b) {
+        foreach (PulseDb::executeS('SELECT date_from, date_to FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_product='.(int) $idProduct.' AND is_refunded=0 AND is_cancelled=0 AND id_status<>'.(int) HotelBookingDetail::STATUS_CHECKED_OUT.' AND date_from<="'.pSQL($to).'" AND date_to>"'.pSQL($from).'"') as $b) {
             for ($d = max(strtotime($from), strtotime($b['date_from'])); $d < min(strtotime($to) + 86400, strtotime($b['date_to'])); $d += 86400) { $k = date('Y-m-d', $d); if (isset($grid[$k])) { $grid[$k]['booked']++; } }
         }
         if ($fd) {
-            foreach (Db::getInstance()->executeS('SELECT b.date_from, b.date_to, GREATEST(a.blocked-a.picked_up,0) held FROM `'._DB_PREFIX_.'pulse_group_block_allot` a INNER JOIN `'._DB_PREFIX_.'pulse_group_block` b ON b.id_pulse_group_block=a.id_pulse_group_block
+            foreach (PulseDb::executeS('SELECT b.date_from, b.date_to, GREATEST(a.blocked-a.picked_up,0) held FROM `'._DB_PREFIX_.'pulse_group_block_allot` a INNER JOIN `'._DB_PREFIX_.'pulse_group_block` b ON b.id_pulse_group_block=a.id_pulse_group_block
                 WHERE a.id_product='.(int) $idProduct.' AND b.status IN ("tentative","definite") AND b.cutoff_date>="'.pSQL(PulseChService::businessDate()).'" AND b.date_from<="'.pSQL($to).'" AND b.date_to>"'.pSQL($from).'"') as $g) {
                 for ($d = max(strtotime($from), strtotime($g['date_from'])); $d < min(strtotime($to) + 86400, strtotime($g['date_to'])); $d += 86400) { $k = date('Y-m-d', $d); if (isset($grid[$k])) { $grid[$k]['blocked'] += (int) $g['held']; } }
             }
@@ -109,8 +109,8 @@ class PulseChAri
         static $cache = array();
         if (!isset($cache[(int) $idProduct])) {
             $cache[(int) $idProduct] = array(
-                'ranges' => Db::getInstance()->executeS('SELECT date_from, date_to, min_los, max_los FROM `'._DB_PREFIX_.'htl_room_type_restriction_date_range` WHERE id_product='.(int) $idProduct),
-                'default' => Db::getInstance()->getRow('SELECT min_los, max_los FROM `'._DB_PREFIX_.'htl_room_type` WHERE id_product='.(int) $idProduct),
+                'ranges' => PulseDb::executeS('SELECT date_from, date_to, min_los, max_los FROM `'._DB_PREFIX_.'htl_room_type_restriction_date_range` WHERE id_product='.(int) $idProduct),
+                'default' => PulseDb::getRow('SELECT min_los, max_los FROM `'._DB_PREFIX_.'htl_room_type` WHERE id_product='.(int) $idProduct),
             );
         }
         $c = $cache[(int) $idProduct];
@@ -141,7 +141,7 @@ class PulseChAri
         foreach ($byProduct as $pid => $rows) {
             $grid = self::baseGrid($pid, $from, $to);
             // the room type's overbooking allowance caps the buffer when Front Desk defines one; otherwise the buffer stands alone
-            $cap = PulseChService::fd() ? Db::getInstance()->getValue('SELECT max_over FROM `'._DB_PREFIX_.'pulse_overbooking` WHERE id_product='.(int) $pid) : false;
+            $cap = PulseChService::fd() ? PulseDb::getValue('SELECT max_over FROM `'._DB_PREFIX_.'pulse_overbooking` WHERE id_product='.(int) $pid) : false;
             foreach ($rows as $m) {
                 $allot = (int) $m['allotment'] ?: (int) $channel['allotment'];
                 $want = (int) $channel['oversell_buffer'] + $globalBuffer;
@@ -154,7 +154,7 @@ class PulseChAri
                     $minLos = (int) $m['min_los'] ?: max((int) $los['min_los'], (int) $m['rp_min_los']);
                     $maxLos = (int) $m['rp_max_los'] ?: (int) $los['max_los'];
                     $rate = self::derive(self::baseRate($pid, $date), $m);
-                    $prev = Db::getInstance()->getRow('SELECT id_pulse_ch_ari, manual_rate, manual_stop_sell, manual_min_los, manual_max_los, cell_hash, pushed_hash FROM `'._DB_PREFIX_.'pulse_ch_ari` WHERE id_pulse_ch_channel='.(int) $channel['id_pulse_ch_channel'].' AND id_product='.(int) $pid.' AND id_pulse_ch_rate_plan='.(int) $m['id_pulse_ch_rate_plan'].' AND ari_date="'.pSQL($date).'"');
+                    $prev = PulseDb::getRow('SELECT id_pulse_ch_ari, manual_rate, manual_stop_sell, manual_min_los, manual_max_los, cell_hash, pushed_hash FROM `'._DB_PREFIX_.'pulse_ch_ari` WHERE id_pulse_ch_channel='.(int) $channel['id_pulse_ch_channel'].' AND id_product='.(int) $pid.' AND id_pulse_ch_rate_plan='.(int) $m['id_pulse_ch_rate_plan'].' AND ari_date="'.pSQL($date).'"');
                     if ($prev && $prev['manual_rate'] !== null && (float) $prev['manual_rate'] > 0) { $rate = round((float) $prev['manual_rate'], 2); }
                     if ($prev && $prev['manual_min_los'] !== null) { $minLos = (int) $prev['manual_min_los']; }
                     if ($prev && $prev['manual_max_los'] !== null) { $maxLos = (int) $prev['manual_max_los']; }
@@ -171,8 +171,8 @@ class PulseChAri
                     $cell['cell_hash'] = $hash;
                     if ($prev) {
                         if ($prev['cell_hash'] !== $hash) { $changed++; }
-                        Db::getInstance()->update('pulse_ch_ari', $cell, 'id_pulse_ch_ari='.(int) $prev['id_pulse_ch_ari']);
-                    } else { $cell['cta'] = 0; $cell['ctd'] = 0; Db::getInstance()->insert('pulse_ch_ari', $cell); $changed++; }
+                        PulseDb::update('pulse_ch_ari', $cell, 'id_pulse_ch_ari='.(int) $prev['id_pulse_ch_ari']);
+                    } else { $cell['cta'] = 0; $cell['ctd'] = 0; PulseDb::insert('pulse_ch_ari', $cell); $changed++; }
                 }
             }
         }
@@ -192,7 +192,7 @@ class PulseChAri
             $chanTo = date('Y-m-d', strtotime($bd.' +'.$window.' day'));
             $out['cells_changed'] += self::recompute($c, $bd, $chanTo);
             $out['channels']++;
-            Db::getInstance()->delete('pulse_ch_ari', 'id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND ari_date<"'.pSQL($bd).'"');
+            PulseDb::delete('pulse_ch_ari', 'id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND ari_date<"'.pSQL($bd).'"');
             $out['queued'] += self::markDirty(0, $bd, $chanTo, 'rebuild', (int) $c['id_pulse_ch_channel']);
         }
         PulseCoreService::audit('pulsechannel', 'ari_rebuild', $out);
@@ -204,7 +204,7 @@ class PulseChAri
     /** The neutral row shape every adapter receives. */
     public static function rowsFor($channel, $idProduct, $from, $to, $onlyChanged = true, $limit = 5000)
     {
-        return Db::getInstance()->executeS('SELECT a.ari_date `date`, m.channel_room_code room_code, m.channel_rate_code rate_code, m.base_occupancy, m.max_occupancy,
+        return PulseDb::executeS('SELECT a.ari_date `date`, m.channel_room_code room_code, m.channel_rate_code rate_code, m.base_occupancy, m.max_occupancy,
                 a.available, a.rate, a.rate_single, a.rate_extra_adult, a.rate_child, a.min_los, a.max_los, a.cta, a.ctd, a.stop_sell, a.release_days,
                 a.id_pulse_ch_ari, a.cell_hash, "'.pSQL($channel['currency_iso']).'" currency, a.id_product, a.id_pulse_ch_rate_plan
             FROM `'._DB_PREFIX_.'pulse_ch_ari` a
@@ -224,18 +224,18 @@ class PulseChAri
         $out = array('sent' => 0, 'errors' => 0, 'cells' => 0, 'skipped' => 0);
         $maxAttempts = max(1, (int) Configuration::get('PULSE_CH_MAX_ATTEMPTS'));
         $backoff = max(2, (int) Configuration::get('PULSE_CH_BACKOFF_BASE'));
-        $items = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_queue` WHERE status IN ("pending","failed") AND next_attempt_at<="'.pSQL(date('Y-m-d H:i:s')).'"'.($idChannel ? ' AND id_pulse_ch_channel='.(int) $idChannel : '').' ORDER BY id_pulse_ch_queue LIMIT '.(int) $maxBatches);
+        $items = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_queue` WHERE status IN ("pending","failed") AND next_attempt_at<="'.pSQL(date('Y-m-d H:i:s')).'"'.($idChannel ? ' AND id_pulse_ch_channel='.(int) $idChannel : '').' ORDER BY id_pulse_ch_queue LIMIT '.(int) $maxBatches);
         foreach ($items as $q) {
             $c = PulseChService::channel((int) $q['id_pulse_ch_channel']);
-            if (!$c || !$c['enabled'] || !in_array($c['sync_mode'], array('push', 'both'))) { Db::getInstance()->update('pulse_ch_queue', array('status' => 'cancelled', 'last_error' => 'Channel disabled', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']); $out['skipped']++; continue; }
-            Db::getInstance()->update('pulse_ch_queue', array('status' => 'sending', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']);
+            if (!$c || !$c['enabled'] || !in_array($c['sync_mode'], array('push', 'both'))) { PulseDb::update('pulse_ch_queue', array('status' => 'cancelled', 'last_error' => 'Channel disabled', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']); $out['skipped']++; continue; }
+            PulseDb::update('pulse_ch_queue', array('status' => 'sending', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']);
             try {
                 self::recompute($c, $q['date_from'], $q['date_to'], (int) $q['id_product']);
                 $rows = self::rowsFor($c, (int) $q['id_product'], $q['date_from'], $q['date_to'], true);
             } catch (Exception $e) {
                 self::failBatch($q, $c, 'Recompute failed: '.$e->getMessage(), $maxAttempts, $backoff); $out['errors']++; continue;
             }
-            if (!$rows) { Db::getInstance()->update('pulse_ch_queue', array('status' => 'sent', 'cells' => 0, 'last_error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']); continue; }
+            if (!$rows) { PulseDb::update('pulse_ch_queue', array('status' => 'sent', 'cells' => 0, 'last_error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']); continue; }
             $adapter = PulseChService::adapter($c);
             $size = max(1, (int) $c['batch_size']); $ok = true; $err = null; $done = 0;
             foreach (array_chunk($rows, $size) as $chunk) {
@@ -243,11 +243,11 @@ class PulseChAri
                 try { $res = $adapter->pushAri($payload); } catch (Exception $e) { $res = array('ok' => false, 'error' => $e->getMessage()); }
                 if (empty($res['ok'])) { $ok = false; $err = isset($res['error']) ? $res['error'] : 'Unknown adapter failure'; break; }
                 $ids = array(); foreach ($chunk as $r) { $ids[] = (int) $r['id_pulse_ch_ari']; }
-                Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_ch_ari` SET pushed_hash=cell_hash, pushed_rate=rate, pushed_available=available, pushed_at=NOW() WHERE id_pulse_ch_ari IN ('.implode(',', $ids).')');
+                PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_ch_ari` SET pushed_hash=cell_hash, pushed_rate=rate, pushed_available=available, pushed_at=NOW() WHERE id_pulse_ch_ari IN ('.implode(',', $ids).')');
                 $done += count($chunk);
             }
             if ($ok) {
-                Db::getInstance()->update('pulse_ch_queue', array('status' => 'sent', 'cells' => (int) $done, 'last_error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']);
+                PulseDb::update('pulse_ch_queue', array('status' => 'sent', 'cells' => (int) $done, 'last_error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']);
                 PulseChService::health((int) $c['id_pulse_ch_channel'], true);
                 PulseCoreService::event('actionPulseChannelAriPushed', array('id_channel' => (int) $c['id_pulse_ch_channel'], 'cells' => $done, 'from' => $q['date_from'], 'to' => $q['date_to']));
                 $out['sent']++; $out['cells'] += $done;
@@ -265,7 +265,7 @@ class PulseChAri
         $attempts = (int) $q['attempts'] + 1;
         $poison = $attempts >= $maxAttempts;
         $wait = min(240, (int) pow($backoff, min($attempts, 8)));
-        Db::getInstance()->update('pulse_ch_queue', array('status' => $poison ? 'poison' : 'failed', 'attempts' => $attempts, 'last_error' => pSQL(Tools::substr((string) $error, 0, 250)),
+        PulseDb::update('pulse_ch_queue', array('status' => $poison ? 'poison' : 'failed', 'attempts' => $attempts, 'last_error' => pSQL(Tools::substr((string) $error, 0, 250)),
             'next_attempt_at' => date('Y-m-d H:i:s', time() + $wait * 60), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) $q['id_pulse_ch_queue']);
         PulseChService::health((int) $c['id_pulse_ch_channel'], false, $error);
         if ($poison) { PulseCoreService::audit('pulsechannel', 'queue_poison', array('channel' => $c['code'], 'error' => $error, 'from' => $q['date_from'], 'to' => $q['date_to']), 'pulse_ch_queue', (int) $q['id_pulse_ch_queue']); }
@@ -279,7 +279,7 @@ class PulseChAri
     {
         $dates = array(); for ($i = 0; $i < (int) $days; $i++) { $dates[] = date('Y-m-d', strtotime($from.' +'.$i.' day')); }
         $to = end($dates);
-        $rows = Db::getInstance()->executeS('SELECT a.*, pl.name room_type, rp.code rate_plan_code, rp.name rate_plan, m.channel_room_code, m.channel_rate_code
+        $rows = PulseDb::executeS('SELECT a.*, pl.name room_type, rp.code rate_plan_code, rp.name rate_plan, m.channel_room_code, m.channel_rate_code
             FROM `'._DB_PREFIX_.'pulse_ch_ari` a
             LEFT JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=a.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' AND pl.id_shop='.(int) Context::getContext()->shop->id.'
             LEFT JOIN `'._DB_PREFIX_.'pulse_ch_rate_plan` rp ON rp.id_pulse_ch_rate_plan=a.id_pulse_ch_rate_plan
@@ -316,8 +316,8 @@ class PulseChAri
         if ($products) { $where .= ' AND id_product IN ('.implode(',', array_map('intval', $products)).')'; }
         if ($ratePlans) { $where .= ' AND id_pulse_ch_rate_plan IN ('.implode(',', array_map('intval', $ratePlans)).')'; }
         if (!empty($f['dow']) && is_array($f['dow'])) { $where .= ' AND DAYOFWEEK(ari_date)-1 IN ('.implode(',', array_map('intval', $f['dow'])).')'; }
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_ch_ari` SET '.implode(', ', $set).' WHERE '.$where);
-        $n = (int) Db::getInstance()->Affected_Rows();
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_ch_ari` SET '.implode(', ', $set).' WHERE '.$where);
+        $n = (int) PulseDb::Affected_Rows();
         // cell_hash was blanked, so the next recompute rewrites it and the queue picks the cells up as changed
         foreach ($channels as $idc) { foreach (($products ? $products : array(0)) as $pid) { self::markDirty((int) $pid, $from, $to, 'bulk', (int) $idc); } }
         PulseCoreService::audit('pulsechannel', 'ari_bulk', array('cells' => $n, 'from' => $from, 'to' => $to, 'fields' => $f));
@@ -342,7 +342,7 @@ class PulseChAri
         $bd = PulseChService::businessDate();
         $to = date('Y-m-d', strtotime($bd.' +'.(int) $days.' day'));
         $tol = (float) Configuration::get('PULSE_CH_PARITY_TOLERANCE');
-        $rows = Db::getInstance()->executeS('SELECT a.ari_date, a.id_product, a.id_pulse_ch_channel, c.name channel, pl.name room_type, rp.code rate_plan, a.rate, a.pushed_rate, a.available, a.pushed_available, a.stop_sell, a.pushed_at, a.cell_hash, a.pushed_hash
+        $rows = PulseDb::executeS('SELECT a.ari_date, a.id_product, a.id_pulse_ch_channel, c.name channel, pl.name room_type, rp.code rate_plan, a.rate, a.pushed_rate, a.available, a.pushed_available, a.stop_sell, a.pushed_at, a.cell_hash, a.pushed_hash
             FROM `'._DB_PREFIX_.'pulse_ch_ari` a
             INNER JOIN `'._DB_PREFIX_.'pulse_ch_channel` c ON c.id_pulse_ch_channel=a.id_pulse_ch_channel AND c.enabled=1
             LEFT JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=a.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' AND pl.id_shop='.(int) Context::getContext()->shop->id.'

@@ -1,7 +1,9 @@
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_expense_category` (
   `id_pulse_expense_category` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(16) NOT NULL, `name` VARCHAR(64) NOT NULL,
   `group_name` ENUM('cost_of_sales','payroll','utilities','repairs','admin','marketing','property','other') NOT NULL DEFAULT 'other', `active` TINYINT(1) NOT NULL DEFAULT 1, `sort` SMALLINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_pulse_expense_category`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_expense_category`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_expense` (
@@ -11,13 +13,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_expense` (
   `payment_method` ENUM('cash','transfer','card','petty_cash','credit') NOT NULL DEFAULT 'cash', `reference` VARCHAR(64), `receipt_path` VARCHAR(255),
   `status` ENUM('draft','submitted','approved','rejected','paid') NOT NULL DEFAULT 'submitted', `source` VARCHAR(32) NOT NULL DEFAULT 'manual' COMMENT 'manual|maintenance|laundry|cashier|meter',
   `source_ref` VARCHAR(64), `business_date` DATE NOT NULL, `id_employee` INT UNSIGNED, `approved_by` INT UNSIGNED, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_expense`), UNIQUE KEY `no` (`expense_no`), KEY `bdate` (`business_date`,`status`), KEY `cat` (`id_pulse_expense_category`), KEY `src` (`source`,`source_ref`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_expense`), UNIQUE KEY `no` (`id_hotel`,`expense_no`), KEY `bdate` (`business_date`,`status`), KEY `cat` (`id_pulse_expense_category`), KEY `src` (`source`,`source_ref`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_budget` (
   `id_pulse_budget` INT UNSIGNED NOT NULL AUTO_INCREMENT, `year` SMALLINT NOT NULL, `month` TINYINT NOT NULL,
   `line` VARCHAR(32) NOT NULL COMMENT 'room_revenue|fnb_revenue|other_revenue|occupancy_pct|adr|expense:<category code>', `amount` DECIMAL(20,6) NOT NULL,
-  PRIMARY KEY (`id_pulse_budget`), UNIQUE KEY `ym_line` (`year`,`month`,`line`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_budget`), UNIQUE KEY `ym_line` (`id_hotel`,`year`,`month`,`line`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_report_schedule` (
@@ -26,12 +31,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_report_schedule` (
   `recipients_email` VARCHAR(512), `recipients_sms` VARCHAR(255), `send_time` TIME NOT NULL DEFAULT '06:30:00', `send_after_audit` TINYINT(1) NOT NULL DEFAULT 1,
   `weekday` TINYINT DEFAULT NULL COMMENT 'weekly: 1=Mon', `month_day` TINYINT DEFAULT NULL, `include_pdf` TINYINT(1) NOT NULL DEFAULT 0,
   `active` TINYINT(1) NOT NULL DEFAULT 1, `last_sent` DATETIME, `last_business_date` DATE, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_report_schedule`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_report_schedule`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_report_log` (
   `id_pulse_report_log` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_report_schedule` INT UNSIGNED, `report` VARCHAR(32), `business_date` DATE, `recipients` VARCHAR(512), `status` ENUM('sent','failed') NOT NULL, `error` VARCHAR(255), `html` MEDIUMTEXT, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_report_log`), KEY `bd` (`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_report_log`), KEY `bd` (`business_date`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_expense_category` (`code`,`name`,`group_name`,`sort`) VALUES

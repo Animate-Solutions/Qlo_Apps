@@ -63,9 +63,9 @@ class AdminPulseHrSettingsController extends ModuleAdminController
             'ess_url' => $this->context->link->getModuleLink('pulsehr', 'ess', array(), true),
             'qr_code' => PulseHrEss::qrCode(), 'qr_rotates' => (int) PulseHrService::cfg('ESS_QR_ROTATE_MIN', 0),
             'sections' => PulseHrEss::sections(), 'kc' => PulseHrService::kc(), 'pos' => PulseHrService::pos(), 'ta' => PulseHrService::ta(), 'pr' => PulseHrService::pr(), 'fd' => PulseHrService::fd(),
-            'sessions' => Db::getInstance()->executeS('SELECT s.*, e.staff_no, CONCAT(e.firstname," ",e.lastname) employee_name FROM `'._DB_PREFIX_.'pulse_hr_ess_session` s
+            'sessions' => PulseDb::executeS('SELECT s.*, e.staff_no, CONCAT(e.firstname," ",e.lastname) employee_name FROM `'._DB_PREFIX_.'pulse_hr_ess_session` s
                 INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=s.id_pulse_hr_employee WHERE s.revoked=0 AND s.expires_at>NOW() ORDER BY s.date_upd DESC LIMIT 30'),
-            'fails' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_ess_login` WHERE ok=0 AND date_add>DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY date_add DESC LIMIT 30'),
+            'fails' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_ess_login` WHERE ok=0 AND date_add>DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY date_add DESC LIMIT 30'),
             'self_url' => self::$currentIndex.'&token='.$this->token,
         ));
         $this->content .= $this->context->smarty->fetch($this->getTemplatePath().'pulse_hr_settings/settings.tpl');
@@ -78,7 +78,7 @@ class AdminPulseHrSettingsController extends ModuleAdminController
             if (Tools::isSubmit('newCronToken')) { Configuration::updateValue('PULSE_HR_CRON_TOKEN', Tools::passwdGen(32)); $this->confirmations[] = $this->l('New cron token issued'); }
             if (Tools::isSubmit('newQr')) { Configuration::updateValue('PULSE_HR_ESS_QR_CODE', Tools::passwdGen(10)); $this->confirmations[] = $this->l('New entrance QR code issued — print and post it at the staff entrance'); }
             if (Tools::isSubmit('endSession')) { PulseHrEss::revoke((int) Tools::getValue('id_session'), 'admin'); $this->confirmations[] = $this->l('Session ended'); }
-            if (Tools::isSubmit('endAllSessions')) { Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_hr_ess_session` SET revoked=1, revoke_reason="admin", date_upd=NOW() WHERE revoked=0'); $this->confirmations[] = $this->l('Every staff portal session has been ended'); }
+            if (Tools::isSubmit('endAllSessions')) { PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_hr_ess_session` SET revoked=1, revoke_reason="admin", date_upd=NOW() WHERE revoked=0'); $this->confirmations[] = $this->l('Every staff portal session has been ended'); }
             if (Tools::isSubmit('purgeSessions')) { PulseHrEss::purge(0); $this->confirmations[] = $this->l('Expired sessions and old sign-in logs purged'); }
         } catch (Exception $e) { $this->errors[] = $e->getMessage(); }
         return parent::postProcess();

@@ -5,6 +5,10 @@ require_once dirname(__FILE__).'/../classes/autoload.php';
 $token = isset($argv[1]) ? $argv[1] : Tools::getValue('token');
 if ($token !== Configuration::get('PULSE_PAY_CRON_TOKEN')) { die('Invalid token'); }
 Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1);
-$r = PulsePayService::sweep((int) (isset($argv[2]) ? $argv[2] : Tools::getValue('hours', 72)));
-PulseCoreService::audit('pulsepayments', 'sweep', $r);
-echo 'Verified: '.$r['verified'].', newly settled: '.$r['settled'].', captures retried: '.$r['captures_retried'].', links expired: '.$r['links_expired'].', pre-auths expired: '.$r['preauths_expired'].', terminal requests expired: '.$r['terminal_expired'];
+$hours = (int) (isset($argv[2]) ? $argv[2] : Tools::getValue('hours', 72));
+$run = PulseCoreService::forEachHotel(function ($idHotel, $hotel) use ($hours) {
+    $r = PulsePayService::sweep($hours);
+    PulseCoreService::audit('pulsepayments', 'sweep', $r);
+    echo '['.$hotel.'] Verified: '.$r['verified'].', newly settled: '.$r['settled'].', captures retried: '.$r['captures_retried'].', links expired: '.$r['links_expired'].', pre-auths expired: '.$r['preauths_expired'].', terminal requests expired: '.$r['terminal_expired']."\n";
+});
+foreach ($run['results'] as $h) { if (!$h['ok']) { echo '['.$h['name'].'] FAILED: '.$h['error']."\n"; } }

@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_asset` (
   `location_type` ENUM('room','public_area','plant','external') NOT NULL DEFAULT 'room', `id_room` INT UNSIGNED DEFAULT NULL, `location` VARCHAR(128),
   `make_model` VARCHAR(128), `serial_no` VARCHAR(64), `installed_on` DATE, `warranty_until` DATE, `purchase_cost` DECIMAL(20,6) NOT NULL DEFAULT 0, `vendor` VARCHAR(128), `vendor_phone` VARCHAR(32),
   `status` ENUM('in_service','out_of_service','retired') NOT NULL DEFAULT 'in_service', `criticality` TINYINT NOT NULL DEFAULT 3 COMMENT '1 critical … 5 low', `note` TEXT, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_asset`), UNIQUE KEY `code` (`code`), KEY `room` (`id_room`), KEY `cat` (`category`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_asset`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `room` (`id_room`), KEY `cat` (`category`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_work_order` (
@@ -18,23 +19,29 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_work_order` (
   `labour_minutes` INT NOT NULL DEFAULT 0, `labour_cost` DECIMAL(20,6) NOT NULL DEFAULT 0, `parts_cost` DECIMAL(20,6) NOT NULL DEFAULT 0, `vendor_cost` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `resolution` TEXT, `root_cause` VARCHAR(128), `reported_by` INT UNSIGNED, `verified_by` INT UNSIGNED,
   `date_add` DATETIME NOT NULL, `date_started` DATETIME, `date_completed` DATETIME, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_work_order`), UNIQUE KEY `no` (`wo_no`), KEY `status` (`status`,`due_at`), KEY `asset` (`id_pulse_asset`), KEY `room` (`id_room`), KEY `tech` (`assigned_to`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_work_order`), UNIQUE KEY `no` (`id_hotel`,`wo_no`), KEY `status` (`status`,`due_at`), KEY `asset` (`id_pulse_asset`), KEY `room` (`id_room`), KEY `tech` (`assigned_to`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_work_order_note` (
   `id_pulse_work_order_note` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_work_order` INT UNSIGNED NOT NULL, `note` TEXT, `photo_path` VARCHAR(255), `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_work_order_note`), KEY `wo` (`id_pulse_work_order`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_work_order_note`), KEY `wo` (`id_pulse_work_order`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_part` (
   `id_pulse_part` INT UNSIGNED NOT NULL AUTO_INCREMENT, `sku` VARCHAR(32) NOT NULL, `name` VARCHAR(128) NOT NULL, `category` VARCHAR(32), `unit` VARCHAR(16) NOT NULL DEFAULT 'pc',
   `qty_on_hand` DECIMAL(10,2) NOT NULL DEFAULT 0, `reorder_level` DECIMAL(10,2) NOT NULL DEFAULT 0, `unit_cost` DECIMAL(20,6) NOT NULL DEFAULT 0, `supplier` VARCHAR(128), `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_part`), UNIQUE KEY `sku` (`sku`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_part`), UNIQUE KEY `sku` (`id_hotel`,`sku`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_part_movement` (
   `id_pulse_part_movement` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_part` INT UNSIGNED NOT NULL, `type` ENUM('issue','receive','adjust','return') NOT NULL, `qty` DECIMAL(10,2) NOT NULL, `id_pulse_work_order` INT UNSIGNED, `unit_cost` DECIMAL(20,6), `note` VARCHAR(128), `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_part_movement`), KEY `p` (`id_pulse_part`), KEY `wo` (`id_pulse_work_order`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_part_movement`), KEY `p` (`id_pulse_part`), KEY `wo` (`id_pulse_work_order`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pm_schedule` (
@@ -42,16 +49,20 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pm_schedule` (
   `scope` ENUM('asset','all_rooms','room_type','location') NOT NULL DEFAULT 'asset', `id_pulse_asset` INT UNSIGNED, `id_product` INT UNSIGNED, `location` VARCHAR(128),
   `interval_days` SMALLINT NOT NULL DEFAULT 90, `checklist` TEXT COMMENT 'one item per line', `est_minutes` SMALLINT NOT NULL DEFAULT 60, `assigned_to` INT UNSIGNED, `priority` ENUM('emergency','high','normal','low') NOT NULL DEFAULT 'normal',
   `rooms_per_run` TINYINT NOT NULL DEFAULT 4 COMMENT 'all_rooms: how many rooms to generate per day', `next_due` DATE NOT NULL, `last_run` DATE, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_pm_schedule`), KEY `due` (`active`,`next_due`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_pm_schedule`), KEY `due` (`active`,`next_due`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pm_room_cursor` (
-  `id_pulse_pm_schedule` INT UNSIGNED NOT NULL, `id_room` INT UNSIGNED NOT NULL, `last_done` DATE, PRIMARY KEY (`id_pulse_pm_schedule`,`id_room`)
+  `id_pulse_pm_schedule` INT UNSIGNED NOT NULL, `id_room` INT UNSIGNED NOT NULL, `last_done` DATE, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_hotel`,`id_pulse_pm_schedule`,`id_room`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_meter_reading` (
   `id_pulse_meter_reading` INT UNSIGNED NOT NULL AUTO_INCREMENT, `meter` ENUM('generator_hours','diesel_litres','electricity_kwh','water_m3','gas_kg') NOT NULL, `id_pulse_asset` INT UNSIGNED, `reading` DECIMAL(14,2) NOT NULL, `cost` DECIMAL(20,6), `read_at` DATETIME NOT NULL, `id_employee` INT UNSIGNED,
-  PRIMARY KEY (`id_pulse_meter_reading`), KEY `m` (`meter`,`read_at`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_meter_reading`), KEY `m` (`meter`,`read_at`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_pm_schedule` (`name`,`category`,`scope`,`interval_days`,`checklist`,`est_minutes`,`priority`,`rooms_per_run`,`next_due`) VALUES

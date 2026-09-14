@@ -33,6 +33,14 @@ class PulseTimeIclockModuleFrontController extends ModuleFrontController
         $declared = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
         $max = PulseTaAdms::maxBytes();
 
+        // The property first: admit() looks the device up, rate-limits it and logs the attempt, and every
+        // one of those touches a scoped table. A serial we cannot place — and an address that names no
+        // property either — is refused here, in the terse plain text the firmware understands, so the
+        // device keeps buffering its punches instead of retrying in a tight loop.
+        if (!PulseTaAdms::enterHotel($serial)) {
+            $this->reply('OK: 0 — this clock is not claimed to a property. Claim its serial in T&A, Devices, or put the property in the push address.');
+        }
+
         // The declared length is handed to admit() rather than short-circuited here, so an oversize body is
         // logged and counted by the rate limiter instead of being answered for free.
         $admit = PulseTaAdms::admit($serial, $action, $declared);

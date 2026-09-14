@@ -39,7 +39,7 @@ class AdminPulseChannelAriController extends ModuleAdminController
                     if (isset($v['max_los']) && $v['max_los'] !== '') { $upd['max_los'] = max(0, (int) $v['max_los']); $upd['manual_max_los'] = $upd['max_los']; }
                     $upd['cta'] = !empty($v['cta']) ? 1 : 0; $upd['ctd'] = !empty($v['ctd']) ? 1 : 0;
                     $upd['manual_stop_sell'] = !empty($v['stop_sell']) ? 1 : 0; $upd['stop_sell'] = $upd['manual_stop_sell'];
-                    Db::getInstance()->update('pulse_ch_ari', $upd, 'id_pulse_ch_ari='.$idAri); $n++;
+                    PulseDb::update('pulse_ch_ari', $upd, 'id_pulse_ch_ari='.$idAri); $n++;
                 }
                 foreach ((array) Tools::getValue('dirty_product') as $pid) { PulseChAri::markDirty((int) $pid, Tools::getValue('from', PulseChService::businessDate()), date('Y-m-d', strtotime(Tools::getValue('from', PulseChService::businessDate()).' +'.(int) Tools::getValue('days', 30).' day')), 'manual', (int) Tools::getValue('id_channel')); }
                 $this->confirmations[] = sprintf($this->l('%d cell(s) saved and queued for push.'), $n);

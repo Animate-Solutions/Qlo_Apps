@@ -10,7 +10,8 @@ class AdminPulseCrmController extends ModuleAdminController
         $bd = PulseCrmService::bd();
         $from = Tools::getValue('from', date('Y-m-d', strtotime('-90 day'))); $to = Tools::getValue('to', $bd);
         $this->context->smarty->assign(array(
-            'business_date' => $bd, 'from' => $from, 'to' => $to,
+            
+            'trend' => array(), 'by_source' => array(),'business_date' => $bd, 'from' => $from, 'to' => $to,
             'k' => PulseCrmService::kpis(90),
             'arrivals' => PulseCrmService::arrivalsBoard($bd),
             'nps_trend' => PulseCrmService::npsTrend(12),

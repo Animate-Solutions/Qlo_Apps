@@ -1,4 +1,6 @@
 <?php
+/* This file is required directly from several modules, so it loads the scoping layer itself. */
+foreach (array('pulsecore/classes/PulseHotelScope.php', 'pulsecore/classes/PulseDb.php', 'pulsecore/classes/PulseDbHandle.php') as $__s) { if (file_exists(_PS_MODULE_DIR_.$__s)) { require_once _PS_MODULE_DIR_.$__s; } }
 /**
  * Pulse licensing. Keys are RSA-SHA256 signed JSON: base64url(payload).base64url(signature)
  * Payload: { lid, licensee, property, domains[], rooms, modules[], type: perpetual|subscription|trial,
@@ -37,7 +39,17 @@ class PulseLicenseService
     /* ---------- environment ---------- */
     public static function domain() { return strtolower(preg_replace('/^www\./', '', Tools::getShopDomain())); }
     public static function fingerprint() { return sha1(self::domain().'|'._COOKIE_KEY_); }
-    public static function roomsInUse() { return (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information` WHERE id_status IN (1,3)'); }
+    /**
+     * Rooms across the whole installation, not the current property: the licence caps the install,
+     * so this one deliberately ignores the hotel the session is in. It says so rather than bypassing
+     * the scoping layer by using the raw handle, which would look like an oversight.
+     */
+    public static function roomsInUse()
+    {
+        return (int) PulseDb::unscoped(function () {
+            return PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information` WHERE id_status IN (1,3)');
+        });
+    }
 
     public static function domainMatches(array $domains)
     {

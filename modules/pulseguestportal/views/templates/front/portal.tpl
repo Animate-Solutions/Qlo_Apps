@@ -1,15 +1,15 @@
 <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>{$gp_hotel|escape:'html':'UTF-8'}</title>
 <link rel="stylesheet" href="{$gp_css}">
-<style>:root{
+<style>{literal}:root{
   --gp-primary:{$gp_theme.primary|escape:'html':'UTF-8'};
   --gp-cream:{$gp_theme.cream|escape:'html':'UTF-8'};
   --gp-accent:{$gp_theme.accent|escape:'html':'UTF-8'};
   --gp-sand:{$gp_theme.sand|escape:'html':'UTF-8'};
   --gp-display:{$gp_theme.font_display nofilter};
   --gp-body:{$gp_theme.font_body nofilter};
-}</style>
-<script>window.GP_BOOT={$gp_boot nofilter};window.GP_LOGO="{$gp_logo|escape:'javascript'}";</script></head>
+}{/literal}</style>
+<script>{literal}window.GP_BOOT={$gp_boot nofilter};window.GP_LOGO="{$gp_logo|escape:'javascript'}";{/literal}</script></head>
 <body class="gp">
 <div id="gp-app"><div class="gp-splash"><div class="gp-splash-inner">{if $gp_logo}<img src="{$gp_logo}" alt="" class="gp-logo">{/if}<h1>{$gp_hotel|escape:'html':'UTF-8'}</h1><p class="gp-muted">Starting your screen…</p></div></div></div>
 <div id="gp-toast" class="gp-toast gp-hidden"></div>

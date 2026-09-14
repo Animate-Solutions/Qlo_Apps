@@ -17,7 +17,7 @@ class AdminPulseKeycardAuditController extends ModuleAdminController
         $this->context->smarty->assign(array(
             'f' => $f, 'rows' => PulseKcAudit::search($f, 400), 'doors' => PulseKcService::doors(false), 'battery' => PulseKcAudit::batteryReport(),
             'denied' => PulseKcAudit::deniedSummary(24), 'events' => array('open', 'staff_open', 'denied', 'deadbolt', 'dnd_blocked', 'expired_card', 'battery_low', 'door_ajar', 'pass_used', 'emergency', 'unknown'),
-            'rooms' => Db::getInstance()->executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY room_num'),
+            'rooms' => PulseDb::executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY room_num'),
             'encoders' => PulseKcEncoder::all(), 'battery_pct' => (int) PulseKcService::cfg('BATTERY_PCT', 20), 'retention' => (int) PulseKcService::cfg('AUDIT_RETENTION', 180),
             'maintenance' => class_exists('PulseTicket'), 'self_url' => self::$currentIndex.'&token='.$this->token,
         ));

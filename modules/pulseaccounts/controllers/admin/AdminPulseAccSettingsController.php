@@ -50,7 +50,7 @@ class AdminPulseAccSettingsController extends ModuleAdminController
             if (Tools::isSubmit('saveRules')) {
                 $n = 0;
                 foreach ((array) Tools::getValue('rule_account') as $idMap => $acct) {
-                    $m = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_map` WHERE id_pulse_acc_map='.(int) $idMap);
+                    $m = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_map` WHERE id_pulse_acc_map='.(int) $idMap);
                     if (!$m) { continue; }
                     $tax = Tools::getValue('rule_tax'); $contra = Tools::getValue('rule_contra'); $cc = Tools::getValue('rule_cc');
                     PulseAccService::saveMap(array('map_type' => $m['map_type'], 'key_value' => $m['key_value'], 'label' => $m['label'], 'account_code' => $acct,
@@ -60,7 +60,7 @@ class AdminPulseAccSettingsController extends ModuleAdminController
                 }
                 $this->confirmations[] = sprintf($this->l('%d rules updated'), $n);
             }
-            if (Tools::isSubmit('deleteRule')) { Db::getInstance()->delete('pulse_acc_map', 'id_pulse_acc_map='.(int) Tools::getValue('id_map')); $this->confirmations[] = $this->l('Rule removed'); }
+            if (Tools::isSubmit('deleteRule')) { PulseDb::delete('pulse_acc_map', 'id_pulse_acc_map='.(int) Tools::getValue('id_map')); $this->confirmations[] = $this->l('Rule removed'); }
             if (Tools::isSubmit('makePeriods')) { PulseAccService::ensurePeriods(Tools::getValue('period_from', date('Y-m-d')), (int) Tools::getValue('months', 12)); $this->confirmations[] = $this->l('Periods created'); }
             if (Tools::isSubmit('closePeriod')) { $id = PulseAccService::closePeriod(Tools::getValue('period_code'), (bool) Tools::getValue('with_closing')); $this->confirmations[] = $id ? sprintf($this->l('Period closed with closing journal %d'), $id) : $this->l('Period closed'); }
             if (Tools::isSubmit('reopenPeriod')) { PulseAccService::reopenPeriod(Tools::getValue('period_code')); $this->confirmations[] = $this->l('Period reopened and its closing entry reversed'); }

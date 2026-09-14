@@ -5,5 +5,11 @@ require_once dirname(__FILE__).'/../classes/autoload.php';
 $token = isset($argv[1]) ? $argv[1] : Tools::getValue('token');
 if ($token !== Configuration::get('PULSE_INV_CRON_TOKEN')) { die('Invalid token'); }
 Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1);
-$n = Configuration::get('PULSE_INV_AUTO_AMENITY') ? PulseInvMinibar::postDailyAmenities(date('Y-m-d', strtotime('-1 day'))) : 0;
-echo 'Amenity lines: '.$n.'; expiring: '.count(PulseInvService::expiring((int) Configuration::get('PULSE_INV_EXPIRY_DAYS'))).'; reorder: '.count(PulseInvService::reorderSuggestions());
+$date = date('Y-m-d', strtotime('-1 day'));
+$amenities = (bool) Configuration::get('PULSE_INV_AUTO_AMENITY');
+$expiryDays = (int) Configuration::get('PULSE_INV_EXPIRY_DAYS');
+$run = PulseCoreService::forEachHotel(function ($idHotel, $hotel) use ($date, $amenities, $expiryDays) {
+    $n = $amenities ? PulseInvMinibar::postDailyAmenities($date) : 0;
+    echo '['.$hotel.'] Amenity lines: '.$n.'; expiring: '.count(PulseInvService::expiring($expiryDays)).'; reorder: '.count(PulseInvService::reorderSuggestions())."\n";
+});
+foreach ($run['results'] as $h) { if (!$h['ok']) { echo '['.$h['name'].'] FAILED: '.$h['error']."\n"; } }

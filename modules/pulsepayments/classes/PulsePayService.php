@@ -23,8 +23,8 @@ class PulsePayService
     }
 
     /* ---------- gateways ---------- */
-    public static function gateways($activeOnly = false) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_gateway`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY sort, code'); }
-    public static function gatewayRow($code) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_gateway` WHERE code="'.pSQL($code).'"'); }
+    public static function gateways($activeOnly = false) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_gateway`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY sort, code'); }
+    public static function gatewayRow($code) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_gateway` WHERE code="'.pSQL($code).'"'); }
 
     /** Decrypt the stored credentials and hand back a live adapter, or null when the gateway is unknown/unusable. */
     public static function adapter($code)
@@ -51,7 +51,7 @@ class PulsePayService
         foreach (array('fee_percent', 'fee_flat', 'fee_cap', 'fee_flat_waive_below') as $k) { if (isset($d[$k])) { $u[$k] = (float) $d[$k]; } }
         foreach (array('secret_key', 'webhook_secret') as $k) { if (isset($d[$k]) && trim($d[$k]) !== '') { $u[$k] = pSQL(self::enc(trim($d[$k])), true); } }
         if (isset($d['extra']) && is_array($d['extra'])) { $cur = json_decode(self::dec($g['extra']), true); if (!is_array($cur)) { $cur = array(); } foreach ($d['extra'] as $k => $v) { if ($v !== '' || array_key_exists($k, $cur)) { $cur[$k] = $v; } } $u['extra'] = pSQL(self::enc(json_encode($cur)), true); }
-        Db::getInstance()->update('pulse_pay_gateway', $u, 'code="'.pSQL($code).'"');
+        PulseDb::update('pulse_pay_gateway', $u, 'code="'.pSQL($code).'"');
         PulseCoreService::audit('pulsepayments', 'gateway_save', array('gateway' => $code, 'active' => !empty($d['active']), 'test' => !empty($d['test_mode'])), 'pulse_pay_gateway', (int) $g['id_pulse_pay_gateway']);
         return true;
     }
@@ -68,15 +68,15 @@ class PulsePayService
     /* ---------- transactions ---------- */
     public static function tx($ref)
     {
-        if (is_numeric($ref)) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE id_pulse_pay_transaction='.(int) $ref); }
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE reference="'.pSQL($ref).'" OR gateway_ref="'.pSQL($ref).'" ORDER BY id_pulse_pay_transaction LIMIT 1');
+        if (is_numeric($ref)) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE id_pulse_pay_transaction='.(int) $ref); }
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE reference="'.pSQL($ref).'" OR gateway_ref="'.pSQL($ref).'" ORDER BY id_pulse_pay_transaction');
     }
 
     /** Insert an intent. An identical idempotency key returns the existing row instead of a second charge. */
     public static function createTx(array $d)
     {
         $idem = isset($d['idempotency_key']) && $d['idempotency_key'] ? $d['idempotency_key'] : Tools::substr(sha1(json_encode(array(isset($d['gateway']) ? $d['gateway'] : '', isset($d['amount']) ? round((float) $d['amount'], 2) : 0, isset($d['purpose']) ? $d['purpose'] : '', isset($d['id_htl_booking']) ? (int) $d['id_htl_booking'] : 0, isset($d['id_pulse_pos_check']) ? (int) $d['id_pulse_pos_check'] : 0, microtime(true), mt_rand()))), 0, 64);
-        if ($x = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE idempotency_key="'.pSQL($idem).'"')) { return $x; }
+        if ($x = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE idempotency_key="'.pSQL($idem).'"')) { return $x; }
         $ref = isset($d['reference']) && $d['reference'] ? $d['reference'] : self::nextRef(isset($d['ref_prefix']) ? $d['ref_prefix'] : 'PAY');
         $row = array(
             'reference' => pSQL($ref), 'idempotency_key' => pSQL($idem),
@@ -96,8 +96,8 @@ class PulsePayService
         );
         if (!$row['id_customer'] && $row['id_htl_booking'] && ($b = self::bookingInfo($row['id_htl_booking']))) { $row['id_customer'] = (int) $b['id_customer']; if (!$row['customer_name']) { $row['customer_name'] = pSQL($b['guest']); } if (!$row['customer_email']) { $row['customer_email'] = pSQL($b['email']); } }
         if ($row['id_customer'] && (!$row['customer_email'] || !$row['customer_name'])) { $c = new Customer((int) $row['id_customer']); if (Validate::isLoadedObject($c)) { $row['customer_email'] = $row['customer_email'] ?: pSQL($c->email); $row['customer_name'] = $row['customer_name'] ?: pSQL($c->firstname.' '.$c->lastname); } }
-        Db::getInstance()->insert('pulse_pay_transaction', $row, true);
-        $row['id_pulse_pay_transaction'] = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pay_transaction', $row, true);
+        $row['id_pulse_pay_transaction'] = (int) PulseDb::Insert_ID();
         // a lost race on the reference/idempotency sequence must never leave us posting money against transaction 0
         if (!$row['id_pulse_pay_transaction']) { throw new PrestaShopException('Payment record '.$ref.' could not be written — try again'); }
         return $row;
@@ -106,7 +106,7 @@ class PulsePayService
     protected static function bookingInfo($idBooking)
     {
         if (!$idBooking) { return null; }
-        return Db::getInstance()->getRow('SELECT b.id_customer, b.id_room, CONCAT(c.firstname," ",c.lastname) guest, c.email, r.room_num FROM `'._DB_PREFIX_.'htl_booking_detail` b LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room WHERE b.id='.(int) $idBooking);
+        return PulseDb::getRow('SELECT b.id_customer, b.id_room, CONCAT(c.firstname," ",c.lastname) guest, c.email, r.room_num FROM `'._DB_PREFIX_.'htl_booking_detail` b LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room WHERE b.id='.(int) $idBooking);
     }
 
     /** Fold an adapter result into the transaction row (state, gateway ref, card details, fee, raw payload). */
@@ -132,7 +132,7 @@ class PulsePayService
             $fee = isset($r['fee']) && $r['fee'] !== null ? (float) $r['fee'] : self::estimateFee($tx['gateway'], $u['amount_captured']);
             $u['fee'] = round($fee, 2); $u['net'] = round($u['amount_captured'] - $fee, 2);
         }
-        Db::getInstance()->update('pulse_pay_transaction', $u, 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
+        PulseDb::update('pulse_pay_transaction', $u, 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
         return array_merge($tx, $u);
     }
 
@@ -200,7 +200,7 @@ class PulsePayService
         $r = $a ? $a->authorize($tx, array_merge($context, array('token' => $token))) : array('ok' => false, 'error' => 'Gateway unavailable');
         if (empty($r['ok']) && $gateway !== 'manual') {
             $m = self::adapter('manual');
-            if ($m) { $r = $m->authorize($tx, $context); Db::getInstance()->update('pulse_pay_transaction', array('gateway' => 'manual', 'failed_reason' => pSQL('Fell back to manual hold: '.(isset($r['error']) ? $r['error'] : $gateway.' could not hold the card'))), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']); $tx['gateway'] = 'manual'; }
+            if ($m) { $r = $m->authorize($tx, $context); PulseDb::update('pulse_pay_transaction', array('gateway' => 'manual', 'failed_reason' => pSQL('Fell back to manual hold: '.(isset($r['error']) ? $r['error'] : $gateway.' could not hold the card'))), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']); $tx['gateway'] = 'manual'; }
         }
         $tx = self::applyResult($tx, $r);
         PulseCoreService::audit('pulsepayments', 'preauth', array('reference' => $tx['reference'], 'amount' => $amount, 'gateway' => $tx['gateway'], 'hold' => $tx['hold_type']), 'pulse_pay_transaction', (int) $tx['id_pulse_pay_transaction']);
@@ -217,7 +217,7 @@ class PulsePayService
         if ($extra <= 0) { throw new PrestaShopException('Top-up must be greater than zero'); }
         $new = round((float) $tx['amount'] + $extra, 2);
         $days = (int) Configuration::get('PULSE_PAY_PREAUTH_DAYS') ?: 7;
-        Db::getInstance()->update('pulse_pay_transaction', array('amount' => $new, 'expires_at' => date('Y-m-d H:i:s', strtotime('+'.$days.' days')), 'description' => pSQL(Tools::substr($tx['description'].' | top-up '.number_format($extra, 2).($note ? ' '.$note : ''), 0, 255)), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
+        PulseDb::update('pulse_pay_transaction', array('amount' => $new, 'expires_at' => date('Y-m-d H:i:s', strtotime('+'.$days.' days')), 'description' => pSQL(Tools::substr($tx['description'].' | top-up '.number_format($extra, 2).($note ? ' '.$note : ''), 0, 255)), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
         PulseCoreService::audit('pulsepayments', 'preauth_topup', array('reference' => $reference, 'extra' => $extra, 'new_total' => $new), 'pulse_pay_transaction', (int) $tx['id_pulse_pay_transaction']);
         return array('ok' => true, 'amount' => $new);
     }
@@ -247,7 +247,7 @@ class PulsePayService
         $r = $a->capture(array_merge($tx, array('auth_token' => self::dec($tx['auth_token']))), $amount, array_merge($opts, array('reference' => $child['reference'])));
         $child = self::applyResult($child, $r);
         if (empty($r['ok'])) {
-            Db::getInstance()->update('pulse_pay_transaction', array('state' => 'failed', 'failed_reason' => pSQL(Tools::substr(isset($r['error']) ? $r['error'] : 'Capture failed', 0, 255)), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $child['id_pulse_pay_transaction']);
+            PulseDb::update('pulse_pay_transaction', array('state' => 'failed', 'failed_reason' => pSQL(Tools::substr(isset($r['error']) ? $r['error'] : 'Capture failed', 0, 255)), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $child['id_pulse_pay_transaction']);
             PulseCoreService::event('actionPulsePaymentFailed', array('reference' => $child['reference'], 'gateway' => $tx['gateway'], 'error' => isset($r['error']) ? $r['error'] : ''));
             return array('ok' => false, 'error' => isset($r['error']) ? $r['error'] : 'Capture failed', 'reference' => $child['reference']);
         }
@@ -258,7 +258,7 @@ class PulsePayService
         $state = $confirmed ? ($captured + 0.009 >= (float) $tx['amount'] ? 'captured' : 'partially_captured') : $tx['state'];
         $u = array('amount_captured' => $captured, 'state' => pSQL($state), 'date_upd' => self::now());
         if ($confirmed) { $u['captured_at'] = self::now(); }
-        Db::getInstance()->update('pulse_pay_transaction', $u, 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
+        PulseDb::update('pulse_pay_transaction', $u, 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
         // $opts['no_post'] is set by callers that write the folio line themselves (PulsePaymentBridge at check-out).
         if ($confirmed && empty($opts['no_post'])) { self::postToLedger($child, 'capture', $amount); }
         PulseCoreService::audit('pulsepayments', 'capture', array('reference' => $tx['reference'], 'capture' => $child['reference'], 'amount' => $amount), 'pulse_pay_transaction', (int) $tx['id_pulse_pay_transaction']);
@@ -273,7 +273,7 @@ class PulsePayService
         if (!in_array($tx['state'], array('authorized', 'partially_captured', 'intent', 'awaiting_confirmation'))) { return array('ok' => false, 'error' => 'Payment '.$reference.' is '.$tx['state']); }
         $a = self::adapter($tx['gateway']);
         $r = $a ? $a->void($tx, $reason) : array('ok' => true, 'state' => 'voided');
-        Db::getInstance()->update('pulse_pay_transaction', array('state' => 'voided', 'failed_reason' => pSQL(Tools::substr($reason, 0, 255)), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
+        PulseDb::update('pulse_pay_transaction', array('state' => 'voided', 'failed_reason' => pSQL(Tools::substr($reason, 0, 255)), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
         PulseCoreService::audit('pulsepayments', 'void', array('reference' => $reference, 'reason' => $reason), 'pulse_pay_transaction', (int) $tx['id_pulse_pay_transaction']);
         return array('ok' => true, 'state' => 'voided', 'gateway' => isset($r['raw']) ? $r['raw'] : null);
     }
@@ -287,14 +287,14 @@ class PulsePayService
         $refundable = round((float) $tx['amount_captured'] - (float) $tx['amount_refunded'], 2);
         if ($amount <= 0 || $amount > $refundable + 0.009) { throw new PrestaShopException('Refundable amount on '.$reference.' is '.number_format($refundable, 2)); }
         $ref = self::nextRef('RFD');
-        Db::getInstance()->insert('pulse_pay_refund', array('id_pulse_pay_transaction' => (int) $tx['id_pulse_pay_transaction'], 'reference' => pSQL($ref), 'gateway' => pSQL($tx['gateway']), 'amount' => $amount, 'reason' => pSQL(Tools::substr($reason, 0, 255)), 'status' => 'processing', 'requested_by' => self::emp(), 'approved_by' => (int) $approver, 'business_date' => pSQL(self::bd()), 'date_add' => self::now(), 'date_upd' => self::now()), true);
-        $idR = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pay_refund', array('id_pulse_pay_transaction' => (int) $tx['id_pulse_pay_transaction'], 'reference' => pSQL($ref), 'gateway' => pSQL($tx['gateway']), 'amount' => $amount, 'reason' => pSQL(Tools::substr($reason, 0, 255)), 'status' => 'processing', 'requested_by' => self::emp(), 'approved_by' => (int) $approver, 'business_date' => pSQL(self::bd()), 'date_add' => self::now(), 'date_upd' => self::now()), true);
+        $idR = (int) PulseDb::Insert_ID();
         $a = self::adapter($tx['gateway']);
         $r = $a ? $a->refund($tx, $amount, $reason) : array('ok' => false, 'error' => 'Gateway unavailable');
-        Db::getInstance()->update('pulse_pay_refund', array('status' => !empty($r['ok']) ? 'done' : 'failed', 'gateway_ref' => pSQL(isset($r['gateway_ref']) ? $r['gateway_ref'] : ''), 'failed_reason' => pSQL(Tools::substr(isset($r['error']) ? $r['error'] : '', 0, 255)), 'raw' => pSQL(PulsePayAdapter::redact(json_encode(isset($r['raw']) ? $r['raw'] : array())), true), 'date_upd' => self::now()), 'id_pulse_pay_refund='.$idR);
+        PulseDb::update('pulse_pay_refund', array('status' => !empty($r['ok']) ? 'done' : 'failed', 'gateway_ref' => pSQL(isset($r['gateway_ref']) ? $r['gateway_ref'] : ''), 'failed_reason' => pSQL(Tools::substr(isset($r['error']) ? $r['error'] : '', 0, 255)), 'raw' => pSQL(PulsePayAdapter::redact(json_encode(isset($r['raw']) ? $r['raw'] : array())), true), 'date_upd' => self::now()), 'id_pulse_pay_refund='.$idR);
         if (empty($r['ok'])) { return array('ok' => false, 'error' => isset($r['error']) ? $r['error'] : 'Refund failed', 'reference' => $ref); }
         $refunded = round((float) $tx['amount_refunded'] + $amount, 2);
-        Db::getInstance()->update('pulse_pay_transaction', array('amount_refunded' => $refunded, 'state' => pSQL($refunded + 0.009 >= (float) $tx['amount_captured'] ? 'refunded' : 'partially_refunded'), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
+        PulseDb::update('pulse_pay_transaction', array('amount_refunded' => $refunded, 'state' => pSQL($refunded + 0.009 >= (float) $tx['amount_captured'] ? 'refunded' : 'partially_refunded'), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
         self::postToLedger(array_merge($tx, array('gateway_ref' => isset($r['gateway_ref']) && $r['gateway_ref'] ? $r['gateway_ref'] : $ref, 'reference' => $ref, 'description' => 'Refund — '.$reason)), 'refund', -$amount);
         PulseCoreService::audit('pulsepayments', 'refund', array('reference' => $reference, 'refund' => $ref, 'amount' => $amount, 'reason' => $reason), 'pulse_pay_transaction', (int) $tx['id_pulse_pay_transaction']);
         PulseCoreService::event('actionPulsePaymentRefunded', array('reference' => $reference, 'refund' => $ref, 'amount' => $amount));
@@ -311,7 +311,7 @@ class PulsePayService
         if (!$a) { return array('ok' => false, 'error' => 'Gateway '.$tx['gateway'].' is not available'); }
         $r = $a->verify($tx['reference'], $tx);
         $attempts = (int) $tx['verify_attempts'] + 1;
-        Db::getInstance()->update('pulse_pay_transaction', array('verify_attempts' => $attempts, 'next_verify_at' => date('Y-m-d H:i:s', strtotime('+'.min(720, (int) pow(3, min(6, $attempts))).' minutes')), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
+        PulseDb::update('pulse_pay_transaction', array('verify_attempts' => $attempts, 'next_verify_at' => date('Y-m-d H:i:s', strtotime('+'.min(720, (int) pow(3, min(6, $attempts))).' minutes')), 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
         if (empty($r['ok']) && (empty($r['state']) || $r['state'] === 'intent')) { return array('ok' => false, 'state' => $tx['state'], 'error' => isset($r['error']) ? $r['error'] : 'Still pending'); }
         $was = $tx['state'];
         $tx = self::applyResult($tx, $r);
@@ -339,9 +339,9 @@ class PulsePayService
     public static function postToLedger(array $tx, $purpose, $amount)
     {
         $key = !empty($tx['gateway_ref']) ? $tx['gateway_ref'] : $tx['reference'];
-        Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_pay_posting` (id_pulse_pay_transaction, gateway_ref, purpose, target, amount, date_add) VALUES ('.(int) $tx['id_pulse_pay_transaction'].',"'.pSQL($key).'","'.pSQL($purpose).'","folio",'.(float) $amount.',"'.self::now().'")');
-        if (!Db::getInstance()->Affected_Rows()) { return false; }
-        $idPosting = (int) Db::getInstance()->Insert_ID();
+        PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_pay_posting` (id_pulse_pay_transaction, gateway_ref, purpose, target, amount, date_add) VALUES ('.(int) $tx['id_pulse_pay_transaction'].',"'.pSQL($key).'","'.pSQL($purpose).'","folio",'.(float) $amount.',"'.self::now().'")');
+        if (!PulseDb::Affected_Rows()) { return false; }
+        $idPosting = (int) PulseDb::Insert_ID();
         $line = null; $target = 'folio'; $idTarget = null;
         try {
             if ($tx['id_pulse_pos_check'] && self::pos() && $purpose === 'capture') {
@@ -356,14 +356,14 @@ class PulsePayService
                 if ($purpose === 'capture' && (float) $tx['surcharge'] > 0 && PulseChargeCode::byCode('SURCH')) { $f->post('SURCH', 'Card processing surcharge', 1, (float) $tx['surcharge'], (float) Configuration::get('PULSE_PAY_SURCHARGE_VAT_PCT'), false, null, 'payments', $tx['reference']); }
             }
         } catch (Exception $e) {
-            Db::getInstance()->update('pulse_pay_posting', array('purpose' => pSQL($purpose.':failed'.$idPosting)), 'id_pulse_pay_posting='.$idPosting);
+            PulseDb::update('pulse_pay_posting', array('purpose' => pSQL($purpose.':failed'.$idPosting)), 'id_pulse_pay_posting='.$idPosting);
             PulseCoreService::audit('pulsepayments', 'post_failed', array('reference' => $tx['reference'], 'error' => $e->getMessage()), 'pulse_pay_transaction', (int) $tx['id_pulse_pay_transaction']);
             return false;
         }
         // nothing was actually written (no Front Desk, or the folio is already closed): drop the guard row
         // rather than burning the key, or the money could never be posted once the folio is reopened
-        if ($target === 'folio' && $line === null) { Db::getInstance()->delete('pulse_pay_posting', 'id_pulse_pay_posting='.$idPosting); }
-        else { Db::getInstance()->update('pulse_pay_posting', array('target' => pSQL($target), 'id_target' => (int) $idTarget, 'id_line' => (int) $line), 'id_pulse_pay_posting='.$idPosting); }
+        if ($target === 'folio' && $line === null) { PulseDb::delete('pulse_pay_posting', 'id_pulse_pay_posting='.$idPosting); }
+        else { PulseDb::update('pulse_pay_posting', array('target' => pSQL($target), 'id_target' => (int) $idTarget, 'id_line' => (int) $line), 'id_pulse_pay_posting='.$idPosting); }
         if ($purpose === 'capture') { PulseCoreService::event('actionPulsePaymentCaptured', array('reference' => $tx['reference'], 'amount' => $amount, 'gateway' => $tx['gateway'], 'id_htl_booking' => $tx['id_htl_booking'], 'id_pulse_folio' => $idTarget)); }
         return $line;
     }
@@ -381,7 +381,7 @@ class PulsePayService
     /* ---------- pre-auth housekeeping ---------- */
     public static function openPreauths()
     {
-        return Db::getInstance()->executeS('SELECT t.*, r.room_num, ROUND(t.amount-t.amount_captured,2) remaining, TIMESTAMPDIFF(HOUR,NOW(),t.expires_at) hours_left, f.balance folio_balance, f.folio_no
+        return PulseDb::executeS('SELECT t.*, r.room_num, ROUND(t.amount-t.amount_captured,2) remaining, TIMESTAMPDIFF(HOUR,NOW(),t.expires_at) hours_left, f.balance folio_balance, f.folio_no
             FROM `'._DB_PREFIX_.'pulse_pay_transaction` t
             LEFT JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=t.id_htl_booking
             LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room
@@ -391,14 +391,14 @@ class PulsePayService
 
     public static function preauthForBooking($idBooking)
     {
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE type="preauth" AND state IN ("authorized","partially_captured") AND id_htl_booking='.(int) $idBooking.' ORDER BY id_pulse_pay_transaction DESC');
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE type="preauth" AND state IN ("authorized","partially_captured") AND id_htl_booking='.(int) $idBooking.' ORDER BY id_pulse_pay_transaction DESC');
     }
 
     /** Expire holds the bank has already dropped so the desk stops trusting them. */
     public static function expirePreauths()
     {
-        $rows = Db::getInstance()->executeS('SELECT id_pulse_pay_transaction, reference FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE type="preauth" AND state IN ("authorized","partially_captured") AND expires_at IS NOT NULL AND expires_at<NOW()');
-        foreach ($rows as $r) { Db::getInstance()->update('pulse_pay_transaction', array('state' => 'expired', 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $r['id_pulse_pay_transaction']); PulseCoreService::audit('pulsepayments', 'preauth_expired', array('reference' => $r['reference'])); }
+        $rows = PulseDb::executeS('SELECT id_pulse_pay_transaction, reference FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE type="preauth" AND state IN ("authorized","partially_captured") AND expires_at IS NOT NULL AND expires_at<NOW()');
+        foreach ($rows as $r) { PulseDb::update('pulse_pay_transaction', array('state' => 'expired', 'date_upd' => self::now()), 'id_pulse_pay_transaction='.(int) $r['id_pulse_pay_transaction']); PulseCoreService::audit('pulsepayments', 'preauth_expired', array('reference' => $r['reference'])); }
         return count($rows);
     }
 
@@ -407,13 +407,13 @@ class PulsePayService
     {
         $d = pSQL($date);
         return array(
-            'by_gateway' => Db::getInstance()->executeS('SELECT gateway, COUNT(*) n, ROUND(SUM(amount_captured),2) gross, ROUND(SUM(fee),2) fee, ROUND(SUM(net),2) net FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND state IN ("captured","settled","partially_refunded","refunded") AND type<>"preauth" GROUP BY gateway ORDER BY gross DESC'),
-            'by_channel' => Db::getInstance()->executeS('SELECT channel, method, COUNT(*) n, ROUND(SUM(amount_captured),2) gross FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND state IN ("captured","settled","partially_refunded","refunded") AND type<>"preauth" GROUP BY channel, method ORDER BY gross DESC'),
-            'totals' => Db::getInstance()->getRow('SELECT COUNT(*) n, ROUND(COALESCE(SUM(amount_captured),0),2) gross, ROUND(COALESCE(SUM(fee),0),2) fee, ROUND(COALESCE(SUM(net),0),2) net, ROUND(COALESCE(SUM(amount_refunded),0),2) refunds FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND state IN ("captured","settled","partially_refunded","refunded") AND type<>"preauth"'),
-            'failures' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND state IN ("failed","awaiting_confirmation") ORDER BY date_add DESC LIMIT 40'),
+            'by_gateway' => PulseDb::executeS('SELECT gateway, COUNT(*) n, ROUND(SUM(amount_captured),2) gross, ROUND(SUM(fee),2) fee, ROUND(SUM(net),2) net FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND state IN ("captured","settled","partially_refunded","refunded") AND type<>"preauth" GROUP BY gateway ORDER BY gross DESC'),
+            'by_channel' => PulseDb::executeS('SELECT channel, method, COUNT(*) n, ROUND(SUM(amount_captured),2) gross FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND state IN ("captured","settled","partially_refunded","refunded") AND type<>"preauth" GROUP BY channel, method ORDER BY gross DESC'),
+            'totals' => PulseDb::getRow('SELECT COUNT(*) n, ROUND(COALESCE(SUM(amount_captured),0),2) gross, ROUND(COALESCE(SUM(fee),0),2) fee, ROUND(COALESCE(SUM(net),0),2) net, ROUND(COALESCE(SUM(amount_refunded),0),2) refunds FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND state IN ("captured","settled","partially_refunded","refunded") AND type<>"preauth"'),
+            'failures' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND state IN ("failed","awaiting_confirmation") ORDER BY date_add DESC LIMIT 40'),
             'preauths' => self::openPreauths(),
-            'pending' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE state="intent" AND type<>"preauth" AND date_add>DATE_SUB(NOW(), INTERVAL 3 DAY) ORDER BY date_add DESC LIMIT 40'),
-            'disputes' => Db::getInstance()->executeS('SELECT d.*, t.reference FROM `'._DB_PREFIX_.'pulse_pay_dispute` d LEFT JOIN `'._DB_PREFIX_.'pulse_pay_transaction` t ON t.id_pulse_pay_transaction=d.id_pulse_pay_transaction WHERE d.status IN ("open","evidence_sent") ORDER BY d.due_at'),
+            'pending' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE state="intent" AND type<>"preauth" AND date_add>DATE_SUB(NOW(), INTERVAL 3 DAY) ORDER BY date_add DESC LIMIT 40'),
+            'disputes' => PulseDb::executeS('SELECT d.*, t.reference FROM `'._DB_PREFIX_.'pulse_pay_dispute` d LEFT JOIN `'._DB_PREFIX_.'pulse_pay_transaction` t ON t.id_pulse_pay_transaction=d.id_pulse_pay_transaction WHERE d.status IN ("open","evidence_sent") ORDER BY d.due_at'),
             'terminal' => PulsePayTerminal::queue(),
         );
     }
@@ -428,24 +428,24 @@ class PulsePayService
         if (!empty($f['channel'])) { $w[] = 't.channel="'.pSQL($f['channel']).'"'; }
         if (!empty($f['type'])) { $w[] = 't.type="'.pSQL($f['type']).'"'; }
         if (!empty($f['q'])) { $q = pSQL($f['q']); $w[] = '(t.reference LIKE "%'.$q.'%" OR t.gateway_ref LIKE "%'.$q.'%" OR t.rrn LIKE "%'.$q.'%" OR t.customer_name LIKE "%'.$q.'%" OR t.customer_email LIKE "%'.$q.'%")'; }
-        return Db::getInstance()->executeS('SELECT t.*, r.room_num FROM `'._DB_PREFIX_.'pulse_pay_transaction` t LEFT JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=t.id_htl_booking LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room WHERE '.implode(' AND ', $w).' ORDER BY t.id_pulse_pay_transaction DESC LIMIT '.(int) (isset($f['limit']) ? $f['limit'] : 200));
+        return PulseDb::executeS('SELECT t.*, r.room_num FROM `'._DB_PREFIX_.'pulse_pay_transaction` t LEFT JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=t.id_htl_booking LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room WHERE '.implode(' AND ', $w).' ORDER BY t.id_pulse_pay_transaction DESC LIMIT '.(int) (isset($f['limit']) ? $f['limit'] : 200));
     }
 
-    public static function logs($reference) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_log` WHERE reference="'.pSQL($reference).'" ORDER BY id_pulse_pay_log DESC LIMIT 50'); }
-    public static function refunds($reference) { return Db::getInstance()->executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_pay_refund` r LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=r.requested_by WHERE r.id_pulse_pay_transaction IN (SELECT id_pulse_pay_transaction FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE reference="'.pSQL($reference).'") ORDER BY r.id_pulse_pay_refund DESC'); }
+    public static function logs($reference) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_log` WHERE reference="'.pSQL($reference).'" ORDER BY id_pulse_pay_log DESC LIMIT 50'); }
+    public static function refunds($reference) { return PulseDb::executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_pay_refund` r LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=r.requested_by WHERE r.id_pulse_pay_transaction IN (SELECT id_pulse_pay_transaction FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE reference="'.pSQL($reference).'") ORDER BY r.id_pulse_pay_refund DESC'); }
 
     /** Log a chargeback / dispute raised by the gateway or the bank. */
     public static function dispute(array $d)
     {
         $tx = !empty($d['reference']) ? self::tx($d['reference']) : null;
-        Db::getInstance()->insert('pulse_pay_dispute', array(
+        PulseDb::insert('pulse_pay_dispute', array(
             'id_pulse_pay_transaction' => $tx ? (int) $tx['id_pulse_pay_transaction'] : null, 'gateway' => pSQL(isset($d['gateway']) ? $d['gateway'] : ($tx ? $tx['gateway'] : 'manual')),
             'gateway_ref' => pSQL(isset($d['gateway_ref']) ? $d['gateway_ref'] : ($tx ? $tx['gateway_ref'] : '')), 'dispute_ref' => pSQL(isset($d['dispute_ref']) ? $d['dispute_ref'] : ''),
             'amount' => round((float) (isset($d['amount']) ? $d['amount'] : ($tx ? $tx['amount_captured'] : 0)), 2), 'category' => pSQL(isset($d['category']) ? $d['category'] : 'chargeback'),
             'status' => pSQL(isset($d['status']) ? $d['status'] : 'open'), 'reason' => pSQL(Tools::substr(isset($d['reason']) ? $d['reason'] : '', 0, 255)), 'evidence' => pSQL(isset($d['evidence']) ? $d['evidence'] : '', true),
             'due_at' => !empty($d['due_at']) ? pSQL($d['due_at']) : null, 'id_employee' => self::emp(), 'business_date' => pSQL(self::bd()), 'date_add' => self::now(), 'date_upd' => self::now(),
         ), true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         PulseCoreService::audit('pulsepayments', 'dispute', $d, 'pulse_pay_dispute', $id);
         return $id;
     }
@@ -454,11 +454,11 @@ class PulsePayService
     public static function rollDaily($date)
     {
         $d = pSQL($date); $n = 0;
-        $rows = Db::getInstance()->executeS('SELECT gateway, channel, COUNT(*) n, ROUND(SUM(amount_captured),2) gross, ROUND(SUM(amount_refunded),2) refunds, ROUND(SUM(fee),2) fee, ROUND(SUM(net),2) net FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND type<>"preauth" AND state IN ("captured","settled","partially_refunded","refunded") GROUP BY gateway, channel');
+        $rows = PulseDb::executeS('SELECT gateway, channel, COUNT(*) n, ROUND(SUM(amount_captured),2) gross, ROUND(SUM(amount_refunded),2) refunds, ROUND(SUM(fee),2) fee, ROUND(SUM(net),2) net FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND type<>"preauth" AND state IN ("captured","settled","partially_refunded","refunded") GROUP BY gateway, channel');
         foreach ($rows as $r) {
-            $fail = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND gateway="'.pSQL($r['gateway']).'" AND channel="'.pSQL($r['channel']).'" AND state="failed"');
-            $hold = (float) Db::getInstance()->getValue('SELECT COALESCE(SUM(amount-amount_captured),0) FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE type="preauth" AND state IN ("authorized","partially_captured") AND gateway="'.pSQL($r['gateway']).'"');
-            Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_pay_daily` (business_date, gateway, channel, txn_count, gross, refunds, fee, net, failures, open_preauth, date_add) VALUES ("'.$d.'","'.pSQL($r['gateway']).'","'.pSQL($r['channel']).'",'.(int) $r['n'].','.(float) $r['gross'].','.(float) $r['refunds'].','.(float) $r['fee'].','.(float) $r['net'].','.$fail.','.$hold.',"'.self::now().'") ON DUPLICATE KEY UPDATE txn_count=VALUES(txn_count), gross=VALUES(gross), refunds=VALUES(refunds), fee=VALUES(fee), net=VALUES(net), failures=VALUES(failures), open_preauth=VALUES(open_preauth)');
+            $fail = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE business_date="'.$d.'" AND gateway="'.pSQL($r['gateway']).'" AND channel="'.pSQL($r['channel']).'" AND state="failed"');
+            $hold = (float) PulseDb::getValue('SELECT COALESCE(SUM(amount-amount_captured),0) FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE type="preauth" AND state IN ("authorized","partially_captured") AND gateway="'.pSQL($r['gateway']).'"');
+            PulseDb::execute('INSERT INTO `'._DB_PREFIX_.'pulse_pay_daily` (business_date, gateway, channel, txn_count, gross, refunds, fee, net, failures, open_preauth, date_add) VALUES ("'.$d.'","'.pSQL($r['gateway']).'","'.pSQL($r['channel']).'",'.(int) $r['n'].','.(float) $r['gross'].','.(float) $r['refunds'].','.(float) $r['fee'].','.(float) $r['net'].','.$fail.','.$hold.',"'.self::now().'") ON DUPLICATE KEY UPDATE txn_count=VALUES(txn_count), gross=VALUES(gross), refunds=VALUES(refunds), fee=VALUES(fee), net=VALUES(net), failures=VALUES(failures), open_preauth=VALUES(open_preauth)');
             $n++;
         }
         return $n;
@@ -502,14 +502,14 @@ class PulsePayService
     public static function sweep($maxAgeHours = 72)
     {
         $out = array('verified' => 0, 'settled' => 0, 'links_expired' => 0, 'preauths_expired' => 0, 'terminal_expired' => 0, 'captures_retried' => 0);
-        $rows = Db::getInstance()->executeS('SELECT reference FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE state IN ("intent","awaiting_confirmation") AND type<>"preauth" AND gateway<>"manual" AND date_add>DATE_SUB(NOW(), INTERVAL '.(int) $maxAgeHours.' HOUR) AND (next_verify_at IS NULL OR next_verify_at<=NOW()) ORDER BY date_add LIMIT 100');
+        $rows = PulseDb::executeS('SELECT reference FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE state IN ("intent","awaiting_confirmation") AND type<>"preauth" AND gateway<>"manual" AND date_add>DATE_SUB(NOW(), INTERVAL '.(int) $maxAgeHours.' HOUR) AND (next_verify_at IS NULL OR next_verify_at<=NOW()) ORDER BY date_add LIMIT 100');
         foreach ($rows as $r) {
             $res = self::verify($r['reference']); $out['verified']++;
-            if (!empty($res['ok']) && in_array($res['state'], array('captured', 'settled'))) { $out['settled']++; $tx = self::tx($r['reference']); if ($tx && $tx['id_pulse_pay_link'] && ($l = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE id_pulse_pay_link='.(int) $tx['id_pulse_pay_link']))) { PulsePayLink::credit($l, (float) $tx['amount_captured'], $tx); } }
+            if (!empty($res['ok']) && in_array($res['state'], array('captured', 'settled'))) { $out['settled']++; $tx = self::tx($r['reference']); if ($tx && $tx['id_pulse_pay_link'] && ($l = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE id_pulse_pay_link='.(int) $tx['id_pulse_pay_link']))) { PulsePayLink::credit($l, (float) $tx['amount_captured'], $tx); } }
         }
-        foreach (Db::getInstance()->executeS('SELECT reference, amount, amount_captured FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE type="capture" AND state="failed" AND date_add>DATE_SUB(NOW(), INTERVAL 24 HOUR) AND verify_attempts<3 LIMIT 25') as $r) {
-            Db::getInstance()->update('pulse_pay_transaction', array('verify_attempts' => 99), 'reference="'.pSQL($r['reference']).'"');
-            $p = Db::getInstance()->getRow('SELECT t.reference, t.amount, t.amount_captured FROM `'._DB_PREFIX_.'pulse_pay_transaction` c INNER JOIN `'._DB_PREFIX_.'pulse_pay_transaction` t ON t.id_pulse_pay_transaction=c.id_parent WHERE c.reference="'.pSQL($r['reference']).'"');
+        foreach (PulseDb::executeS('SELECT reference, amount, amount_captured FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE type="capture" AND state="failed" AND date_add>DATE_SUB(NOW(), INTERVAL 24 HOUR) AND verify_attempts<3 LIMIT 25') as $r) {
+            PulseDb::update('pulse_pay_transaction', array('verify_attempts' => 99), 'reference="'.pSQL($r['reference']).'"');
+            $p = PulseDb::getRow('SELECT t.reference, t.amount, t.amount_captured FROM `'._DB_PREFIX_.'pulse_pay_transaction` c INNER JOIN `'._DB_PREFIX_.'pulse_pay_transaction` t ON t.id_pulse_pay_transaction=c.id_parent WHERE c.reference="'.pSQL($r['reference']).'"');
             if ($p) { $left = round((float) $p['amount'] - (float) $p['amount_captured'], 2); if ($left > 0.009) { self::capture($p['reference'], min($left, (float) $r['amount'])); $out['captures_retried']++; } }
         }
         $out['links_expired'] = PulsePayLink::expireStale();
@@ -524,5 +524,69 @@ class PulsePayService
         $ssl = Configuration::get('PS_SSL_ENABLED');
         return ($ssl ? 'https://' : 'http://').Tools::getShopDomainSsl().__PS_BASE_URI__;
     }
-    public static function webhookUrl($gateway) { return self::baseUrl().'pulse/pay/hook/'.$gateway; }
+    /**
+     * The callback URL a property pastes into its gateway dashboard. Its own hotel is in it, because a
+     * webhook arrives with no session and no token of ours, and the address it was sent to is the one
+     * thing about it the property itself chose.
+     */
+    public static function webhookUrl($gateway) { return self::baseUrl().'pulse/pay/hook/'.$gateway.'?hotel='.(int) PulseDb::hotel(); }
+
+    /**
+     * The property a gateway callback belongs to. Three things can say it, in falling order of certainty:
+     *   - the callback URL, which each property registered with its own gateway account (webhookUrl());
+     *   - a reference in the body matching a transaction we issued — a transaction belongs to one
+     *     property, and the reference was minted here, not by the caller;
+     *   - exactly one property having an account on that gateway at all, which is the single-property
+     *     install and the one case where there is nothing to be ambiguous about.
+     * Anything else returns 0 to be refused: answering "OK" to a callback we cannot place would quietly
+     * drop a payment, and applying it to a guessed property would credit the wrong hotel's folio.
+     */
+    public static function enterHotelForWebhook($gateway, $rawBody)
+    {
+        $named = (int) PulseCoreService::namedHotel();
+        if ($named) { return PulseCoreService::enterHotel($named); }
+        foreach (self::webhookRefs($rawBody) as $ref) {
+            foreach (array('reference', 'gateway_ref', 'idempotency_key') as $col) {
+                $id = PulseCoreService::hotelOf('pulse_pay_transaction', $col, $ref);
+                if ($id) { return PulseCoreService::enterHotel($id); }
+            }
+        }
+        $rows = PulseDb::unscoped(function () use ($gateway) {
+            return PulseDb::executeS('SELECT DISTINCT `id_hotel` FROM `'._DB_PREFIX_.'pulse_pay_gateway`
+                WHERE `code` = "'.pSQL($gateway).'" LIMIT 2');
+        });
+        return is_array($rows) && count($rows) === 1 ? PulseCoreService::enterHotel($rows[0]['id_hotel']) : 0;
+    }
+
+    /**
+     * Reference-shaped values out of a callback body, whatever the gateway chose to call them.
+     * The body is not trusted here — these are only candidate strings to look up against transactions
+     * we issued ourselves; one that matches nothing costs a single indexed miss.
+     */
+    protected static function webhookRefs($rawBody)
+    {
+        $body = json_decode((string) $rawBody, true);
+        if (!is_array($body)) { parse_str((string) $rawBody, $body); }   // Interswitch and the older form-encoded callbacks
+        $keys = array('reference', 'transactionreference', 'txnref', 'tx_ref', 'trxref', 'merchant_reference', 'payment_reference', 'paymentreference', 'orderid', 'order_id');
+        $out = array();
+        $walk = function ($node, $depth) use (&$walk, $keys, &$out) {
+            if ($depth > 4 || !is_array($node)) { return; }
+            foreach ($node as $k => $v) {
+                if (is_array($v)) { $walk($v, $depth + 1); continue; }
+                if (is_scalar($v) && (string) $v !== '' && in_array(Tools::strtolower((string) $k), $keys)) { $out[(string) $v] = true; }
+            }
+        };
+        $walk(is_array($body) ? $body : array(), 0);
+        return array_keys($out);
+    }
+
+    /** The property that issued a pay link: the token — or the short code printed on the bill — says which. */
+    public static function enterHotelFromToken($token)
+    {
+        $token = preg_replace('/[^A-Za-z0-9]/', '', (string) $token);
+        if ($token === '') { return 0; }
+        $id = PulseCoreService::hotelOf('pulse_pay_link', 'token', $token);
+        if (!$id) { $id = PulseCoreService::hotelOf('pulse_pay_link', 'short_code', Tools::strtoupper($token)); }
+        return PulseCoreService::enterHotel($id);
+    }
 }

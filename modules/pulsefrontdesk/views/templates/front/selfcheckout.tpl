@@ -1,5 +1,3 @@
-{extends file='page.tpl'}
-{block name='page_content'}
 <div class="pulse-guest" style="max-width:720px;margin:0 auto">
 {if isset($invalid)}<h2>Link not valid</h2><p>This check-out link has expired. Please visit the front desk.</p>
 {elseif isset($done)}<h2>Thank you, {$b.guest}!</h2><p>You are checked out of room {$b.room_num}. Your receipt has been emailed. Please leave your key card in the room or drop it at reception. Safe travels!</p>
@@ -18,4 +16,4 @@
 <p class="help-block">Questions about a charge? Dial 0 from your room or see us at reception.</p>
 {/if}
 </div>
-{/block}
+

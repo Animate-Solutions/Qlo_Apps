@@ -16,7 +16,7 @@ class PulseAccTax
     /** Record a VAT movement in the register. Idempotent on (direction, source, source_ref). */
     public static function recordVat($direction, $source, $ref, array $d)
     {
-        return Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_acc_vat`
+        return PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_acc_vat`
             (`direction`,`source`,`source_ref`,`doc_no`,`party_name`,`tin`,`department`,`net_amount`,`vat_rate`,`vat_amount`,`consumption_tax`,`business_date`,`period`,`id_pulse_acc_journal`,`date_add`) VALUES
             ("'.pSQL($direction).'","'.pSQL($source).'","'.pSQL(Tools::substr($ref, 0, 96)).'","'.pSQL(Tools::substr((string) (isset($d['doc_no']) ? $d['doc_no'] : ''), 0, 64)).'","'.pSQL(Tools::substr((string) (isset($d['party_name']) ? $d['party_name'] : ''), 0, 128)).'","'.pSQL(Tools::substr((string) (isset($d['tin']) ? $d['tin'] : ''), 0, 32)).'","'.pSQL(Tools::substr((string) (isset($d['department']) ? $d['department'] : ''), 0, 32)).'",
             '.round((float) (isset($d['net_amount']) ? $d['net_amount'] : 0), 2).','.round((float) (isset($d['vat_rate']) ? $d['vat_rate'] : PulseAccService::vatPct()), 3).','.round((float) (isset($d['vat_amount']) ? $d['vat_amount'] : 0), 2).','.round((float) (isset($d['consumption_tax']) ? $d['consumption_tax'] : 0), 2).',
@@ -25,13 +25,13 @@ class PulseAccTax
 
     public static function vatRegister($period, $direction = null, $limit = 2000)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_vat` WHERE period="'.pSQL($period).'"'.($direction ? ' AND direction="'.pSQL($direction).'"' : '').' ORDER BY business_date, id_pulse_acc_vat LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_vat` WHERE period="'.pSQL($period).'"'.($direction ? ' AND direction="'.pSQL($direction).'"' : '').' ORDER BY business_date, id_pulse_acc_vat LIMIT '.(int) $limit);
     }
 
     /** The month's VAT return in the shape FIRS asks for: output, input, net payable. */
     public static function vatReturn($period)
     {
-        $r = Db::getInstance()->getRow('SELECT
+        $r = PulseDb::getRow('SELECT
             ROUND(COALESCE(SUM(IF(direction="output",net_amount,0)),0),2) output_net, ROUND(COALESCE(SUM(IF(direction="output",vat_amount,0)),0),2) output_vat,
             ROUND(COALESCE(SUM(IF(direction="input",net_amount,0)),0),2) input_net, ROUND(COALESCE(SUM(IF(direction="input",vat_amount,0)),0),2) input_vat,
             ROUND(COALESCE(SUM(consumption_tax),0),2) consumption_tax, COUNT(*) rows_total
@@ -54,7 +54,7 @@ class PulseAccTax
 
     protected static function glBalance($code, $period)
     {
-        return round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(credit-debit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE posted=1 AND account_code="'.pSQL($code).'" AND period="'.pSQL($period).'"'), 2);
+        return round((float) PulseDb::getValue('SELECT COALESCE(SUM(credit-debit),0) FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE posted=1 AND account_code="'.pSQL($code).'" AND period="'.pSQL($period).'"'), 2);
     }
 
     /**
@@ -65,7 +65,7 @@ class PulseAccTax
     {
         $v = self::vatReturn($period);
         if ((float) $v['rows_total'] === 0.0) { throw new PrestaShopException('No VAT transactions in '.$period); }
-        if (Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_acc_vat` WHERE period="'.pSQL($period).'" AND returned=1')) { throw new PrestaShopException('Period '.$period.' has already been filed'); }
+        if (PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_acc_vat` WHERE period="'.pSQL($period).'" AND returned=1')) { throw new PrestaShopException('Period '.$period.' has already been filed'); }
         $date = $date ? $date : date('Y-m-t', strtotime($period.'-01'));
         $lines = array();
         if ((float) $v['output_vat'] > 0.004) { $lines[] = array('account' => '2210', 'debit' => (float) $v['output_vat'], 'memo' => 'VAT output '.$period, 'tax_code' => 'VAT'); }
@@ -73,7 +73,7 @@ class PulseAccTax
         $net = round((float) $v['output_vat'] - (float) $v['input_vat'], 2);
         $lines[] = array('account' => '2220', 'debit' => $net < 0 ? abs($net) : 0, 'credit' => $net > 0 ? $net : 0, 'memo' => 'VAT return '.$period.' — '.$reference);
         $idJ = PulseAccJournal::post(array('type' => 'general', 'source' => 'tax', 'source_ref' => 'vat:'.$period, 'business_date' => $date, 'reference' => $reference, 'memo' => 'VAT return '.$period, 'lines' => $lines));
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_acc_vat` SET returned=1, return_ref="'.pSQL(Tools::substr($reference, 0, 32)).'" WHERE period="'.pSQL($period).'"');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_acc_vat` SET returned=1, return_ref="'.pSQL(Tools::substr($reference, 0, 32)).'" WHERE period="'.pSQL($period).'"');
         PulseCoreService::audit('pulseaccounts', 'vat_return', array('period' => $period, 'net' => $net, 'ref' => $reference), 'pulse_acc_journal', (int) $idJ);
         return $idJ;
     }
@@ -91,11 +91,11 @@ class PulseAccTax
     {
         $direction = isset($d['direction']) ? $d['direction'] : 'deducted';
         if (!empty($d['source']) && !empty($d['source_ref'])) {
-            $ex = Db::getInstance()->getValue('SELECT id_pulse_acc_wht FROM `'._DB_PREFIX_.'pulse_acc_wht` WHERE source="'.pSQL($d['source']).'" AND source_ref="'.pSQL($d['source_ref']).'" AND direction="'.pSQL($direction).'"');
+            $ex = PulseDb::getValue('SELECT id_pulse_acc_wht FROM `'._DB_PREFIX_.'pulse_acc_wht` WHERE source="'.pSQL($d['source']).'" AND source_ref="'.pSQL($d['source_ref']).'" AND direction="'.pSQL($direction).'"');
             if ($ex) { return (int) $ex; }
         }
         $date = isset($d['business_date']) ? $d['business_date'] : PulseAccService::bd();
-        Db::getInstance()->insert('pulse_acc_wht', array(
+        PulseDb::insert('pulse_acc_wht', array(
             'cert_no' => pSQL(self::nextCertNo($direction)), 'direction' => pSQL($direction), 'party_type' => pSQL(isset($d['party_type']) ? $d['party_type'] : 'supplier'),
             'party_name' => pSQL(Tools::substr((string) (isset($d['party_name']) ? $d['party_name'] : 'Unknown'), 0, 128)), 'tin' => pSQL(Tools::substr((string) (isset($d['tin']) ? $d['tin'] : ''), 0, 32)),
             'id_party' => !empty($d['id_party']) ? (int) $d['id_party'] : null, 'wht_type' => pSQL(isset($d['wht_type']) ? $d['wht_type'] : 'services'),
@@ -105,7 +105,7 @@ class PulseAccTax
             'business_date' => pSQL($date), 'period' => pSQL(PulseAccService::period($date)), 'id_pulse_acc_journal' => !empty($d['id_journal']) ? (int) $d['id_journal'] : null,
             'id_employee' => PulseAccService::emp(), 'date_add' => date('Y-m-d H:i:s'),
         ), true);
-        return (int) Db::getInstance()->Insert_ID();
+        return (int) PulseDb::Insert_ID();
     }
 
     public static function whtRegister($period = null, $direction = null, $remitted = null, $limit = 1000)
@@ -114,14 +114,14 @@ class PulseAccTax
         if ($period) { $w[] = 'period="'.pSQL($period).'"'; }
         if ($direction) { $w[] = 'direction="'.pSQL($direction).'"'; }
         if ($remitted !== null) { $w[] = 'remitted='.(int) $remitted; }
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_wht` WHERE '.implode(' AND ', $w).' ORDER BY business_date DESC, id_pulse_acc_wht DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_wht` WHERE '.implode(' AND ', $w).' ORDER BY business_date DESC, id_pulse_acc_wht DESC LIMIT '.(int) $limit);
     }
 
-    public static function whtCert($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_wht` WHERE id_pulse_acc_wht='.(int) $id); }
+    public static function whtCert($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_wht` WHERE id_pulse_acc_wht='.(int) $id); }
 
     public static function whtSummary($period)
     {
-        $r = Db::getInstance()->getRow('SELECT ROUND(COALESCE(SUM(IF(direction="deducted",amount,0)),0),2) deducted, ROUND(COALESCE(SUM(IF(direction="suffered",amount,0)),0),2) suffered,
+        $r = PulseDb::getRow('SELECT ROUND(COALESCE(SUM(IF(direction="deducted",amount,0)),0),2) deducted, ROUND(COALESCE(SUM(IF(direction="suffered",amount,0)),0),2) suffered,
             ROUND(COALESCE(SUM(IF(direction="deducted" AND remitted=0,amount,0)),0),2) unremitted, COUNT(*) certificates FROM `'._DB_PREFIX_.'pulse_acc_wht` WHERE period="'.pSQL($period).'"');
         return $r ? $r : array('deducted' => 0, 'suffered' => 0, 'unremitted' => 0, 'certificates' => 0);
     }
@@ -141,7 +141,7 @@ class PulseAccTax
             array('account' => '2230', 'debit' => $total, 'memo' => 'WHT remitted '.$period.' — '.$reference, 'tax_code' => 'WHT'),
             array('account' => $cash, 'credit' => $total, 'memo' => 'WHT remittance '.$period),
         )));
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_acc_wht` SET remitted=1, remit_ref="'.pSQL(Tools::substr($reference, 0, 64)).'", remit_date="'.pSQL($date).'" WHERE id_pulse_acc_wht IN ('.implode(',', $ids).')');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_acc_wht` SET remitted=1, remit_ref="'.pSQL(Tools::substr($reference, 0, 64)).'", remit_date="'.pSQL($date).'" WHERE id_pulse_acc_wht IN ('.implode(',', $ids).')');
         PulseCoreService::audit('pulseaccounts', 'wht_remit', array('period' => $period, 'total' => $total, 'certificates' => count($ids)), 'pulse_acc_journal', (int) $idJ);
         return array('id_journal' => $idJ, 'total' => $total, 'certificates' => count($ids));
     }
@@ -165,19 +165,19 @@ class PulseAccTax
     {
         $inv = PulseAccAr::invoice($idInvoice);
         if (!$inv) { throw new PrestaShopException('Unknown invoice'); }
-        $ex = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_einvoice` WHERE id_pulse_acc_invoice='.(int) $idInvoice);
+        $ex = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_einvoice` WHERE id_pulse_acc_invoice='.(int) $idInvoice);
         if ($ex && in_array($ex['status'], array('accepted', 'sending'))) { return (int) $ex['id_pulse_acc_einvoice']; }
         $payload = self::einvoicePayload($inv);
         if ($ex) {
-            Db::getInstance()->update('pulse_acc_einvoice', array('payload' => pSQL(json_encode($payload), true), 'status' => 'queued', 'last_error' => null, 'next_retry_at' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) $ex['id_pulse_acc_einvoice'], 0, true);
+            PulseDb::update('pulse_acc_einvoice', array('payload' => pSQL(json_encode($payload), true), 'status' => 'queued', 'last_error' => null, 'next_retry_at' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) $ex['id_pulse_acc_einvoice'], 0, true);
             return (int) $ex['id_pulse_acc_einvoice'];
         }
-        Db::getInstance()->insert('pulse_acc_einvoice', array(
+        PulseDb::insert('pulse_acc_einvoice', array(
             'doc_type' => pSQL($inv['type'] === 'credit_note' ? 'credit_note' : 'invoice'), 'id_pulse_acc_invoice' => (int) $idInvoice, 'invoice_no' => pSQL($inv['invoice_no']),
             'irn' => pSQL($payload['irn']), 'payload' => pSQL(json_encode($payload), true), 'status' => 'queued', 'business_date' => pSQL($inv['invoice_date']),
             'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         ), true);
-        return (int) Db::getInstance()->Insert_ID();
+        return (int) PulseDb::Insert_ID();
     }
 
     /**
@@ -220,16 +220,16 @@ class PulseAccTax
             'tax_total' => array(array('tax_amount' => $tax, 'tax_subtotal' => array(array('taxable_amount' => $net, 'tax_amount' => $tax, 'tax_category' => array('id' => 'VAT', 'percent' => $vatPct))))),
             'invoice_line' => $lines,
             'payment_means' => array(array('payment_means_code' => 30, 'payment_due_date' => Tools::substr($inv['due_date'], 0, 10))),
-            'billing_reference' => $inv['id_credited_invoice'] ? array(array('irn' => (string) Db::getInstance()->getValue('SELECT invoice_no FROM `'._DB_PREFIX_.'pulse_acc_invoice` WHERE id_pulse_acc_invoice='.(int) $inv['id_credited_invoice']))) : array(),
+            'billing_reference' => $inv['id_credited_invoice'] ? array(array('irn' => (string) PulseDb::getValue('SELECT invoice_no FROM `'._DB_PREFIX_.'pulse_acc_invoice` WHERE id_pulse_acc_invoice='.(int) $inv['id_credited_invoice']))) : array(),
         );
     }
 
     public static function einvoiceQueue($status = null, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT e.*, i.company_name, i.total FROM `'._DB_PREFIX_.'pulse_acc_einvoice` e LEFT JOIN `'._DB_PREFIX_.'pulse_acc_invoice` i ON i.id_pulse_acc_invoice=e.id_pulse_acc_invoice WHERE 1'.($status ? ' AND e.status="'.pSQL($status).'"' : '').' ORDER BY e.id_pulse_acc_einvoice DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT e.*, i.company_name, i.total FROM `'._DB_PREFIX_.'pulse_acc_einvoice` e LEFT JOIN `'._DB_PREFIX_.'pulse_acc_invoice` i ON i.id_pulse_acc_invoice=e.id_pulse_acc_invoice WHERE 1'.($status ? ' AND e.status="'.pSQL($status).'"' : '').' ORDER BY e.id_pulse_acc_einvoice DESC LIMIT '.(int) $limit);
     }
 
-    public static function einvoiceRow($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_einvoice` WHERE id_pulse_acc_einvoice='.(int) $id); }
+    public static function einvoiceRow($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_einvoice` WHERE id_pulse_acc_einvoice='.(int) $id); }
 
     /**
      * Try to transmit one queued document. With no endpoint configured this validates the payload and
@@ -244,16 +244,16 @@ class PulseAccTax
         $payload = json_decode($e['payload'], true);
         $problems = self::einvoiceValidate(is_array($payload) ? $payload : array());
         if ($problems) {
-            Db::getInstance()->update('pulse_acc_einvoice', array('status' => 'rejected', 'last_error' => pSQL(Tools::substr(implode('; ', $problems), 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) $id);
+            PulseDb::update('pulse_acc_einvoice', array('status' => 'rejected', 'last_error' => pSQL(Tools::substr(implode('; ', $problems), 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) $id);
             return array('ok' => false, 'status' => 'rejected', 'error' => implode('; ', $problems));
         }
         $endpoint = trim((string) Configuration::get('PULSE_ACC_EINV_ENDPOINT'));
         if ($endpoint === '' || !Configuration::get('PULSE_ACC_EINV_ENABLED')) {
-            Db::getInstance()->update('pulse_acc_einvoice', array('status' => 'queued', 'last_error' => pSQL('Validated — no transmission endpoint configured (dry run)'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) $id);
+            PulseDb::update('pulse_acc_einvoice', array('status' => 'queued', 'last_error' => pSQL('Validated — no transmission endpoint configured (dry run)'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) $id);
             return array('ok' => true, 'status' => 'queued', 'error' => 'Dry run: payload validated, endpoint not configured');
         }
         $attempts = (int) $e['attempts'] + 1;
-        Db::getInstance()->update('pulse_acc_einvoice', array('status' => 'sending', 'attempts' => $attempts, 'submitted_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) $id);
+        PulseDb::update('pulse_acc_einvoice', array('status' => 'sending', 'attempts' => $attempts, 'submitted_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_einvoice='.(int) $id);
         $key = (string) Configuration::get('PULSE_ACC_EINV_KEY');
         $secret = (string) Configuration::get('PULSE_ACC_EINV_SECRET');
         if ($secret !== '' && class_exists('PulseCoreService')) { $plain = PulseCoreService::decrypt($secret); if ($plain) { $secret = $plain; } }
@@ -267,7 +267,7 @@ class PulseAccTax
         $resp = curl_exec($ch); $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch);
         $json = $resp ? json_decode($resp, true) : null;
         if ($code >= 200 && $code < 300) {
-            Db::getInstance()->update('pulse_acc_einvoice', array(
+            PulseDb::update('pulse_acc_einvoice', array(
                 'status' => 'accepted', 'http_code' => $code, 'response' => pSQL(Tools::substr((string) $resp, 0, 60000), true), 'last_error' => null,
                 'irn' => pSQL(Tools::substr(isset($json['data']['irn']) ? $json['data']['irn'] : $e['irn'], 0, 96)),
                 'qr_data' => pSQL(Tools::substr(isset($json['data']['qr_code']) ? $json['data']['qr_code'] : '', 0, 512)),
@@ -281,7 +281,7 @@ class PulseAccTax
         $fatal = $code >= 400 && $code < 500 && $code !== 408 && $code !== 429;
         $max = (int) Configuration::get('PULSE_ACC_RETRY_MAX'); $max = $max > 0 ? $max : 5;
         $status = $fatal ? 'rejected' : ($attempts >= $max ? 'failed' : 'queued');
-        Db::getInstance()->update('pulse_acc_einvoice', array(
+        PulseDb::update('pulse_acc_einvoice', array(
             'status' => $status, 'http_code' => $code, 'last_error' => pSQL(Tools::substr($message, 0, 255)), 'response' => pSQL(Tools::substr((string) $resp, 0, 60000), true),
             'next_retry_at' => $status === 'queued' ? date('Y-m-d H:i:s', time() + min(3600, 60 * pow(2, $attempts))) : null, 'date_upd' => date('Y-m-d H:i:s'),
         ), 'id_pulse_acc_einvoice='.(int) $id, 0, true);
@@ -308,7 +308,7 @@ class PulseAccTax
     /** Drain the e-invoice queue (cron). Respects the retry backoff so a dead link is not hammered. */
     public static function einvoiceDrain($limit = 50)
     {
-        $rows = Db::getInstance()->executeS('SELECT id_pulse_acc_einvoice FROM `'._DB_PREFIX_.'pulse_acc_einvoice` WHERE status IN ("queued","sending") AND (next_retry_at IS NULL OR next_retry_at<=NOW()) ORDER BY id_pulse_acc_einvoice LIMIT '.(int) $limit);
+        $rows = PulseDb::executeS('SELECT id_pulse_acc_einvoice FROM `'._DB_PREFIX_.'pulse_acc_einvoice` WHERE status IN ("queued","sending") AND (next_retry_at IS NULL OR next_retry_at<=NOW()) ORDER BY id_pulse_acc_einvoice LIMIT '.(int) $limit);
         $ok = 0; $bad = 0;
         foreach ($rows as $r) {
             try { $x = self::einvoiceSend((int) $r['id_pulse_acc_einvoice']); if (!empty($x['ok']) && $x['status'] === 'accepted') { $ok++; } else { $bad++; } }

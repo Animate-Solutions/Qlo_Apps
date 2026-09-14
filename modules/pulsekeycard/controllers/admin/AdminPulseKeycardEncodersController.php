@@ -47,8 +47,8 @@ class AdminPulseKeycardEncodersController extends ModuleAdminController
             if (Tools::isSubmit('deleteEncoder')) {
                 $this->assertEdit();
                 $id = (int) Tools::getValue('id_encoder');
-                if ((int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_kc_key` WHERE id_pulse_kc_encoder='.$id.' AND status="issued"')) { throw new PrestaShopException($this->l('This encoder still has live keys — deactivate it instead of deleting it')); }
-                Db::getInstance()->update('pulse_kc_encoder', array('active' => 0, 'status' => 'disabled', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_encoder='.$id);
+                if ((int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_kc_key` WHERE id_pulse_kc_encoder='.$id.' AND status="issued"')) { throw new PrestaShopException($this->l('This encoder still has live keys — deactivate it instead of deleting it')); }
+                PulseDb::update('pulse_kc_encoder', array('active' => 0, 'status' => 'disabled', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_encoder='.$id);
                 PulseCoreService::audit('pulsekeycard', 'encoder_disable', array('id' => $id), 'pulse_kc_encoder', $id);
                 $this->confirmations[] = $this->l('Encoder deactivated');
             }

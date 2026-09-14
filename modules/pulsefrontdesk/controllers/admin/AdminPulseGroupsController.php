@@ -5,10 +5,13 @@ class AdminPulseGroupsController extends ModuleAdminController
     {
         $this->bootstrap = true; $this->table = 'pulse_group_block'; $this->className = 'PulseGroupBlock'; $this->identifier = 'id_pulse_group_block'; $this->addRowAction('view'); $this->addRowAction('edit'); $this->addRowAction('delete');
         parent::__construct(); $this->meta_title = $this->l('Groups & Blocks');
-        $this->_select = 'comp.name company, (SELECT SUM(blocked) FROM `'._DB_PREFIX_.'pulse_group_block_allot` x WHERE x.id_pulse_group_block=a.id_pulse_group_block) blocked, (SELECT SUM(picked_up) FROM `'._DB_PREFIX_.'pulse_group_block_allot` x WHERE x.id_pulse_group_block=a.id_pulse_group_block) picked_up';
-        $this->_join = 'LEFT JOIN `'._DB_PREFIX_.'pulse_company` comp ON comp.id_pulse_company=a.id_pulse_company';
+        $this->_select = 'comp.name company, (SELECT SUM(blocked) FROM `'._DB_PREFIX_.'pulse_group_block_allot` x WHERE x.id_pulse_group_block=a.id_pulse_group_block'.PulseHotelContext::sql('x').') blocked, (SELECT SUM(picked_up) FROM `'._DB_PREFIX_.'pulse_group_block_allot` x WHERE x.id_pulse_group_block=a.id_pulse_group_block'.PulseHotelContext::sql('x').') picked_up';
+        // The list SQL never passes through PulseDb, so the hotel goes on the list, the joined
+        // company and the two allotment sub-selects.
+        $this->_join = 'LEFT JOIN `'._DB_PREFIX_.'pulse_company` comp ON comp.id_pulse_company=a.id_pulse_company'.PulseHotelContext::sql('comp');
+        $this->_where = PulseHotelContext::sql('a');
         $this->fields_list = array('code' => array('title' => 'Code'), 'name' => array('title' => $this->l('Group')), 'company' => array('title' => $this->l('Company'), 'havingFilter' => true), 'date_from' => array('title' => $this->l('From'), 'type' => 'date'), 'date_to' => array('title' => $this->l('To'), 'type' => 'date'), 'cutoff_date' => array('title' => $this->l('Cut-off'), 'type' => 'date'), 'blocked' => array('title' => $this->l('Blocked'), 'havingFilter' => true), 'picked_up' => array('title' => $this->l('Picked up'), 'havingFilter' => true), 'billing' => array('title' => $this->l('Billing')), 'status' => array('title' => $this->l('Status')));
-        $companies = Db::getInstance()->executeS('SELECT id_pulse_company id, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'); array_unshift($companies, array('id' => 0, 'name' => '—'));
+        $companies = PulseDb::executeS('SELECT id_pulse_company id, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'); array_unshift($companies, array('id' => 0, 'name' => '—'));
         $this->fields_form = array('legend' => array('title' => $this->l('Group block')), 'input' => array(
             array('type' => 'text', 'label' => 'Code', 'name' => 'code', 'required' => true), array('type' => 'text', 'label' => $this->l('Name'), 'name' => 'name', 'required' => true),
             array('type' => 'select', 'label' => $this->l('Company'), 'name' => 'id_pulse_company', 'options' => array('query' => $companies, 'id' => 'id', 'name' => 'name')),
@@ -24,7 +27,7 @@ class AdminPulseGroupsController extends ModuleAdminController
     {
         if ($this->display === 'view') {
             $g = new PulseGroupBlock((int) Tools::getValue('id_pulse_group_block'));
-            $types = Db::getInstance()->executeS('SELECT rt.id_product, pl.name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) $this->context->language->id.' AND pl.id_shop='.(int) $this->context->shop->id);
+            $types = PulseDb::executeS('SELECT rt.id_product, pl.name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) $this->context->language->id.' AND pl.id_shop='.(int) $this->context->shop->id);
             $allot = array(); foreach ($g->allotments() as $a) { $allot[$a['id_product']] = $a; }
             foreach ($types as &$t) { $t['blocked'] = isset($allot[$t['id_product']]) ? $allot[$t['id_product']]['blocked'] : 0; $t['picked_up'] = isset($allot[$t['id_product']]) ? $allot[$t['id_product']]['picked_up'] : 0; $t['avail'] = PulseReservation::availability($t['id_product'], $g->date_from, $g->date_to, $g->id); }
             $this->context->smarty->assign(array('g' => $g, 'types' => $types, 'bookings' => $g->bookings(), 'master' => $g->id_pulse_folio ? new PulseFolio($g->id_pulse_folio) : null, 'self_url' => self::$currentIndex.'&token='.$this->token.'&id_pulse_group_block='.$g->id.'&viewpulse_group_block', 'folio_url' => $this->context->link->getAdminLink('AdminPulseFolio')));

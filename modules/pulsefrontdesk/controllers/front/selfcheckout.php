@@ -11,7 +11,10 @@ class PulseFrontDeskSelfcheckoutModuleFrontController extends ModuleFrontControl
     {
         parent::init();
         $t = preg_replace('/[^a-f0-9]/', '', Tools::getValue('t'));
-        $this->ext = $t ? Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_booking_ext` WHERE checkout_token="'.pSQL($t).'"') : null;
+        // The stay behind the token settles the property before anything is read, so the row below is
+        // fetched through the ordinary scoped query and a token from another hotel matches nothing.
+        $this->ext = $t && PulseFdService::enterHotelFromToken('checkout_token', $t)
+            ? PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_booking_ext` WHERE checkout_token="'.pSQL($t).'"') : null;
         $this->booking = $this->ext ? PulseFdService::booking($this->ext['id_htl_booking']) : null;
         $this->folio = $this->booking ? PulseFolio::openForBooking($this->booking['id']) : null;
     }

@@ -39,7 +39,8 @@ class PulseMaintenance extends Module
     protected function runSql($f)
     {
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/'.$f.'.sql'));
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (strpos($q, '--') !== 0 && !Db::getInstance()->execute($q)) { return false; } }
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (!Db::getInstance()->execute($q)) { return false; } }
         return true;
     }
 
@@ -51,15 +52,15 @@ class PulseMaintenance extends Module
     public function hookActionPulseTicketCreated($p)
     {
         if (!Configuration::get('PULSE_MNT_AUTO_WO_FROM_TICKET') || empty($p['id_ticket'])) { return; }
-        $t = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ticket` WHERE id_pulse_ticket='.(int) $p['id_ticket']);
+        $t = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ticket` WHERE id_pulse_ticket='.(int) $p['id_ticket']);
         if (!$t || $t['category'] !== 'maintenance') { return; } $prio = array('urgent' => 'emergency', 'high' => 'high', 'normal' => 'normal', 'low' => 'low');
-        PulseMaintenanceService::createWo(array('category' => 'other', 'id_room' => $t['id_room'], 'priority' => isset($prio[$t['priority']]) ? $prio[$t['priority']] : 'normal', 'subject' => $t['subject'], 'description' => $t['body'], 'source' => $t['source'] === 'portal' ? 'portal' : 'ticket', 'source_ref' => $t['ticket_no'], 'id_pulse_ticket' => $t['id_pulse_ticket']));
+        PulseMaintenanceService::createWo(array('category' => 'other', 'id_room' => $t['id_room'], 'priority' => isset($prio[$t['priority']]) ? $prio[$t['priority']] : 'normal', 'subject' => $t['title'], 'description' => $t['description'], 'source' => $t['source'] === 'portal' ? 'portal' : 'ticket', 'source_ref' => $t['ticket_no'], 'id_pulse_ticket' => $t['id_pulse_ticket']));
     }
     /** Housekeeping "maintenance" task → work order. */
     public function hookActionPulseHousekeepingTask($p)
     {
         if (!Configuration::get('PULSE_MNT_AUTO_WO_FROM_HK') || empty($p['type']) || $p['type'] !== 'maintenance') { return; }
-        $t = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_housekeeping_task` WHERE id_pulse_housekeeping_task='.(int) $p['id_task']);
+        $t = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_housekeeping_task` WHERE id_pulse_housekeeping_task='.(int) $p['id_task']);
         if ($t) { PulseMaintenanceService::createWo(array('id_room' => $t['id_room'], 'priority' => $t['priority'] <= 2 ? 'high' : 'normal', 'subject' => 'Housekeeping reported: '.($t['note'] ?: 'maintenance needed'), 'source' => 'housekeeping', 'source_ref' => 'HK'.$t['id_pulse_housekeeping_task'])); }
     }
     public function hookActionPulseWorkOrder($p) {}

@@ -11,17 +11,17 @@ class PulseAccPosting
     public static function enqueue($source, $ref, array $payload = array(), $date = null)
     {
         $date = $date ? $date : PulseAccService::bd();
-        return Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_acc_queue` (`source`,`source_ref`,`business_date`,`payload`,`status`,`date_add`,`date_upd`) VALUES ("'.pSQL($source).'","'.pSQL(Tools::substr($ref, 0, 96)).'","'.pSQL($date).'","'.pSQL(json_encode($payload), true).'","pending",NOW(),NOW())');
+        return PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_acc_queue` (`source`,`source_ref`,`business_date`,`payload`,`status`,`date_add`,`date_upd`) VALUES ("'.pSQL($source).'","'.pSQL(Tools::substr($ref, 0, 96)).'","'.pSQL($date).'","'.pSQL(json_encode($payload), true).'","pending",NOW(),NOW())');
     }
 
     public static function queue($status = 'pending', $limit = 200, $date = null)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_queue` WHERE status="'.pSQL($status).'"'.($date ? ' AND business_date<="'.pSQL($date).'"' : '').' ORDER BY business_date, id_pulse_acc_queue LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_queue` WHERE status="'.pSQL($status).'"'.($date ? ' AND business_date<="'.pSQL($date).'"' : '').' ORDER BY business_date, id_pulse_acc_queue LIMIT '.(int) $limit);
     }
 
     public static function queueCounts()
     {
-        $r = Db::getInstance()->getRow('SELECT SUM(status="pending") pending, SUM(status="posted") posted, SUM(status="failed") failed, SUM(status="skipped") skipped FROM `'._DB_PREFIX_.'pulse_acc_queue`');
+        $r = PulseDb::getRow('SELECT SUM(status="pending") pending, SUM(status="posted") posted, SUM(status="failed") failed, SUM(status="skipped") skipped FROM `'._DB_PREFIX_.'pulse_acc_queue`');
         return array('pending' => (int) $r['pending'], 'posted' => (int) $r['posted'], 'failed' => (int) $r['failed'], 'skipped' => (int) $r['skipped']);
     }
 
@@ -36,12 +36,12 @@ class PulseAccPosting
         foreach (self::queue('pending', (int) $limit, $upToDate) as $q) {
             try {
                 $id = self::build($q['source'], $q['source_ref'], $q['business_date']);
-                if ($id === null) { Db::getInstance()->update('pulse_acc_queue', array('status' => 'skipped', 'last_error' => 'Nothing to post', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_queue='.(int) $q['id_pulse_acc_queue']); $skipped++; continue; }
-                Db::getInstance()->update('pulse_acc_queue', array('status' => 'posted', 'id_pulse_acc_journal' => (int) $id, 'last_error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_queue='.(int) $q['id_pulse_acc_queue'], 0, true);
+                if ($id === null) { PulseDb::update('pulse_acc_queue', array('status' => 'skipped', 'last_error' => 'Nothing to post', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_queue='.(int) $q['id_pulse_acc_queue']); $skipped++; continue; }
+                PulseDb::update('pulse_acc_queue', array('status' => 'posted', 'id_pulse_acc_journal' => (int) $id, 'last_error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_queue='.(int) $q['id_pulse_acc_queue'], 0, true);
                 $done++;
             } catch (Exception $e) {
                 $attempts = (int) $q['attempts'] + 1;
-                Db::getInstance()->update('pulse_acc_queue', array('status' => $attempts >= $max ? 'failed' : 'pending', 'attempts' => $attempts, 'last_error' => pSQL(Tools::substr($e->getMessage(), 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_queue='.(int) $q['id_pulse_acc_queue']);
+                PulseDb::update('pulse_acc_queue', array('status' => $attempts >= $max ? 'failed' : 'pending', 'attempts' => $attempts, 'last_error' => pSQL(Tools::substr($e->getMessage(), 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_queue='.(int) $q['id_pulse_acc_queue']);
                 $failed++;
             }
         }
@@ -51,7 +51,7 @@ class PulseAccPosting
     /** Push a failed/skipped row back into the queue after the accountant fixed the rule. */
     public static function retry($id = null)
     {
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_acc_queue` SET status="pending", attempts=0, last_error=NULL, date_upd=NOW() WHERE status IN ("failed","skipped")'.($id ? ' AND id_pulse_acc_queue='.(int) $id : ''));
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_acc_queue` SET status="pending", attempts=0, last_error=NULL, date_upd=NOW() WHERE status IN ("failed","skipped")'.($id ? ' AND id_pulse_acc_queue='.(int) $id : ''));
         return true;
     }
 
@@ -78,17 +78,17 @@ class PulseAccPosting
         $date = $date ? $date : PulseAccService::bd();
         $n = 0;
         if (PulseAccService::fd()) {
-            foreach (Db::getInstance()->executeS('SELECT l.id_pulse_folio_line FROM `'._DB_PREFIX_.'pulse_folio_line` l WHERE l.business_date="'.pSQL($date).'" AND l.voided=0 AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_queue` q WHERE q.source="folio" AND q.source_ref=CONCAT("line:",l.id_pulse_folio_line))') as $r) { self::enqueue('folio', 'line:'.(int) $r['id_pulse_folio_line'], array(), $date); $n++; }
+            foreach (PulseDb::executeS('SELECT l.id_pulse_folio_line FROM `'._DB_PREFIX_.'pulse_folio_line` l WHERE l.business_date="'.pSQL($date).'" AND l.voided=0 AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_queue` q WHERE q.source="folio" AND q.source_ref=CONCAT("line:",l.id_pulse_folio_line))') as $r) { self::enqueue('folio', 'line:'.(int) $r['id_pulse_folio_line'], array(), $date); $n++; }
         }
         if (PulseAccService::pos()) {
-            foreach (Db::getInstance()->executeS('SELECT c.id_pulse_pos_check FROM `'._DB_PREFIX_.'pulse_pos_check` c WHERE c.business_date="'.pSQL($date).'" AND c.status="settled" AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_queue` q WHERE q.source="pos" AND q.source_ref=CONCAT("check:",c.id_pulse_pos_check))') as $r) { self::enqueue('pos', 'check:'.(int) $r['id_pulse_pos_check'], array(), $date); $n++; }
+            foreach (PulseDb::executeS('SELECT c.id_pulse_pos_check FROM `'._DB_PREFIX_.'pulse_pos_check` c WHERE c.business_date="'.pSQL($date).'" AND c.status="settled" AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_queue` q WHERE q.source="pos" AND q.source_ref=CONCAT("check:",c.id_pulse_pos_check))') as $r) { self::enqueue('pos', 'check:'.(int) $r['id_pulse_pos_check'], array(), $date); $n++; }
         }
         if (PulseAccService::rpt()) {
-            foreach (Db::getInstance()->executeS('SELECT e.id_pulse_expense FROM `'._DB_PREFIX_.'pulse_expense` e WHERE e.business_date<="'.pSQL($date).'" AND e.status IN ("approved","paid") AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_queue` q WHERE q.source="expense" AND q.source_ref=CONCAT("exp:",e.id_pulse_expense)) LIMIT 500') as $r) { self::enqueue('expense', 'exp:'.(int) $r['id_pulse_expense'], array(), $date); $n++; }
+            foreach (PulseDb::executeS('SELECT e.id_pulse_expense FROM `'._DB_PREFIX_.'pulse_expense` e WHERE e.business_date<="'.pSQL($date).'" AND e.status IN ("approved","paid") AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_queue` q WHERE q.source="expense" AND q.source_ref=CONCAT("exp:",e.id_pulse_expense)) LIMIT 500') as $r) { self::enqueue('expense', 'exp:'.(int) $r['id_pulse_expense'], array(), $date); $n++; }
         }
         if (PulseAccService::inv()) {
-            foreach (Db::getInstance()->executeS('SELECT g.id_pulse_inv_grn FROM `'._DB_PREFIX_.'pulse_inv_grn` g WHERE g.business_date<="'.pSQL($date).'" AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_queue` q WHERE q.source="grn" AND q.source_ref=CONCAT("grn:",g.id_pulse_inv_grn)) LIMIT 500') as $r) { self::enqueue('grn', 'grn:'.(int) $r['id_pulse_inv_grn'], array(), $date); $n++; }
-            if ((int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_inv_movement` WHERE business_date="'.pSQL($date).'" AND type IN ("consume","issue","waste","sale","minibar","amenity","count_adjust")')) { self::enqueue('inventory', 'day:'.$date, array(), $date); $n++; }
+            foreach (PulseDb::executeS('SELECT g.id_pulse_inv_grn FROM `'._DB_PREFIX_.'pulse_inv_grn` g WHERE g.business_date<="'.pSQL($date).'" AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_queue` q WHERE q.source="grn" AND q.source_ref=CONCAT("grn:",g.id_pulse_inv_grn)) LIMIT 500') as $r) { self::enqueue('grn', 'grn:'.(int) $r['id_pulse_inv_grn'], array(), $date); $n++; }
+            if ((int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_inv_movement` WHERE business_date="'.pSQL($date).'" AND type IN ("consume","issue","waste","sale","minibar","amenity","count_adjust")')) { self::enqueue('inventory', 'day:'.$date, array(), $date); $n++; }
         }
         return $n;
     }
@@ -104,7 +104,7 @@ class PulseAccPosting
     public static function folioLine($idLine)
     {
         if (!PulseAccService::fd()) { throw new PrestaShopException('Front Desk is not installed'); }
-        $l = Db::getInstance()->getRow('SELECT l.*, f.folio_no, f.type folio_type, f.id_pulse_company, f.id_customer, f.id_htl_booking FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_folio` f ON f.id_pulse_folio=l.id_pulse_folio WHERE l.id_pulse_folio_line='.(int) $idLine);
+        $l = PulseDb::getRow('SELECT l.*, f.folio_no, f.type folio_type, f.id_pulse_company, f.id_customer, f.id_htl_booking FROM `'._DB_PREFIX_.'pulse_folio_line` l INNER JOIN `'._DB_PREFIX_.'pulse_folio` f ON f.id_pulse_folio=l.id_pulse_folio WHERE l.id_pulse_folio_line='.(int) $idLine);
         if (!$l) { return null; }
         if ($l['voided']) { return null; }
         if ($l['source'] === 'pos') { return null; }
@@ -113,7 +113,7 @@ class PulseAccPosting
         $ledger = PulseAccService::mapAccount('folio_type', $l['folio_type']);
         if (!$ledger) { $ledger = '1210'; }
         $code = (string) $l['description'];
-        $cc = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_charge_code` WHERE id_pulse_charge_code='.(int) $l['id_pulse_charge_code']);
+        $cc = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_charge_code` WHERE id_pulse_charge_code='.(int) $l['id_pulse_charge_code']);
         $chargeCode = $cc ? $cc['code'] : 'MISC';
         $rule = PulseAccService::map('charge_code', $chargeCode);
         if (!$rule || empty($rule['account_code'])) { throw new PrestaShopException('Charge code '.$chargeCode.' has no posting rule'); }
@@ -153,8 +153,8 @@ class PulseAccPosting
 
     protected static function folioParty(array $l)
     {
-        if (!empty($l['id_pulse_company'])) { $n = Db::getInstance()->getValue('SELECT name FROM `'._DB_PREFIX_.'pulse_company` WHERE id_pulse_company='.(int) $l['id_pulse_company']); if ($n) { return $n; } }
-        if (!empty($l['id_customer'])) { $n = Db::getInstance()->getValue('SELECT CONCAT(firstname," ",lastname) FROM `'._DB_PREFIX_.'customer` WHERE id_customer='.(int) $l['id_customer']); if ($n) { return $n; } }
+        if (!empty($l['id_pulse_company'])) { $n = PulseDb::getValue('SELECT name FROM `'._DB_PREFIX_.'pulse_company` WHERE id_pulse_company='.(int) $l['id_pulse_company']); if ($n) { return $n; } }
+        if (!empty($l['id_customer'])) { $n = PulseDb::getValue('SELECT CONCAT(firstname," ",lastname) FROM `'._DB_PREFIX_.'customer` WHERE id_customer='.(int) $l['id_customer']); if ($n) { return $n; } }
         return 'Walk-in guest';
     }
 
@@ -179,7 +179,7 @@ class PulseAccPosting
     public static function posCheck($idCheck)
     {
         if (!PulseAccService::pos()) { throw new PrestaShopException('Pulse POS is not installed'); }
-        $c = Db::getInstance()->getRow('SELECT c.*, o.name outlet_name, o.code outlet_code FROM `'._DB_PREFIX_.'pulse_pos_check` c LEFT JOIN `'._DB_PREFIX_.'pulse_pos_outlet` o ON o.id_pulse_pos_outlet=c.id_pulse_pos_outlet WHERE c.id_pulse_pos_check='.(int) $idCheck);
+        $c = PulseDb::getRow('SELECT c.*, o.name outlet_name, o.code outlet_code FROM `'._DB_PREFIX_.'pulse_pos_check` c LEFT JOIN `'._DB_PREFIX_.'pulse_pos_outlet` o ON o.id_pulse_pos_outlet=c.id_pulse_pos_outlet WHERE c.id_pulse_pos_check='.(int) $idCheck);
         if (!$c || $c['status'] !== 'settled') { return null; }
         $total = round((float) $c['total'], 2);
         if (abs($total) < 0.005) { return null; }
@@ -187,7 +187,7 @@ class PulseAccPosting
         $lines = array(); $revenue = 0;
 
         // revenue by major group, net of tax, discounts already netted into line_total
-        $groups = Db::getInstance()->executeS('SELECT COALESCE(cat.major_group,"other") grp, ROUND(SUM(l.line_total),2) gross FROM `'._DB_PREFIX_.'pulse_pos_check_line` l LEFT JOIN `'._DB_PREFIX_.'pulse_pos_item` i ON i.id_pulse_pos_item=l.id_pulse_pos_item LEFT JOIN `'._DB_PREFIX_.'pulse_pos_category` cat ON cat.id_pulse_pos_category=i.id_pulse_pos_category WHERE l.id_pulse_pos_check='.(int) $idCheck.' AND l.voided=0 GROUP BY grp');
+        $groups = PulseDb::executeS('SELECT COALESCE(cat.major_group,"other") grp, ROUND(SUM(l.line_total),2) gross FROM `'._DB_PREFIX_.'pulse_pos_check_line` l LEFT JOIN `'._DB_PREFIX_.'pulse_pos_item` i ON i.id_pulse_pos_item=l.id_pulse_pos_item LEFT JOIN `'._DB_PREFIX_.'pulse_pos_category` cat ON cat.id_pulse_pos_category=i.id_pulse_pos_category WHERE l.id_pulse_pos_check='.(int) $idCheck.' AND l.voided=0 GROUP BY grp');
         $grossLines = 0; foreach ($groups as $g) { $grossLines += (float) $g['gross']; }
         $tax = round((float) $c['tax_total'], 2); $service = round((float) $c['service_charge'], 2);
         $netTotal = round($total - $tax - $service, 2);
@@ -212,7 +212,7 @@ class PulseAccPosting
 
         // tenders
         $paid = 0;
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_payment` WHERE id_pulse_pos_check='.(int) $idCheck.' AND voided=0') as $p) {
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pos_payment` WHERE id_pulse_pos_check='.(int) $idCheck.' AND voided=0') as $p) {
             $amt = round((float) $p['amount'], 2);
             if (abs($amt) < 0.005) { continue; }
             $acct = PulseAccService::mapAccount('payment_method', $p['method']);
@@ -247,7 +247,7 @@ class PulseAccPosting
     public static function expense($idExpense)
     {
         if (!PulseAccService::rpt()) { throw new PrestaShopException('Pulse Reports is not installed'); }
-        $e = Db::getInstance()->getRow('SELECT e.*, c.code cat_code, c.name cat_name, c.group_name FROM `'._DB_PREFIX_.'pulse_expense` e INNER JOIN `'._DB_PREFIX_.'pulse_expense_category` c ON c.id_pulse_expense_category=e.id_pulse_expense_category WHERE e.id_pulse_expense='.(int) $idExpense);
+        $e = PulseDb::getRow('SELECT e.*, c.code cat_code, c.name cat_name, c.group_name FROM `'._DB_PREFIX_.'pulse_expense` e INNER JOIN `'._DB_PREFIX_.'pulse_expense_category` c ON c.id_pulse_expense_category=e.id_pulse_expense_category WHERE e.id_pulse_expense='.(int) $idExpense);
         if (!$e) { return null; }
         if (!in_array($e['status'], array('approved', 'paid'))) { return null; }
         $gross = round((float) $e['amount'], 2);
@@ -298,9 +298,9 @@ class PulseAccPosting
     public static function grn($idGrn)
     {
         if (!PulseAccService::inv()) { throw new PrestaShopException('Pulse Inventory is not installed'); }
-        $g = Db::getInstance()->getRow('SELECT g.*, s.name supplier_name FROM `'._DB_PREFIX_.'pulse_inv_grn` g LEFT JOIN `'._DB_PREFIX_.'pulse_inv_supplier` s ON s.id_pulse_inv_supplier=g.id_pulse_inv_supplier WHERE g.id_pulse_inv_grn='.(int) $idGrn);
+        $g = PulseDb::getRow('SELECT g.*, s.name supplier_name FROM `'._DB_PREFIX_.'pulse_inv_grn` g LEFT JOIN `'._DB_PREFIX_.'pulse_inv_supplier` s ON s.id_pulse_inv_supplier=g.id_pulse_inv_supplier WHERE g.id_pulse_inv_grn='.(int) $idGrn);
         if (!$g) { return null; }
-        $rows = Db::getInstance()->executeS('SELECT c.code cat_code, c.name cat_name, ROUND(SUM((l.qty-l.rejected_qty)*l.unit_price),2) net FROM `'._DB_PREFIX_.'pulse_inv_grn_line` l INNER JOIN `'._DB_PREFIX_.'pulse_inv_item` i ON i.id_pulse_inv_item=l.id_pulse_inv_item INNER JOIN `'._DB_PREFIX_.'pulse_inv_category` c ON c.id_pulse_inv_category=i.id_pulse_inv_category WHERE l.id_pulse_inv_grn='.(int) $idGrn.' GROUP BY c.id_pulse_inv_category');
+        $rows = PulseDb::executeS('SELECT c.code cat_code, c.name cat_name, ROUND(SUM((l.qty-l.rejected_qty)*l.unit_price),2) net FROM `'._DB_PREFIX_.'pulse_inv_grn_line` l INNER JOIN `'._DB_PREFIX_.'pulse_inv_item` i ON i.id_pulse_inv_item=l.id_pulse_inv_item INNER JOIN `'._DB_PREFIX_.'pulse_inv_category` c ON c.id_pulse_inv_category=i.id_pulse_inv_category WHERE l.id_pulse_inv_grn='.(int) $idGrn.' GROUP BY c.id_pulse_inv_category');
         if (!$rows) { return null; }
         $memo = 'GRN '.$g['grn_no'].($g['supplier_name'] ? ' — '.$g['supplier_name'] : '');
         $lines = array(); $total = 0;
@@ -325,7 +325,7 @@ class PulseAccPosting
     {
         if (!PulseAccService::inv()) { throw new PrestaShopException('Pulse Inventory is not installed'); }
         $date = Tools::substr((string) $date, 0, 10);
-        $rows = Db::getInstance()->executeS('SELECT c.code cat_code, c.name cat_name, m.department, ROUND(SUM(-m.value),2) cost FROM `'._DB_PREFIX_.'pulse_inv_movement` m INNER JOIN `'._DB_PREFIX_.'pulse_inv_item` i ON i.id_pulse_inv_item=m.id_pulse_inv_item INNER JOIN `'._DB_PREFIX_.'pulse_inv_category` c ON c.id_pulse_inv_category=i.id_pulse_inv_category WHERE m.business_date="'.pSQL($date).'" AND m.type IN ("consume","issue","waste","sale","minibar","amenity","count_adjust") GROUP BY c.id_pulse_inv_category, m.department');
+        $rows = PulseDb::executeS('SELECT c.code cat_code, c.name cat_name, m.department, ROUND(SUM(-m.value),2) cost FROM `'._DB_PREFIX_.'pulse_inv_movement` m INNER JOIN `'._DB_PREFIX_.'pulse_inv_item` i ON i.id_pulse_inv_item=m.id_pulse_inv_item INNER JOIN `'._DB_PREFIX_.'pulse_inv_category` c ON c.id_pulse_inv_category=i.id_pulse_inv_category WHERE m.business_date="'.pSQL($date).'" AND m.type IN ("consume","issue","waste","sale","minibar","amenity","count_adjust") GROUP BY c.id_pulse_inv_category, m.department');
         if (!$rows) { return null; }
         $lines = array(); $byStock = array();
         foreach ($rows as $r) {

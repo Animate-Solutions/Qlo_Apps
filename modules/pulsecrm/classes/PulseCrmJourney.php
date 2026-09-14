@@ -9,28 +9,28 @@ class PulseCrmJourney
 {
     public static function all($activeOnly = false)
     {
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY trigger_event, name');
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY trigger_event, name');
         foreach ($rows as &$r) { $r['steps'] = self::steps((int) $r['id_pulse_crm_journey']); }
         return $rows;
     }
     public static function get($id)
     {
-        $j = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey` WHERE id_pulse_crm_journey='.(int) $id);
+        $j = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey` WHERE id_pulse_crm_journey='.(int) $id);
         if ($j) { $j['steps'] = self::steps($id); }
         return $j;
     }
-    public static function byCode($code) { $j = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey` WHERE code="'.pSQL($code).'"'); return $j ? self::get((int) $j['id_pulse_crm_journey']) : null; }
-    public static function steps($idJourney) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey_step` WHERE id_pulse_crm_journey='.(int) $idJourney.' AND active=1 ORDER BY sort'); }
+    public static function byCode($code) { $j = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey` WHERE code="'.pSQL($code).'"'); return $j ? self::get((int) $j['id_pulse_crm_journey']) : null; }
+    public static function steps($idJourney) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey_step` WHERE id_pulse_crm_journey='.(int) $idJourney.' AND active=1 ORDER BY sort'); }
 
     public static function save(array $d, $id = 0)
     {
         $row = array('name' => pSQL($d['name']), 'description' => pSQL(isset($d['description']) ? $d['description'] : ''), 'trigger_event' => pSQL($d['trigger_event']),
             'active' => isset($d['active']) ? (int) $d['active'] : 1, 'quiet_from' => pSQL(isset($d['quiet_from']) ? $d['quiet_from'] : '21:00'),
             'quiet_to' => pSQL(isset($d['quiet_to']) ? $d['quiet_to'] : '08:00'), 'suppress_days' => (int) (isset($d['suppress_days']) ? $d['suppress_days'] : 1), 'date_upd' => date('Y-m-d H:i:s'));
-        if ($id) { Db::getInstance()->update('pulse_crm_journey', $row, 'id_pulse_crm_journey='.(int) $id); return (int) $id; }
+        if ($id) { PulseDb::update('pulse_crm_journey', $row, 'id_pulse_crm_journey='.(int) $id); return (int) $id; }
         $row['code'] = pSQL(Tools::substr(Tools::str2url(isset($d['code']) && $d['code'] ? $d['code'] : $d['name']), 0, 30)); $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert('pulse_crm_journey', $row);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_crm_journey', $row);
+        return (int) PulseDb::Insert_ID();
     }
 
     public static function saveStep(array $d, $id = 0)
@@ -41,11 +41,11 @@ class PulseCrmJourney
             'subject' => pSQL(isset($d['subject']) ? $d['subject'] : ''), 'body' => pSQL(isset($d['body']) ? $d['body'] : '', true),
             'action_json' => pSQL(is_array(isset($d['action_json']) ? $d['action_json'] : '') ? json_encode($d['action_json']) : (isset($d['action_json']) ? $d['action_json'] : ''), true),
             'active' => isset($d['active']) ? (int) $d['active'] : 1);
-        if ($id) { Db::getInstance()->update('pulse_crm_journey_step', $row, 'id_pulse_crm_journey_step='.(int) $id); return (int) $id; }
-        Db::getInstance()->insert('pulse_crm_journey_step', $row);
-        return (int) Db::getInstance()->Insert_ID();
+        if ($id) { PulseDb::update('pulse_crm_journey_step', $row, 'id_pulse_crm_journey_step='.(int) $id); return (int) $id; }
+        PulseDb::insert('pulse_crm_journey_step', $row);
+        return (int) PulseDb::Insert_ID();
     }
-    public static function removeStep($id) { return Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_journey_step` WHERE id_pulse_crm_journey_step='.(int) $id); }
+    public static function removeStep($id) { return PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_journey_step` WHERE id_pulse_crm_journey_step='.(int) $id); }
 
     /* ---------- running ---------- */
 
@@ -54,7 +54,7 @@ class PulseCrmJourney
     {
         $started = 0;
         if (empty($ctx['id_customer'])) { return 0; }
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey` WHERE active=1 AND trigger_event="'.pSQL($event).'"') as $j) {
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey` WHERE active=1 AND trigger_event="'.pSQL($event).'"') as $j) {
             if (self::start((int) $j['id_pulse_crm_journey'], $ctx)) { $started++; }
         }
         return $started;
@@ -64,22 +64,22 @@ class PulseCrmJourney
     {
         $j = self::get($idJourney); if (!$j || !$j['active'] || !$j['steps']) { return false; }
         $idc = (int) $ctx['id_customer']; $idb = !empty($ctx['id_htl_booking']) ? (int) $ctx['id_htl_booking'] : 0;
-        $dup = Db::getInstance()->getValue('SELECT id_pulse_crm_journey_run FROM `'._DB_PREFIX_.'pulse_crm_journey_run` WHERE id_pulse_crm_journey='.(int) $idJourney
+        $dup = PulseDb::getValue('SELECT id_pulse_crm_journey_run FROM `'._DB_PREFIX_.'pulse_crm_journey_run` WHERE id_pulse_crm_journey='.(int) $idJourney
             .' AND id_customer='.$idc.($idb ? ' AND id_htl_booking='.$idb : ' AND date_add>DATE_SUB(NOW(), INTERVAL 7 DAY)').' AND status="active"');
         if ($dup) { return false; }
         $first = $j['steps'][0];
-        Db::getInstance()->insert('pulse_crm_journey_run', array('id_pulse_crm_journey' => (int) $idJourney, 'id_customer' => $idc,
+        PulseDb::insert('pulse_crm_journey_run', array('id_pulse_crm_journey' => (int) $idJourney, 'id_customer' => $idc,
             'id_htl_booking' => $idb ? $idb : null, 'id_room' => !empty($ctx['id_room']) ? (int) $ctx['id_room'] : null, 'step_index' => 0, 'status' => 'active',
             'next_run_at' => date('Y-m-d H:i:s', time() + (int) $first['delay_minutes'] * 60), 'context_json' => pSQL(json_encode($ctx), true),
             'business_date' => PulseCrmService::bd(), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')));
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_journey` SET count_started=count_started+1 WHERE id_pulse_crm_journey='.(int) $idJourney);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_journey` SET count_started=count_started+1 WHERE id_pulse_crm_journey='.(int) $idJourney);
+        return (int) PulseDb::Insert_ID();
     }
 
     /** Cancel every live run for a stay — used on cancellation, no-show and early departure. */
     public static function cancelFor($idCustomer, $idBooking = null, $reason = 'cancelled')
     {
-        return Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_journey_run` SET status="cancelled", last_error="'.pSQL($reason).'", date_upd=NOW()
+        return PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_journey_run` SET status="cancelled", last_error="'.pSQL($reason).'", date_upd=NOW()
             WHERE status="active" AND id_customer='.(int) $idCustomer.($idBooking ? ' AND id_htl_booking='.(int) $idBooking : ''));
     }
 
@@ -87,7 +87,7 @@ class PulseCrmJourney
     public static function advance($limit = 100)
     {
         $out = array('runs' => 0, 'steps' => 0, 'sent' => 0, 'skipped' => 0, 'failed' => 0, 'finished' => 0);
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey_run` WHERE status="active" AND next_run_at<=NOW() ORDER BY next_run_at LIMIT '.(int) $limit) as $run) {
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey_run` WHERE status="active" AND next_run_at<=NOW() ORDER BY next_run_at LIMIT '.(int) $limit) as $run) {
             $out['runs']++;
             $r = self::step($run);
             $out['steps'] += $r['steps']; $out['sent'] += $r['sent']; $out['skipped'] += $r['skipped']; $out['failed'] += $r['failed'];
@@ -101,7 +101,7 @@ class PulseCrmJourney
     {
         $out = array('steps' => 0, 'sent' => 0, 'skipped' => 0, 'failed' => 0, 'finished' => false);
         $j = self::get((int) $run['id_pulse_crm_journey']);
-        $db = Db::getInstance(); $idRun = (int) $run['id_pulse_crm_journey_run'];
+        $db = PulseDb::handle(); $idRun = (int) $run['id_pulse_crm_journey_run'];
         if (!$j || !$j['active']) { $db->update('pulse_crm_journey_run', array('status' => 'cancelled', 'last_error' => 'journey disabled', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_journey_run='.$idRun); return $out; }
         $idx = (int) $run['step_index'];
         if (!isset($j['steps'][$idx])) { return self::finish($idRun, $j, $out); }
@@ -131,14 +131,14 @@ class PulseCrmJourney
         $idRun = (int) $run['id_pulse_crm_journey_run'];
         if (!isset($j['steps'][$idx + 1])) { return self::finish($idRun, $j, $out); }
         $delay = (int) $j['steps'][$idx + 1]['delay_minutes'];
-        Db::getInstance()->update('pulse_crm_journey_run', array('step_index' => $idx + 1, 'next_run_at' => date('Y-m-d H:i:s', time() + $delay * 60), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_journey_run='.$idRun);
+        PulseDb::update('pulse_crm_journey_run', array('step_index' => $idx + 1, 'next_run_at' => date('Y-m-d H:i:s', time() + $delay * 60), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_journey_run='.$idRun);
         return $out;
     }
 
     protected static function finish($idRun, array $j, array $out)
     {
-        Db::getInstance()->update('pulse_crm_journey_run', array('status' => 'done', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_journey_run='.(int) $idRun);
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_journey` SET count_done=count_done+1 WHERE id_pulse_crm_journey='.(int) $j['id_pulse_crm_journey']);
+        PulseDb::update('pulse_crm_journey_run', array('status' => 'done', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_journey_run='.(int) $idRun);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_journey` SET count_done=count_done+1 WHERE id_pulse_crm_journey='.(int) $j['id_pulse_crm_journey']);
         $out['finished'] = true;
         return $out;
     }
@@ -150,8 +150,8 @@ class PulseCrmJourney
         if (!is_array($ctx)) { $ctx = array(); }
         $id = (int) $run['id_customer'];
         $ctx = array_merge($ctx, PulseCrmService::mergeVars($id, array('id_htl_booking' => $run['id_htl_booking'])));
-        $px = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_profile_ext` WHERE id_customer='.$id);
-        $gp = PulseCrmService::gp() ? Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.$id) : array();
+        $px = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_profile_ext` WHERE id_customer='.$id);
+        $gp = PulseCrmService::gp() ? PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.$id) : array();
         $ctx['nps'] = $px && $px['nps_last'] !== null ? (int) $px['nps_last'] : null;
         $ctx['nps_band'] = $px ? $px['nps_band'] : 'unknown';
         $ctx['gss'] = $px ? (float) $px['gss_avg'] : 0;
@@ -256,7 +256,7 @@ class PulseCrmJourney
     /** Which channel this guest actually wants — their stated preference, falling back to what we can reach. */
     public static function preferredChannel($idCustomer)
     {
-        $p = Db::getInstance()->getValue('SELECT preferred_channel FROM `'._DB_PREFIX_.'pulse_crm_profile_ext` WHERE id_customer='.(int) $idCustomer);
+        $p = PulseDb::getValue('SELECT preferred_channel FROM `'._DB_PREFIX_.'pulse_crm_profile_ext` WHERE id_customer='.(int) $idCustomer);
         if ($p && $p !== 'none' && PulseCrmProfile::mayContact($idCustomer, $p) === true) { return $p; }
         foreach (array('email', 'whatsapp', 'sms') as $ch) { if (PulseCrmProfile::mayContact($idCustomer, $ch) === true) { return $ch; } }
         return 'email';
@@ -264,19 +264,19 @@ class PulseCrmJourney
 
     protected static function log($idRun, $idStep, $action, $result, $message)
     {
-        return Db::getInstance()->insert('pulse_crm_journey_log', array('id_pulse_crm_journey_run' => (int) $idRun, 'id_pulse_crm_journey_step' => (int) $idStep ?: null,
+        return PulseDb::insert('pulse_crm_journey_log', array('id_pulse_crm_journey_run' => (int) $idRun, 'id_pulse_crm_journey_step' => (int) $idStep ?: null,
             'action' => pSQL($action), 'result' => pSQL($result), 'message' => pSQL(Tools::substr((string) $message, 0, 250)), 'date_add' => date('Y-m-d H:i:s')));
     }
 
     public static function runs($idJourney = 0, $status = null, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT r.*, j.name journey, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_crm_journey_run` r
+        return PulseDb::executeS('SELECT r.*, j.name journey, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_crm_journey_run` r
             INNER JOIN `'._DB_PREFIX_.'pulse_crm_journey` j ON j.id_pulse_crm_journey=r.id_pulse_crm_journey
             LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=r.id_customer
             WHERE 1'.($idJourney ? ' AND r.id_pulse_crm_journey='.(int) $idJourney : '').($status ? ' AND r.status="'.pSQL($status).'"' : '').'
             ORDER BY r.next_run_at DESC LIMIT '.(int) $limit);
     }
-    public static function logs($idRun) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey_log` WHERE id_pulse_crm_journey_run='.(int) $idRun.' ORDER BY id_pulse_crm_journey_log'); }
+    public static function logs($idRun) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_journey_log` WHERE id_pulse_crm_journey_run='.(int) $idRun.' ORDER BY id_pulse_crm_journey_log'); }
 
     /**
      * Journeys that watch the calendar rather than an event: the mid-stay ping on night two, the T+90
@@ -286,13 +286,13 @@ class PulseCrmJourney
     {
         $out = array('mid_stay' => 0, 'lapsed' => 0, 'birthday' => 0, 'anniversary' => 0);
         if (PulseCrmService::tableExists('htl_booking_detail') && class_exists('HotelBookingDetail')) {
-            foreach (Db::getInstance()->executeS('SELECT id, id_customer, id_room FROM `'._DB_PREFIX_.'htl_booking_detail`
+            foreach (PulseDb::executeS('SELECT id, id_customer, id_room FROM `'._DB_PREFIX_.'htl_booking_detail`
                 WHERE is_cancelled=0 AND is_refunded=0 AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' AND DATEDIFF(CURDATE(), date_from)=2 AND DATEDIFF(date_to, CURDATE())>=1 LIMIT 200') as $b) {
                 $out['mid_stay'] += self::trigger('mid_stay', array('id_customer' => (int) $b['id_customer'], 'id_htl_booking' => (int) $b['id'], 'id_room' => (int) $b['id_room']));
             }
         }
         if (PulseCrmService::gp()) {
-            foreach (Db::getInstance()->executeS('SELECT gp.id_customer FROM `'._DB_PREFIX_.'pulse_guest_profile` gp INNER JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=gp.id_customer AND c.deleted=0
+            foreach (PulseDb::executeS('SELECT gp.id_customer FROM `'._DB_PREFIX_.'pulse_guest_profile` gp INNER JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=gp.id_customer AND c.deleted=0
                 WHERE gp.last_stay IS NOT NULL AND DATEDIFF(CURDATE(), gp.last_stay)=90 AND gp.blacklisted=0 LIMIT 200') as $g) {
                 $out['lapsed'] += self::trigger('lapsed', array('id_customer' => (int) $g['id_customer']));
             }
@@ -301,7 +301,7 @@ class PulseCrmJourney
             $ev = $o['type'] === 'anniversary' ? 'anniversary' : ($o['type'] === 'birthday' ? 'birthday' : null);
             if (!$ev) { continue; }
             $n = self::trigger($ev, array('id_customer' => (int) $o['id_customer'], 'occasion' => $o['type'], 'occasion_note' => $o['note']));
-            if ($n) { Db::getInstance()->update('pulse_crm_occasion', array('last_reminded' => date('Y-m-d')), 'id_pulse_crm_occasion='.(int) $o['id_pulse_crm_occasion']); }
+            if ($n) { PulseDb::update('pulse_crm_occasion', array('last_reminded' => date('Y-m-d')), 'id_pulse_crm_occasion='.(int) $o['id_pulse_crm_occasion']); }
             $out[$ev] += $n;
         }
         return $out;

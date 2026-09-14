@@ -7,7 +7,7 @@ function upgrade_module_1_1_0($module)
     $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), $sql);
     foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) {
         if (strpos($q, '--') === 0) { continue; }
-        try { Db::getInstance()->execute($q); } catch (Exception $e) { /* ALTER on already-upgraded table: ignore */ }
+        try { PulseDb::execute($q); } catch (Exception $e) { /* ALTER on already-upgraded table: ignore */ }
     }
     // new tabs (positions follow the order in the module's $tabs list)
     $parent = (int) Tab::getIdFromClassName('AdminPulseCore');
@@ -27,7 +27,7 @@ function upgrade_module_1_1_0($module)
     $walkInState = (int) Configuration::get('PULSE_FD_WALKIN_ORDER_STATE');
     if (!$walkInState || !Validate::isLoadedObject(new OrderState($walkInState))) {
         $paymentState = (int) Configuration::get('PS_OS_PAYMENT');
-        $walkInState = $paymentState && Validate::isLoadedObject(new OrderState($paymentState)) ? $paymentState : (int) Db::getInstance()->getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC');
+        $walkInState = $paymentState && Validate::isLoadedObject(new OrderState($paymentState)) ? $paymentState : (int) PulseDb::getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC');
         Configuration::updateValue('PULSE_FD_WALKIN_ORDER_STATE', $walkInState);
     }
     Configuration::updateValue('PULSE_FD_VERSION', '1.1.0');

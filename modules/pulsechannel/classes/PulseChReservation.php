@@ -18,7 +18,7 @@ class PulseChReservation
         if (!$channel) { throw new PrestaShopException('Unknown channel'); }
         $n = self::normalise($channel, $raw);
         if (empty($n['reference'])) { throw new PrestaShopException('Payload carries no channel reference — refusing to store an unidentifiable booking'); }
-        $existing = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_reservation` WHERE id_pulse_ch_channel='.(int) $idChannel.' AND channel_ref="'.pSQL($n['reference']).'"');
+        $existing = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_reservation` WHERE id_pulse_ch_channel='.(int) $idChannel.' AND channel_ref="'.pSQL($n['reference']).'"');
         if ($existing && $n['action'] === 'new' && in_array($existing['status'], array('delivered', 'modified'))) {
             PulseChLog::write($idChannel, 'in', 'reservation_in', $n['reference'], 200, json_encode($raw), 'duplicate — already delivered', 0, 'ok', null);
             return (int) $existing['id_pulse_ch_reservation'];
@@ -41,12 +41,12 @@ class PulseChReservation
         if ($map) { $row['id_product'] = (int) $map['id_product']; $row['id_pulse_ch_rate_plan'] = (int) $map['id_pulse_ch_rate_plan']; }
         if ($existing) {
             // an update to a known reference keeps its delivery state; process() decides what to do with the new action
-            Db::getInstance()->update('pulse_ch_reservation', $row, 'id_pulse_ch_reservation='.(int) $existing['id_pulse_ch_reservation'], 0, true);
+            PulseDb::update('pulse_ch_reservation', $row, 'id_pulse_ch_reservation='.(int) $existing['id_pulse_ch_reservation'], 0, true);
             $id = (int) $existing['id_pulse_ch_reservation'];
         } else {
             $row['status'] = 'received'; $row['date_add'] = date('Y-m-d H:i:s');
-            Db::getInstance()->insert('pulse_ch_reservation', $row, true);
-            $id = (int) Db::getInstance()->Insert_ID();
+            PulseDb::insert('pulse_ch_reservation', $row, true);
+            $id = (int) PulseDb::Insert_ID();
         }
         PulseChLog::write($idChannel, 'in', 'reservation_in', $n['reference'], 200, json_encode($raw), 'stored as #'.$id.' ('.$n['action'].', via '.$source.')', 0, 'ok', null);
         PulseCoreService::audit('pulsechannel', 'reservation_received', array('ref' => $n['reference'], 'action' => $n['action'], 'channel' => $channel['code']), 'pulse_ch_reservation', $id);
@@ -135,7 +135,7 @@ class PulseChReservation
         if (!$r['id_product']) {
             $map = PulseChMapping::resolve((int) $r['id_pulse_ch_channel'], $r['channel_room_code'], $r['channel_rate_code']);
             if (!$map) { throw new PrestaShopException('No mapping for room code "'.$r['channel_room_code'].'" / rate "'.$r['channel_rate_code'].'" — map it, then retry'); }
-            Db::getInstance()->update('pulse_ch_reservation', array('id_product' => (int) $map['id_product'], 'id_pulse_ch_rate_plan' => (int) $map['id_pulse_ch_rate_plan']), 'id_pulse_ch_reservation='.(int) $id);
+            PulseDb::update('pulse_ch_reservation', array('id_product' => (int) $map['id_product'], 'id_pulse_ch_rate_plan' => (int) $map['id_pulse_ch_rate_plan']), 'id_pulse_ch_reservation='.(int) $id);
             $r['id_product'] = (int) $map['id_product'];
         }
         if (!$r['date_from'] || !$r['date_to'] || $r['date_from'] >= $r['date_to']) { throw new PrestaShopException('Arrival/departure missing or inverted ('.$r['date_from'].' → '.$r['date_to'].')'); }
@@ -152,12 +152,12 @@ class PulseChReservation
         $comment = $channel['name'].' booking '.$r['channel_ref'].' ('.$r['channel_rate_code'].', '.$r['payment_type'].', commission '.$r['commission_pct'].'%)';
         $res = self::createBooking($guest, $r['date_from'], $r['date_to'], $rooms, array('source' => 'ota', 'comment' => $comment, 'channel' => $channel));
         $ids = $res['bookings'];
-        Db::getInstance()->update('pulse_ch_reservation', array(
+        PulseDb::update('pulse_ch_reservation', array(
             'status' => 'delivered', 'id_order' => (int) $res['id_order'], 'id_htl_booking' => $ids ? (int) $ids[0] : null, 'booking_ids' => pSQL(implode(',', $ids)),
             'id_customer' => (int) $res['id_customer'], 'overbooked' => $over['fits'] ? 0 : 1, 'error' => null,
             'delivered_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         ), 'id_pulse_ch_reservation='.(int) $id);
-        foreach ($ids as $b) { Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_booking_ext` (id_htl_booking, source) VALUES ('.(int) $b.',"ota") ON DUPLICATE KEY UPDATE source="ota"'); }
+        foreach ($ids as $b) { PulseDb::execute('INSERT INTO `'._DB_PREFIX_.'pulse_booking_ext` (id_htl_booking, source) VALUES ('.(int) $b.',"ota") ON DUPLICATE KEY UPDATE source="ota"'); }
         if (!$over['fits']) { self::raiseOverbookingAlert($r, $over); }
         PulseChAri::markDirty((int) $r['id_product'], $r['date_from'], $r['date_to'], 'ota_booking');
         self::ack($id);
@@ -172,7 +172,7 @@ class PulseChReservation
         $r = self::one($id);
         if (!$r || !$r['booking_ids']) { return self::deliver($id); }
         $ids = array_filter(array_map('intval', explode(',', $r['booking_ids'])));
-        $first = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) reset($ids));
+        $first = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) reset($ids));
         if (!$first) { return self::deliver($id); }
         $sameType = (int) $first['id_product'] === (int) $r['id_product'];
         $sameRooms = count($ids) === max(1, (int) $r['rooms']);
@@ -180,13 +180,13 @@ class PulseChReservation
             foreach ($ids as $b) { PulseReservation::changeDates($b, $r['date_to'], $r['date_from']); }
         } else {
             self::cancelBookings($ids, 'Replaced by OTA modification '.$r['channel_ref']);
-            Db::getInstance()->update('pulse_ch_reservation', array('status' => 'received', 'booking_ids' => null, 'id_htl_booking' => null), 'id_pulse_ch_reservation='.(int) $id);
+            PulseDb::update('pulse_ch_reservation', array('status' => 'received', 'booking_ids' => null, 'id_htl_booking' => null), 'id_pulse_ch_reservation='.(int) $id);
             self::deliver($id);
-            Db::getInstance()->update('pulse_ch_reservation', array('status' => 'modified', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id);
+            PulseDb::update('pulse_ch_reservation', array('status' => 'modified', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id);
             PulseCoreService::event('actionPulseChannelReservation', array('id_reservation' => (int) $id, 'action' => 'modify'));
             return true;
         }
-        Db::getInstance()->update('pulse_ch_reservation', array('status' => 'modified', 'error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id);
+        PulseDb::update('pulse_ch_reservation', array('status' => 'modified', 'error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id);
         PulseChAri::markDirty((int) $r['id_product'], min($first['date_from'], $r['date_from']), max($first['date_to'], $r['date_to']), 'ota_modify');
         self::ack($id);
         PulseCoreService::audit('pulsechannel', 'reservation_modified', array('ref' => $r['channel_ref']), 'pulse_ch_reservation', $id);
@@ -200,7 +200,7 @@ class PulseChReservation
         if (!$r) { return false; }
         $ids = $r['booking_ids'] ? array_filter(array_map('intval', explode(',', $r['booking_ids']))) : array();
         if ($ids) { self::cancelBookings($ids, 'Cancelled at '.$r['channel_ref']); }
-        Db::getInstance()->update('pulse_ch_reservation', array('status' => 'cancelled', 'error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id);
+        PulseDb::update('pulse_ch_reservation', array('status' => 'cancelled', 'error' => null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id);
         if ($r['id_product'] && $r['date_from']) { PulseChAri::markDirty((int) $r['id_product'], $r['date_from'], $r['date_to'], 'ota_cancel'); }
         self::ack($id);
         PulseCoreService::audit('pulsechannel', 'reservation_cancelled', array('ref' => $r['channel_ref'], 'bookings' => $ids), 'pulse_ch_reservation', $id);
@@ -212,9 +212,9 @@ class PulseChReservation
     protected static function cancelBookings(array $ids, $reason)
     {
         foreach ($ids as $b) {
-            $row = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $b);
+            $row = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $b);
             if (!$row || $row['is_cancelled']) { continue; }
-            Db::getInstance()->update('htl_booking_detail', array('is_cancelled' => 1, 'comment' => pSQL(trim((string) $row['comment'].' ['.$reason.']'))), 'id='.(int) $b);
+            PulseDb::update('htl_booking_detail', array('is_cancelled' => 1, 'comment' => pSQL(trim((string) $row['comment'].' ['.$reason.']'))), 'id='.(int) $b);
             if (PulseChService::fd() && class_exists('PulseRoom') && $row['id_room'] && (int) $row['id_status'] !== HotelBookingDetail::STATUS_CHECKED_IN) { PulseRoom::setFoStatus((int) $row['id_room'], 'vacant', null); }
         }
         return true;
@@ -228,14 +228,14 @@ class PulseChReservation
         $c = PulseChService::channel((int) $r['id_pulse_ch_channel']);
         if (!$c) { return false; }
         try { $res = PulseChService::adapter($c)->ackReservation($r['channel_ref']); } catch (Exception $e) { $res = array('ok' => false, 'error' => $e->getMessage()); }
-        if (!empty($res['ok'])) { Db::getInstance()->update('pulse_ch_reservation', array('acked' => 1, 'acked_at' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id); return true; }
+        if (!empty($res['ok'])) { PulseDb::update('pulse_ch_reservation', array('acked' => 1, 'acked_at' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id); return true; }
         PulseChLog::write((int) $c['id_pulse_ch_channel'], 'out', 'ack', $r['channel_ref'], null, $r['channel_ref'], '', 0, 'error', isset($res['error']) ? $res['error'] : 'ack failed');
         return false;
     }
 
     public static function fail($id, $error)
     {
-        Db::getInstance()->update('pulse_ch_reservation', array('status' => 'failed', 'error' => pSQL(Tools::substr((string) $error, 0, 250)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id);
+        PulseDb::update('pulse_ch_reservation', array('status' => 'failed', 'error' => pSQL(Tools::substr((string) $error, 0, 250)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $id);
         $r = self::one($id);
         PulseCoreService::audit('pulsechannel', 'reservation_failed', array('ref' => $r ? $r['channel_ref'] : $id, 'error' => $error), 'pulse_ch_reservation', $id);
         if ($r && class_exists('PulseTicket')) {
@@ -255,7 +255,7 @@ class PulseChReservation
     {
         if (class_exists('PulseReservation') && PulseChService::fd()) {
             $res = PulseReservation::create($guest, $from, $to, $rooms, array('source' => 'ota', 'comment' => $opts['comment'], 'payment_module' => Configuration::get('PULSE_CH_PAYMENT_MODULE')));
-            $idCustomer = (int) Db::getInstance()->getValue('SELECT id_customer FROM `'._DB_PREFIX_.'orders` WHERE id_order='.(int) $res['id_order']);
+            $idCustomer = (int) PulseDb::getValue('SELECT id_customer FROM `'._DB_PREFIX_.'orders` WHERE id_order='.(int) $res['id_order']);
             return array('id_order' => (int) $res['id_order'], 'bookings' => $res['bookings'], 'id_customer' => $idCustomer);
         }
         return self::createBookingStandalone($guest, $from, $to, $rooms, $opts);
@@ -273,9 +273,9 @@ class PulseChReservation
         $cart->add();
         $nights = max(1, (int) ((strtotime($to) - strtotime($from)) / 86400));
         foreach ($rooms as $r) {
-            $idHotel = (int) Db::getInstance()->getValue('SELECT id_hotel FROM `'._DB_PREFIX_.'htl_room_type` WHERE id_product='.(int) $r['id_product']);
+            $idHotel = (int) PulseDb::getValue('SELECT id_hotel FROM `'._DB_PREFIX_.'htl_room_type` WHERE id_product='.(int) $r['id_product']);
             $cart->updateQty($nights, (int) $r['id_product']);
-            Db::getInstance()->insert('htl_cart_booking_data', array(
+            PulseDb::insert('htl_cart_booking_data', array(
                 'id_cart' => (int) $cart->id, 'id_guest' => 0, 'id_customer' => (int) $customer->id, 'id_currency' => (int) $cart->id_currency,
                 'id_product' => (int) $r['id_product'], 'id_room' => 0, 'id_hotel' => $idHotel, 'booking_type' => 1, 'comment' => pSQL($opts['comment']),
                 'quantity' => $nights, 'date_from' => pSQL($from), 'date_to' => pSQL($to), 'adults' => (int) $r['adults'], 'children' => (int) $r['children'],
@@ -286,21 +286,21 @@ class PulseChReservation
         $pm = Module::getInstanceByName($modName);
         if (!$pm || !($pm instanceof PaymentModule)) { throw new PrestaShopException('Payment module "'.$modName.'" is not installed — set one in Channel Settings before delivering OTA bookings'); }
         $state = (int) Configuration::get('PS_OS_PAYMENT');
-        if (!$state || !Validate::isLoadedObject(new OrderState($state))) { $state = (int) Db::getInstance()->getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC'); }
+        if (!$state || !Validate::isLoadedObject(new OrderState($state))) { $state = (int) PulseDb::getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC'); }
         if (!$state) { throw new PrestaShopException('No usable order state — configure one before delivering OTA bookings'); }
         $pm->validateOrder((int) $cart->id, $state, $cart->getOrderTotal(true, Cart::BOTH), $opts['channel']['name'], $opts['comment'], array(), (int) $cart->id_currency, false, $customer->secure_key);
         $idOrder = (int) $pm->currentOrder;
         if (!$idOrder) { throw new PrestaShopException('QloApps refused to create the order for this channel booking'); }
         $ids = array(); $i = 0;
-        foreach (Db::getInstance()->executeS('SELECT id, id_product FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order='.$idOrder.' ORDER BY id') as $b) {
+        foreach (PulseDb::executeS('SELECT id, id_product FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order='.$idOrder.' ORDER BY id') as $b) {
             $ids[] = (int) $b['id'];
             $r = isset($rooms[$i]) ? $rooms[$i] : end($rooms); $i++;
             if (isset($r['rate_override']) && $r['rate_override'] > 0 && (int) $r['id_product'] === (int) $b['id_product']) {
                 $tax = (float) Configuration::get('PULSE_CH_TAX_PCT'); $total = round((float) $r['rate_override'] * $nights, 2);
-                Db::getInstance()->update('htl_booking_detail', array('total_price_tax_incl' => $total, 'total_price_tax_excl' => round($total / (1 + $tax / 100), 2)), 'id='.(int) $b['id']);
+                PulseDb::update('htl_booking_detail', array('total_price_tax_incl' => $total, 'total_price_tax_excl' => round($total / (1 + $tax / 100), 2)), 'id='.(int) $b['id']);
             }
         }
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'orders` o SET o.total_paid=(SELECT SUM(total_price_tax_incl) FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order=o.id_order), o.total_paid_tax_incl=o.total_paid, o.total_products_wt=o.total_paid WHERE o.id_order='.$idOrder);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'orders` o SET o.total_paid=(SELECT SUM(total_price_tax_incl) FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order=o.id_order), o.total_paid_tax_incl=o.total_paid, o.total_products_wt=o.total_paid WHERE o.id_order='.$idOrder);
         return array('id_order' => $idOrder, 'bookings' => $ids, 'id_customer' => (int) $customer->id);
     }
 
@@ -329,7 +329,7 @@ class PulseChReservation
         $worst = null;
         foreach ($grid as $d => $g) { if ($worst === null || $g['available'] < $worst['available']) { $worst = $g + array('date' => $d); } }
         if ($worst === null) { return array('fits' => true, 'short' => 0, 'date' => null, 'available' => 0, 'max_over' => 0); }
-        $maxOver = PulseChService::fd() ? (int) Db::getInstance()->getValue('SELECT max_over FROM `'._DB_PREFIX_.'pulse_overbooking` WHERE id_product='.(int) $idProduct) : 0;
+        $maxOver = PulseChService::fd() ? (int) PulseDb::getValue('SELECT max_over FROM `'._DB_PREFIX_.'pulse_overbooking` WHERE id_product='.(int) $idProduct) : 0;
         $capacity = (int) $worst['available'] + $maxOver;
         return array('fits' => $capacity >= (int) $rooms, 'short' => max(0, (int) $rooms - $capacity), 'date' => $worst['date'], 'available' => (int) $worst['available'], 'max_over' => $maxOver);
     }
@@ -357,13 +357,13 @@ class PulseChReservation
             $out['channels']++;
             if (empty($res['ok'])) { PulseChService::health((int) $c['id_pulse_ch_channel'], false, isset($res['error']) ? $res['error'] : 'pull failed'); continue; }
             PulseChService::health((int) $c['id_pulse_ch_channel'], true);
-            Db::getInstance()->update('pulse_ch_channel', array('last_pull' => date('Y-m-d H:i:s')), 'id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel']);
+            PulseDb::update('pulse_ch_channel', array('last_pull' => date('Y-m-d H:i:s')), 'id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel']);
             foreach ((array) $res['reservations'] as $raw) {
                 if (!is_array($raw)) { continue; }
                 $out['pulled']++;
                 try {
                     $id = self::receive((int) $c['id_pulse_ch_channel'], $raw, 'pull');
-                    $st = Db::getInstance()->getValue('SELECT status FROM `'._DB_PREFIX_.'pulse_ch_reservation` WHERE id_pulse_ch_reservation='.(int) $id);
+                    $st = PulseDb::getValue('SELECT status FROM `'._DB_PREFIX_.'pulse_ch_reservation` WHERE id_pulse_ch_reservation='.(int) $id);
                     if (in_array($st, array('delivered', 'modified', 'cancelled'))) { $out['delivered']++; } elseif ($st === 'failed') { $out['failed']++; }
                 } catch (Exception $e) {
                     $out['failed']++;
@@ -378,12 +378,12 @@ class PulseChReservation
 
     public static function one($id)
     {
-        return Db::getInstance()->getRow('SELECT r.*, c.name channel, c.code channel_code FROM `'._DB_PREFIX_.'pulse_ch_reservation` r LEFT JOIN `'._DB_PREFIX_.'pulse_ch_channel` c ON c.id_pulse_ch_channel=r.id_pulse_ch_channel WHERE r.id_pulse_ch_reservation='.(int) $id);
+        return PulseDb::getRow('SELECT r.*, c.name channel, c.code channel_code FROM `'._DB_PREFIX_.'pulse_ch_reservation` r LEFT JOIN `'._DB_PREFIX_.'pulse_ch_channel` c ON c.id_pulse_ch_channel=r.id_pulse_ch_channel WHERE r.id_pulse_ch_reservation='.(int) $id);
     }
 
     public static function listing($status = null, $idChannel = 0, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT r.*, c.name channel, pl.name room_type, o.reference order_ref, b.room_num
+        return PulseDb::executeS('SELECT r.*, c.name channel, pl.name room_type, o.reference order_ref, b.room_num
             FROM `'._DB_PREFIX_.'pulse_ch_reservation` r
             LEFT JOIN `'._DB_PREFIX_.'pulse_ch_channel` c ON c.id_pulse_ch_channel=r.id_pulse_ch_channel
             LEFT JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=r.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' AND pl.id_shop='.(int) Context::getContext()->shop->id.'
@@ -418,16 +418,16 @@ class PulseChReservation
         }
         if (isset($d['notes'])) { $upd['notes'] = pSQL(Tools::substr($d['notes'], 0, 250)); }
         $upd['status'] = 'received'; $upd['error'] = null;
-        Db::getInstance()->update('pulse_ch_reservation', $upd, 'id_pulse_ch_reservation='.(int) $id);
+        PulseDb::update('pulse_ch_reservation', $upd, 'id_pulse_ch_reservation='.(int) $id);
         PulseCoreService::audit('pulsechannel', 'reservation_manual_assign', $upd, 'pulse_ch_reservation', $id);
-        if (!empty($d['ignore'])) { Db::getInstance()->update('pulse_ch_reservation', array('status' => 'ignored', 'notes' => pSQL(isset($d['notes']) ? $d['notes'] : 'Ignored by operator')), 'id_pulse_ch_reservation='.(int) $id); return true; }
+        if (!empty($d['ignore'])) { PulseDb::update('pulse_ch_reservation', array('status' => 'ignored', 'notes' => pSQL(isset($d['notes']) ? $d['notes'] : 'Ignored by operator')), 'id_pulse_ch_reservation='.(int) $id); return true; }
         return self::process($id);
     }
 
     /** Production report: rooms, revenue, commission and net per channel over a range. */
     public static function production($from, $to)
     {
-        return Db::getInstance()->executeS('SELECT c.name channel, c.code, COUNT(*) bookings, SUM(r.rooms) rooms, SUM(DATEDIFF(r.date_to,r.date_from)*r.rooms) room_nights,
+        return PulseDb::executeS('SELECT c.name channel, c.code, COUNT(*) bookings, SUM(r.rooms) rooms, SUM(DATEDIFF(r.date_to,r.date_from)*r.rooms) room_nights,
                 ROUND(SUM(r.amount_tax_incl),2) gross, ROUND(SUM(r.commission_amount),2) commission, ROUND(SUM(r.net_amount),2) net,
                 ROUND(SUM(r.amount_tax_incl)/NULLIF(SUM(DATEDIFF(r.date_to,r.date_from)*r.rooms),0),2) adr
             FROM `'._DB_PREFIX_.'pulse_ch_reservation` r INNER JOIN `'._DB_PREFIX_.'pulse_ch_channel` c ON c.id_pulse_ch_channel=r.id_pulse_ch_channel

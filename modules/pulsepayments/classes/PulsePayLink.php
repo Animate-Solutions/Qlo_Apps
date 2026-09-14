@@ -15,7 +15,7 @@ class PulsePayLink
         $name = isset($d['customer_name']) ? $d['customer_name'] : '';
         $email = isset($d['customer_email']) ? $d['customer_email'] : '';
         if (!empty($d['id_htl_booking']) && (!$name || !$email)) {
-            $b = Db::getInstance()->getRow('SELECT b.id_customer, CONCAT(c.firstname," ",c.lastname) guest, c.email FROM `'._DB_PREFIX_.'htl_booking_detail` b LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer WHERE b.id='.(int) $d['id_htl_booking']);
+            $b = PulseDb::getRow('SELECT b.id_customer, CONCAT(c.firstname," ",c.lastname) guest, c.email FROM `'._DB_PREFIX_.'htl_booking_detail` b LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer WHERE b.id='.(int) $d['id_htl_booking']);
             if ($b) { $name = $name ?: $b['guest']; $email = $email ?: $b['email']; $d['id_customer'] = isset($d['id_customer']) ? $d['id_customer'] : $b['id_customer']; }
         }
         $row = array(
@@ -31,8 +31,8 @@ class PulsePayLink
             'note' => pSQL(Tools::substr(isset($d['note']) ? $d['note'] : '', 0, 255)), 'expires_at' => date('Y-m-d H:i:s', strtotime('+'.$hours.' hours')),
             'id_employee' => PulsePayService::emp(), 'business_date' => pSQL(PulsePayService::bd()), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         );
-        Db::getInstance()->insert('pulse_pay_link', $row, true);
-        $row['id_pulse_pay_link'] = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pay_link', $row, true);
+        $row['id_pulse_pay_link'] = (int) PulseDb::Insert_ID();
         PulseCoreService::audit('pulsepayments', 'link_create', array('amount' => $amount, 'purpose' => $row['purpose'], 'short' => $row['short_code']), 'pulse_pay_link', $row['id_pulse_pay_link']);
         return $row;
     }
@@ -41,7 +41,7 @@ class PulsePayLink
     protected static function shortCode()
     {
         $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        do { $c = ''; for ($i = 0; $i < 6; $i++) { $c .= $alphabet[mt_rand(0, Tools::strlen($alphabet) - 1)]; } } while (Db::getInstance()->getValue('SELECT id_pulse_pay_link FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE short_code="'.pSQL($c).'"'));
+        do { $c = ''; for ($i = 0; $i < 6; $i++) { $c .= $alphabet[mt_rand(0, Tools::strlen($alphabet) - 1)]; } } while (PulseDb::getValue('SELECT id_pulse_pay_link FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE short_code="'.pSQL($c).'"'));
         return $c;
     }
 
@@ -52,7 +52,7 @@ class PulsePayLink
     {
         $token = preg_replace('/[^A-Za-z0-9]/', '', (string) $token);
         if ($token === '') { return null; }
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE token="'.pSQL($token).'" OR short_code="'.pSQL(Tools::strtoupper($token)).'"');
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE token="'.pSQL($token).'" OR short_code="'.pSQL(Tools::strtoupper($token)).'"');
     }
 
     /** open / paid / expired / used-up, with what is still owed. */
@@ -68,7 +68,7 @@ class PulsePayLink
     }
 
     public static function usable(array $l) { return $l['status'] === 'open' && (int) $l['uses'] < (int) $l['max_uses'] && (!$l['expires_at'] || strtotime($l['expires_at']) >= time()); }
-    public static function setStatus($id, $status) { Db::getInstance()->update('pulse_pay_link', array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_link='.(int) $id); }
+    public static function setStatus($id, $status) { PulseDb::update('pulse_pay_link', array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_link='.(int) $id); }
     public static function cancel($id) { self::setStatus($id, 'cancelled'); PulseCoreService::audit('pulsepayments', 'link_cancel', null, 'pulse_pay_link', (int) $id); }
 
     /**
@@ -80,33 +80,33 @@ class PulsePayLink
     {
         if (!empty($tx['id_pulse_pay_transaction'])) {
             $key = !empty($tx['gateway_ref']) ? $tx['gateway_ref'] : $tx['reference'];
-            Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_pay_posting` (id_pulse_pay_transaction, gateway_ref, purpose, id_target, amount, date_add) VALUES ('.(int) $tx['id_pulse_pay_transaction'].',"'.pSQL($key).'","link",'.(int) $link['id_pulse_pay_link'].','.(float) $amount.',"'.date('Y-m-d H:i:s').'")');
-            if (!Db::getInstance()->Affected_Rows()) { return $link['status']; }
+            PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_pay_posting` (id_pulse_pay_transaction, gateway_ref, purpose, id_target, amount, date_add) VALUES ('.(int) $tx['id_pulse_pay_transaction'].',"'.pSQL($key).'","link",'.(int) $link['id_pulse_pay_link'].','.(float) $amount.',"'.date('Y-m-d H:i:s').'")');
+            if (!PulseDb::Affected_Rows()) { return $link['status']; }
         }
         $paid = round((float) $link['amount_paid'] + (float) $amount, 2);
         $uses = (int) $link['uses'] + 1;
         $status = ($link['amount'] > 0 && $paid + 0.009 >= (float) $link['amount']) || $uses >= (int) $link['max_uses'] ? 'paid' : ($paid > 0 ? 'partly_paid' : 'open');
-        Db::getInstance()->update('pulse_pay_link', array('amount_paid' => $paid, 'uses' => $uses, 'status' => pSQL($status), 'paid_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_link='.(int) $link['id_pulse_pay_link']);
+        PulseDb::update('pulse_pay_link', array('amount_paid' => $paid, 'uses' => $uses, 'status' => pSQL($status), 'paid_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_link='.(int) $link['id_pulse_pay_link']);
         return $status;
     }
 
     public static function all($status = null, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT l.*, ROUND(l.amount-l.amount_paid,2) outstanding, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_pay_link` l LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=l.id_employee'.($status ? ' WHERE l.status="'.pSQL($status).'"' : '').' ORDER BY l.id_pulse_pay_link DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT l.*, ROUND(l.amount-l.amount_paid,2) outstanding, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_pay_link` l LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=l.id_employee'.($status ? ' WHERE l.status="'.pSQL($status).'"' : '').' ORDER BY l.id_pulse_pay_link DESC LIMIT '.(int) $limit);
     }
 
     /** Mark links nobody used as expired; run from the sweep cron. */
     public static function expireStale()
     {
-        $n = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE status IN ("open","partly_paid") AND expires_at IS NOT NULL AND expires_at<NOW()');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_pay_link` SET status="expired", date_upd=NOW() WHERE status IN ("open","partly_paid") AND expires_at IS NOT NULL AND expires_at<NOW()');
+        $n = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE status IN ("open","partly_paid") AND expires_at IS NOT NULL AND expires_at<NOW()');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_pay_link` SET status="expired", date_upd=NOW() WHERE status IN ("open","partly_paid") AND expires_at IS NOT NULL AND expires_at<NOW()');
         return $n;
     }
 
     /** Email the link to the guest through Pulse Comms when it is installed. */
     public static function send(array $link)
     {
-        Db::getInstance()->update('pulse_pay_link', array('sent_at' => date('Y-m-d H:i:s')), 'id_pulse_pay_link='.(int) $link['id_pulse_pay_link']);
+        PulseDb::update('pulse_pay_link', array('sent_at' => date('Y-m-d H:i:s')), 'id_pulse_pay_link='.(int) $link['id_pulse_pay_link']);
         if (!class_exists('PulseComms') || !$link['id_customer']) { return false; }
         $c = new Customer((int) $link['id_customer']);
         if (!Validate::isLoadedObject($c)) { return false; }

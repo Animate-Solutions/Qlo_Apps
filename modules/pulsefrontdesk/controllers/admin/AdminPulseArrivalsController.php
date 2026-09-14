@@ -12,7 +12,7 @@ class AdminPulseArrivalsController extends ModuleAdminController
             'date' => $date, 'business_date' => PulseCoreService::businessDate(),
             'arrivals' => PulseFdService::arrivals($date), 'departures' => PulseFdService::departures($date), 'inhouse' => PulseFdService::inHouse(),
             'ajax_url' => $this->context->link->getAdminLink('AdminPulseRoomBoard'), 'folio_url' => $this->context->link->getAdminLink('AdminPulseFolio'),
-            'payment_codes' => PulseChargeCode::all(1), 'companies' => Db::getInstance()->executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'),
+            'payment_codes' => PulseChargeCode::all(1), 'companies' => PulseDb::executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'),
             'currencies' => Currency::getCurrencies(false, true),
             'checkin_time' => Configuration::get('PULSE_FD_CHECKIN_TIME'), 'checkout_time' => Configuration::get('PULSE_FD_CHECKOUT_TIME'),
         ));

@@ -123,9 +123,9 @@ class PulseChannelApiModuleFrontController extends PulseApiController
         $c = $this->channelOr(isset($body['id_channel']) ? $body['id_channel'] : Tools::getValue('id_channel'));
         $ref = isset($body['reference']) ? $body['reference'] : Tools::getValue('reference');
         if (!$ref) { throw new PrestaShopException('reference is required', 400); }
-        $r = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_reservation` WHERE id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND channel_ref="'.pSQL($ref).'"');
+        $r = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_reservation` WHERE id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND channel_ref="'.pSQL($ref).'"');
         if (!$r) { throw new PrestaShopException('Unknown reference '.$ref, 404); }
-        Db::getInstance()->update('pulse_ch_reservation', array('acked' => 1, 'acked_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $r['id_pulse_ch_reservation']);
+        PulseDb::update('pulse_ch_reservation', array('acked' => 1, 'acked_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_reservation='.(int) $r['id_pulse_ch_reservation']);
         PulseChLog::write((int) $c['id_pulse_ch_channel'], 'in', 'ack', $ref, 200, json_encode($body), 'acked', 0, 'ok', null);
         return array('reference' => $ref, 'acked' => true, 'status' => $r['status']);
     }

@@ -35,7 +35,7 @@ class PulsePrStatutoryNigeria extends PulsePrStatutoryGeneric
         $w = array();
         if (!PulsePrStatutory::bands('NG', date('Y-m-d'))) { $w[] = 'No Nigerian PAYE bands are in force today — check the effective dates on the Statutory screen.'; }
         if (!(int) PulsePrService::cfg('EMPLOYER_STAFF_COUNT', 0)) { $w[] = 'Set the employer headcount and annual turnover in Payroll Settings: the ITF liability only arises at five or more employees or N50m turnover. Until they are set the module falls back to the live payroll roster ('.PulsePrService::employerStaffCount().' staff) for the size tests.'; }
-        $noPfa = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status NOT IN ("exited") AND (rsa_pin="" OR pfa="")');
+        $noPfa = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status NOT IN ("exited") AND (rsa_pin="" OR pfa="")');
         if ($noPfa) { $w[] = $noPfa.' active staff have no RSA PIN or PFA on file — their pension remittance line cannot be filed.'; }
         return $w;
     }

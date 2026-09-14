@@ -22,7 +22,8 @@ class PulseInventory extends Module
         if (!parent::install()) { return false; }
         foreach ($this->hooks as $h) { if (!$this->registerHook($h)) { return false; } }
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/install.sql'));
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (strpos($q, '--') !== 0 && !Db::getInstance()->execute($q)) { return false; } }
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (!PulseDb::execute($q)) { return false; } }
         $parent = (int) Tab::getIdFromClassName('AdminPulseCore'); $i = 70;
         foreach ($this->tabs as $c => $n) { $t = new Tab(); $t->class_name = $c; $t->module = $this->name; $t->id_parent = $parent; $t->position = $i++; foreach (Language::getLanguages(true) as $l) { $t->name[$l['id_lang']] = $n; } if (!$t->add()) { return false; } }
         foreach (array('PULSE_INV_PO_APPROVAL_LIMIT' => 200000, 'PULSE_INV_AUTO_AMENITY' => 1, 'PULSE_INV_EXPIRY_DAYS' => 30, 'PULSE_INV_CRON_TOKEN' => Tools::passwdGen(32), 'PULSE_INV_MINIBAR_CHECKOUT_TRACE' => 1) as $k => $v) { Configuration::updateValue($k, $v); }
@@ -33,7 +34,7 @@ class PulseInventory extends Module
     {
         foreach ($this->tabs as $c => $n) { if ($id = (int) Tab::getIdFromClassName($c)) { $t = new Tab($id); $t->delete(); } }
         foreach (array('PO_APPROVAL_LIMIT', 'AUTO_AMENITY', 'EXPIRY_DAYS', 'CRON_TOKEN', 'MINIBAR_CHECKOUT_TRACE') as $k) { Configuration::deleteByName('PULSE_INV_'.$k); }
-        foreach (array_filter(array_map('trim', explode("\n", Tools::file_get_contents(dirname(__FILE__).'/sql/uninstall.sql')))) as $q) { Db::getInstance()->execute(str_replace('PREFIX_', _DB_PREFIX_, $q)); }
+        foreach (array_filter(array_map('trim', explode("\n", Tools::file_get_contents(dirname(__FILE__).'/sql/uninstall.sql')))) as $q) { PulseDb::execute(str_replace('PREFIX_', _DB_PREFIX_, $q)); }
         return parent::uninstall();
     }
     public function getContent() { Tools::redirectAdmin($this->context->link->getAdminLink('AdminPulseInventory')); }
@@ -52,7 +53,7 @@ class PulseInventory extends Module
     public function hookActionPulseBeforeCheckOut($p)
     {
         if (!Configuration::get('PULSE_INV_MINIBAR_CHECKOUT_TRACE') || empty($p['id_room']) || !class_exists('PulseTrace')) { return; }
-        if (!Db::getInstance()->getValue('SELECT id_pulse_inv_minibar_post FROM `'._DB_PREFIX_.'pulse_inv_minibar_post` WHERE id_room='.(int) $p['id_room'].' AND business_date="'.pSQL(PulseInvService::bd()).'"') && Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_inv_minibar_item`')) { PulseTrace::add('alert', 'Minibar not checked today before check-out — room '.(int) $p['id_room'], date('Y-m-d H:i:s'), (int) $p['booking']['id'], (int) $p['id_room'], null, 'housekeeping'); }
+        if (!PulseDb::getValue('SELECT id_pulse_inv_minibar_post FROM `'._DB_PREFIX_.'pulse_inv_minibar_post` WHERE id_room='.(int) $p['id_room'].' AND business_date="'.pSQL(PulseInvService::bd()).'"') && PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_inv_minibar_item`')) { PulseTrace::add('alert', 'Minibar not checked today before check-out — room '.(int) $p['id_room'], date('Y-m-d H:i:s'), (int) $p['booking']['id'], (int) $p['id_room'], null, 'housekeeping'); }
     }
     public function hookActionPulseInvRequest($p) {} public function hookActionPulseInvReceived($p) {} public function hookActionPulseMinibarPost($p) {}
 }

@@ -9,7 +9,7 @@ class PulseChMapping
 {
     public static function all($idChannel = 0, $activeOnly = false)
     {
-        return Db::getInstance()->executeS('SELECT m.*, pl.name room_type, rp.code rate_plan_code, rp.name rate_plan, rp.meal_plan, c.name channel, c.code channel_code, c.currency_iso,
+        return PulseDb::executeS('SELECT m.*, pl.name room_type, rp.code rate_plan_code, rp.name rate_plan, rp.meal_plan, c.name channel, c.code channel_code, c.currency_iso,
                 (SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_room_information` r WHERE r.id_product=m.id_product AND r.id_status=1) rooms
             FROM `'._DB_PREFIX_.'pulse_ch_mapping` m
             INNER JOIN `'._DB_PREFIX_.'pulse_ch_channel` c ON c.id_pulse_ch_channel=m.id_pulse_ch_channel
@@ -22,7 +22,7 @@ class PulseChMapping
     /** Active mappings a push actually uses: channel enabled, mapping active, codes filled in. */
     public static function pushable($idChannel)
     {
-        return Db::getInstance()->executeS('SELECT m.*, rp.code rate_plan_code, rp.derive_from, rp.adjust_type rp_adjust_type, rp.adjust_value rp_adjust_value, rp.min_los rp_min_los, rp.max_los rp_max_los, rp.release_days rp_release_days
+        return PulseDb::executeS('SELECT m.*, rp.code rate_plan_code, rp.derive_from, rp.adjust_type rp_adjust_type, rp.adjust_value rp_adjust_value, rp.min_los rp_min_los, rp.max_los rp_max_los, rp.release_days rp_release_days
             FROM `'._DB_PREFIX_.'pulse_ch_mapping` m INNER JOIN `'._DB_PREFIX_.'pulse_ch_rate_plan` rp ON rp.id_pulse_ch_rate_plan=m.id_pulse_ch_rate_plan
             WHERE m.id_pulse_ch_channel='.(int) $idChannel.' AND m.active=1 AND rp.active=1 AND m.channel_room_code<>"" AND m.channel_rate_code<>"" ORDER BY m.id_product, rp.sort');
     }
@@ -32,8 +32,8 @@ class PulseChMapping
     {
         $out = array();
         foreach (PulseChService::channels(true) as $c) {
-            foreach (Db::getInstance()->executeS(PulseChService::roomTypeSql()) as $rt) {
-                $n = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND id_product='.(int) $rt['id_product'].' AND active=1 AND channel_room_code<>""');
+            foreach (PulseDb::executeS(PulseChService::roomTypeSql()) as $rt) {
+                $n = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel'].' AND id_product='.(int) $rt['id_product'].' AND active=1 AND channel_room_code<>""');
                 if (!$n) { $out[] = array('id_pulse_ch_channel' => (int) $c['id_pulse_ch_channel'], 'channel' => $c['name'], 'id_product' => (int) $rt['id_product'], 'room_type' => $rt['name'], 'rooms' => (int) $rt['rooms']); }
             }
         }
@@ -43,7 +43,7 @@ class PulseChMapping
     /** Mappings whose codes are blank, or whose rate plan was deactivated — silently dead cells. */
     public static function broken()
     {
-        return Db::getInstance()->executeS('SELECT m.*, c.name channel, pl.name room_type, rp.name rate_plan, rp.active rp_active
+        return PulseDb::executeS('SELECT m.*, c.name channel, pl.name room_type, rp.name rate_plan, rp.active rp_active
             FROM `'._DB_PREFIX_.'pulse_ch_mapping` m INNER JOIN `'._DB_PREFIX_.'pulse_ch_channel` c ON c.id_pulse_ch_channel=m.id_pulse_ch_channel
             LEFT JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=m.id_product AND pl.id_lang='.(int) Context::getContext()->language->id.' AND pl.id_shop='.(int) Context::getContext()->shop->id.'
             LEFT JOIN `'._DB_PREFIX_.'pulse_ch_rate_plan` rp ON rp.id_pulse_ch_rate_plan=m.id_pulse_ch_rate_plan
@@ -63,9 +63,9 @@ class PulseChMapping
             'active' => !empty($d['active']) ? 1 : 0, 'date_upd' => date('Y-m-d H:i:s'),
         );
         if (!$row['id_pulse_ch_channel'] || !$row['id_product'] || !$row['id_pulse_ch_rate_plan']) { throw new PrestaShopException('Channel, room type and rate plan are all required'); }
-        if ($id) { Db::getInstance()->update('pulse_ch_mapping', $row, 'id_pulse_ch_mapping='.$id); } else {
-            $dup = (int) Db::getInstance()->getValue('SELECT id_pulse_ch_mapping FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.$row['id_pulse_ch_channel'].' AND id_product='.$row['id_product'].' AND id_pulse_ch_rate_plan='.$row['id_pulse_ch_rate_plan']);
-            if ($dup) { Db::getInstance()->update('pulse_ch_mapping', $row, 'id_pulse_ch_mapping='.$dup); $id = $dup; } else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_ch_mapping', $row); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_ch_mapping', $row, 'id_pulse_ch_mapping='.$id); } else {
+            $dup = (int) PulseDb::getValue('SELECT id_pulse_ch_mapping FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.$row['id_pulse_ch_channel'].' AND id_product='.$row['id_product'].' AND id_pulse_ch_rate_plan='.$row['id_pulse_ch_rate_plan']);
+            if ($dup) { PulseDb::update('pulse_ch_mapping', $row, 'id_pulse_ch_mapping='.$dup); $id = $dup; } else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert('pulse_ch_mapping', $row); $id = (int) PulseDb::Insert_ID(); }
         }
         PulseChAri::markDirty($row['id_product'], PulseChService::businessDate(), date('Y-m-d', strtotime(PulseChService::businessDate().' +'.PulseChService::windowDays().' day')), 'mapping', $row['id_pulse_ch_channel']);
         PulseCoreService::audit('pulsechannel', 'mapping_save', $row, 'pulse_ch_mapping', $id);
@@ -74,10 +74,10 @@ class PulseChMapping
 
     public static function delete($id)
     {
-        $m = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_mapping='.(int) $id);
+        $m = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_mapping='.(int) $id);
         if (!$m) { return false; }
-        Db::getInstance()->delete('pulse_ch_ari', 'id_pulse_ch_channel='.(int) $m['id_pulse_ch_channel'].' AND id_product='.(int) $m['id_product'].' AND id_pulse_ch_rate_plan='.(int) $m['id_pulse_ch_rate_plan']);
-        Db::getInstance()->delete('pulse_ch_mapping', 'id_pulse_ch_mapping='.(int) $id);
+        PulseDb::delete('pulse_ch_ari', 'id_pulse_ch_channel='.(int) $m['id_pulse_ch_channel'].' AND id_product='.(int) $m['id_product'].' AND id_pulse_ch_rate_plan='.(int) $m['id_pulse_ch_rate_plan']);
+        PulseDb::delete('pulse_ch_mapping', 'id_pulse_ch_mapping='.(int) $id);
         PulseCoreService::audit('pulsechannel', 'mapping_delete', $m, 'pulse_ch_mapping', $id);
         return true;
     }
@@ -96,8 +96,8 @@ class PulseChMapping
     /** Resolve an inbound channel room/rate code back to our ids. Falls back to room code alone when the rate code is unknown. */
     public static function resolve($idChannel, $roomCode, $rateCode)
     {
-        $m = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.(int) $idChannel.' AND channel_room_code="'.pSQL(trim($roomCode)).'" AND channel_rate_code="'.pSQL(trim($rateCode)).'" AND active=1');
+        $m = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.(int) $idChannel.' AND channel_room_code="'.pSQL(trim($roomCode)).'" AND channel_rate_code="'.pSQL(trim($rateCode)).'" AND active=1');
         if ($m) { return $m; }
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.(int) $idChannel.' AND channel_room_code="'.pSQL(trim($roomCode)).'" AND active=1 ORDER BY id_pulse_ch_mapping LIMIT 1');
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_channel='.(int) $idChannel.' AND channel_room_code="'.pSQL(trim($roomCode)).'" AND active=1 ORDER BY id_pulse_ch_mapping');
     }
 }

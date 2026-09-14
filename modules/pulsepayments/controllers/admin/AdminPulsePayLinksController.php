@@ -11,7 +11,7 @@ class AdminPulsePayLinksController extends ModuleAdminController
         foreach ($rows as &$r) { $r['url'] = PulsePayLink::url($r); $r['short_url'] = PulsePayLink::shortUrl($r); }
         $this->context->smarty->assign(array(
             'rows' => $rows, 'status' => Tools::getValue('status'), 'self_url' => self::$currentIndex.'&token='.$this->token,
-            'inhouse' => PulsePayService::fd() ? Db::getInstance()->executeS('SELECT f.id_pulse_folio, f.folio_no, f.balance, f.id_htl_booking, r.room_num, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_folio` f LEFT JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=f.id_htl_booking LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=f.id_customer WHERE f.status="open" AND f.type="guest" ORDER BY r.room_num') : array(),
+            'inhouse' => PulsePayService::fd() ? PulseDb::executeS('SELECT f.id_pulse_folio, f.folio_no, f.balance, f.id_htl_booking, r.room_num, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_folio` f LEFT JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=f.id_htl_booking LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=f.id_customer WHERE f.status="open" AND f.type="guest" ORDER BY r.room_num') : array(),
             'gateways' => PulsePayService::gateways(true), 'comms' => class_exists('PulseComms'), 'currency' => $this->context->currency->sign, 'default_hours' => (int) Configuration::get('PULSE_PAY_LINK_HOURS'),
         ));
         $this->setTemplate('links.tpl');

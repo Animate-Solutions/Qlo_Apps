@@ -15,7 +15,7 @@ class AdminPulseHrLeaveController extends ModuleAdminController
             'pending' => PulseHrLeave::pending(), 'recent' => PulseHrLeave::requests('approved,rejected,cancelled,taken', $dept, 0, 60),
             'calendar' => $cal, 'cal_dates' => PulseHrRoster::rangeDates($from, $to), 'on_leave' => PulseHrLeave::onLeave(),
             'types' => PulseHrLeave::types(false), 'entitlements' => PulseHrLeave::entitlements(), 'grades' => PulseHrService::grades(),
-            'blackouts' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_blackout` ORDER BY date_from DESC'),
+            'blackouts' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_blackout` ORDER BY date_from DESC'),
             'liability' => PulseHrLeave::liability((int) Tools::getValue('year', date('Y'))), 'departments' => PulseHrService::departments(),
             'staff' => PulseHrEmployee::search(array('limit' => 400)), 'from' => $from, 'to' => $to, 'department' => $dept,
             'business_date' => PulseHrService::bd(), 'occupancy' => PulseHrService::occupancyPct(PulseHrService::bd()),

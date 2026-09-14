@@ -1,5 +1,3 @@
-{extends file='page.tpl'}
-{block name='page_content'}
 <div class="pulse-guest pulse-crm-unsub" style="max-width:520px;margin:0 auto;padding:16px;font:16px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
 {if !$r}
   <h2>That link is not valid</h2>
@@ -24,4 +22,4 @@
   </form>
 {/if}
 </div>
-{/block}
+

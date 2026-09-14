@@ -7,17 +7,17 @@ class AdminPulseGuestPortalDevicesController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
-        $rooms = Db::getInstance()->executeS('SELECT r.id id_room, r.room_num, r.floor, (SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_gp_device` d WHERE d.id_room=r.id AND d.status<>"retired") devices FROM `'._DB_PREFIX_.'htl_room_information` r ORDER BY r.floor, r.room_num');
+        $rooms = PulseDb::executeS('SELECT r.id id_room, r.room_num, r.floor, (SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_gp_device` d WHERE d.id_room=r.id AND d.status<>"retired") devices FROM `'._DB_PREFIX_.'htl_room_information` r ORDER BY r.floor, r.room_num');
         $q = Tools::getValue('q', '');
         $where = 'd.status<>"retired"';
         if ($q !== '') { $where .= ' AND (d.uid LIKE "%'.pSQL($q).'%" OR d.mac LIKE "%'.pSQL($q).'%" OR d.serial LIKE "%'.pSQL($q).'%" OR d.room_num LIKE "%'.pSQL($q).'%" OR d.label LIKE "%'.pSQL($q).'%")'; }
         if (Tools::getValue('only') === 'pending') { $where .= ' AND d.status="pending"'; }
         if (Tools::getValue('only') === 'offline') { $where .= ' AND (d.last_seen IS NULL OR d.last_seen<DATE_SUB(NOW(), INTERVAL '.(int) PulseGpService::cfg('OFFLINE_MIN', 5).' MINUTE))'; }
-        $rows = Db::getInstance()->executeS('SELECT d.*, r.room_num rn, r.floor fl FROM `'._DB_PREFIX_.'pulse_gp_device` d LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=d.id_room WHERE '.$where.' ORDER BY d.status="pending" DESC, COALESCE(r.floor,d.floor), COALESCE(r.room_num,d.room_num), d.id_pulse_gp_device LIMIT 400');
+        $rows = PulseDb::executeS('SELECT d.*, r.room_num rn, r.floor fl FROM `'._DB_PREFIX_.'pulse_gp_device` d LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=d.id_room WHERE '.$where.' ORDER BY d.status="pending" DESC, COALESCE(r.floor,d.floor), COALESCE(r.room_num,d.room_num), d.id_pulse_gp_device LIMIT 400');
         foreach ($rows as &$d) { $d['online'] = PulseGpDevice::online($d) ? 1 : 0; $d['pair_code'] = PulseGpDevice::pairCode($d); $d['room_num'] = $d['rn'] ? $d['rn'] : $d['room_num']; }
         $this->context->smarty->assign(array(
             'devices' => $rows, 'rooms' => $rooms, 'counts' => PulseGpDevice::counts(), 'q' => $q, 'only' => Tools::getValue('only', ''),
-            'commands' => Db::getInstance()->executeS('SELECT c.*, d.room_num, d.label FROM `'._DB_PREFIX_.'pulse_gp_command` c INNER JOIN `'._DB_PREFIX_.'pulse_gp_device` d ON d.id_pulse_gp_device=c.id_pulse_gp_device ORDER BY c.id_pulse_gp_command DESC LIMIT 30'),
+            'commands' => PulseDb::executeS('SELECT c.*, d.room_num, d.label FROM `'._DB_PREFIX_.'pulse_gp_command` c INNER JOIN `'._DB_PREFIX_.'pulse_gp_device` d ON d.id_pulse_gp_device=c.id_pulse_gp_device ORDER BY c.id_pulse_gp_command DESC LIMIT 30'),
             'portal_url' => $this->context->link->getModuleLink('pulseguestportal', 'portal', array(), true),
             'offline_min' => (int) PulseGpService::cfg('OFFLINE_MIN', 5), 'wipe_policy' => PulseGpService::cfg('WIPE_POLICY', 'wipe'),
             'self_url' => self::$currentIndex.'&token='.$this->token,

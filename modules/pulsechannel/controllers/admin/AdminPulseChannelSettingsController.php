@@ -65,7 +65,7 @@ class AdminPulseChannelSettingsController extends ModuleAdminController
             }
             if (Tools::isSubmit('toggleChannel')) {
                 $c = PulseChService::channel((int) Tools::getValue('id_channel_t'));
-                if ($c) { Db::getInstance()->update('pulse_ch_channel', array('enabled' => $c['enabled'] ? 0 : 1, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel']); $this->confirmations[] = $c['name'].($c['enabled'] ? ' '.$this->l('disabled') : ' '.$this->l('enabled')); }
+                if ($c) { PulseDb::update('pulse_ch_channel', array('enabled' => $c['enabled'] ? 0 : 1, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_channel='.(int) $c['id_pulse_ch_channel']); $this->confirmations[] = $c['name'].($c['enabled'] ? ' '.$this->l('disabled') : ' '.$this->l('enabled')); }
             }
             if (Tools::isSubmit('testChannel')) {
                 $c = PulseChService::channel((int) Tools::getValue('id_channel_t'));
@@ -76,8 +76,8 @@ class AdminPulseChannelSettingsController extends ModuleAdminController
             }
             if (Tools::isSubmit('deleteChannel')) {
                 $id = (int) Tools::getValue('id_channel_t');
-                foreach (array('pulse_ch_ari', 'pulse_ch_queue', 'pulse_ch_mapping') as $t) { Db::getInstance()->delete($t, 'id_pulse_ch_channel='.$id); }
-                Db::getInstance()->delete('pulse_ch_channel', 'id_pulse_ch_channel='.$id);
+                foreach (array('pulse_ch_ari', 'pulse_ch_queue', 'pulse_ch_mapping') as $t) { PulseDb::delete($t, 'id_pulse_ch_channel='.$id); }
+                PulseDb::delete('pulse_ch_channel', 'id_pulse_ch_channel='.$id);
                 $this->confirmations[] = $this->l('Channel removed. Delivered reservations and logs are kept for audit.');
             }
             if (Tools::isSubmit('rotateSecret')) { Configuration::updateValue('PULSE_CH_API_SECRET', Tools::passwdGen(48)); $this->confirmations[] = $this->l('Webhook secret rotated — give partners the new value.'); }

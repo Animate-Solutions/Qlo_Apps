@@ -5,12 +5,12 @@ class AdminPulseMaintenanceController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
-        $common = array('self_url' => self::$currentIndex.'&token='.$this->token, 'techs' => Employee::getEmployees(), 'parts' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_part` WHERE active=1 ORDER BY name'), 'fd' => PulseMaintenanceService::fd());
+        $common = array('self_url' => self::$currentIndex.'&token='.$this->token, 'techs' => Employee::getEmployees(), 'parts' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_part` WHERE active=1 ORDER BY name'), 'fd' => PulseMaintenanceService::fd());
         if ($id = (int) Tools::getValue('id_wo')) { $this->context->smarty->assign($common + array('w' => PulseMaintenanceService::wo($id))); return $this->setTemplate('wo.tpl'); }
         $from = Tools::getValue('from', date('Y-m-01')); $to = Tools::getValue('to', date('Y-m-d')); $mine = (bool) Tools::getValue('mine');
         $this->context->smarty->assign($common + array(
             'queue' => PulseMaintenanceService::queue('open,assigned,in_progress,on_hold', $mine ? (int) $this->context->employee->id : null), 'mine' => $mine,
-            'recent' => PulseMaintenanceService::queue('completed,verified'), 'rooms' => Db::getInstance()->executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY floor, room_num'), 'assets' => Db::getInstance()->executeS('SELECT id_pulse_asset, code, name FROM `'._DB_PREFIX_.'pulse_asset` WHERE status<>"retired" ORDER BY name'),
+            'recent' => PulseMaintenanceService::queue('completed,verified'), 'rooms' => PulseDb::executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY floor, room_num'), 'assets' => PulseDb::executeS('SELECT id_pulse_asset, code, name FROM `'._DB_PREFIX_.'pulse_asset` WHERE status<>"retired" ORDER BY name'),
             'from' => $from, 'to' => $to, 'kpi' => PulseMaintenanceService::kpis($from, $to), 'by_cat' => PulseMaintenanceService::byCategory($from, $to), 'by_asset' => PulseMaintenanceService::byAsset($from, $to), 'by_room' => PulseMaintenanceService::byRoom($from, $to), 'by_tech' => PulseMaintenanceService::technicians($from, $to), 'low_stock' => PulseMaintenanceService::lowStock(),
             'categories' => array('hvac', 'electrical', 'plumbing', 'generator', 'kitchen', 'laundry', 'it', 'elevator', 'fire_safety', 'furniture', 'pool', 'vehicle', 'building', 'other'),
         ));

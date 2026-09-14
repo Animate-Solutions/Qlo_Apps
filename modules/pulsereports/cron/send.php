@@ -5,5 +5,8 @@ require_once dirname(__FILE__).'/../classes/autoload.php';
 $token = isset($argv[1]) ? $argv[1] : Tools::getValue('token');
 if ($token !== Configuration::get('PULSE_RPT_CRON_TOKEN')) { die('Invalid token'); }
 Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1);
-$sent = PulseOwnerSnapshot::runDue(false);
-echo $sent ? 'Sent: '.implode(', ', $sent) : 'Nothing due';
+$run = PulseCoreService::forEachHotel(function ($idHotel, $hotel) {
+    $sent = PulseOwnerSnapshot::runDue(false);
+    echo '['.$hotel.'] '.($sent ? 'Sent: '.implode(', ', $sent) : 'Nothing due')."\n";
+});
+foreach ($run['results'] as $h) { if (!$h['ok']) { echo '['.$h['name'].'] FAILED: '.$h['error']."\n"; } }

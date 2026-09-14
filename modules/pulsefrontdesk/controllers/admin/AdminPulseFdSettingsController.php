@@ -36,7 +36,7 @@ class AdminPulseFdSettingsController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
-        $this->context->smarty->assign(array('charge_codes' => PulseChargeCode::all(), 'self_url' => self::$currentIndex.'&token='.$this->token, 'business_date' => PulseCoreService::businessDate(), 'cron_token' => Configuration::get('PULSE_FD_CRON_TOKEN'), 'upsells' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_upsell_offer` ORDER BY sort')));
+        $this->context->smarty->assign(array('charge_codes' => PulseChargeCode::all(), 'self_url' => self::$currentIndex.'&token='.$this->token, 'business_date' => PulseCoreService::businessDate(), 'cron_token' => Configuration::get('PULSE_FD_CRON_TOKEN'), 'upsells' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_upsell_offer` ORDER BY sort')));
         $this->content .= $this->context->smarty->fetch($this->getTemplatePath().'pulse_fd_settings/charge_codes.tpl');
         $this->context->smarty->assign('content', $this->content);
     }
@@ -59,7 +59,7 @@ class AdminPulseFdSettingsController extends ModuleAdminController
         }
         if (Tools::isSubmit('saveUpsell')) {
             $id = (int) Tools::getValue('id_pulse_upsell_offer'); $d = array('type' => pSQL(Tools::getValue('type')), 'name' => pSQL(Tools::getValue('name')), 'charge_code' => pSQL(Tools::getValue('charge_code')), 'price_tax_excl' => (float) Tools::getValue('price_tax_excl'), 'per' => pSQL(Tools::getValue('per')), 'min_avail_pct' => (int) Tools::getValue('min_avail_pct'), 'active' => (int) Tools::getValue('active', 1), 'sort' => (int) Tools::getValue('sort'));
-            $id ? Db::getInstance()->update('pulse_upsell_offer', $d, 'id_pulse_upsell_offer='.$id) : Db::getInstance()->insert('pulse_upsell_offer', $d); $this->confirmations[] = $this->l('Upsell offer saved');
+            $id ? PulseDb::update('pulse_upsell_offer', $d, 'id_pulse_upsell_offer='.$id) : PulseDb::insert('pulse_upsell_offer', $d); $this->confirmations[] = $this->l('Upsell offer saved');
         }
         if (Tools::isSubmit('setBusinessDate') && Validate::isDate(Tools::getValue('business_date'))) { PulseCoreService::setting('pulsefrontdesk', 'business_date', Tools::getValue('business_date')); $this->confirmations[] = $this->l('Business date set'); }
         return parent::postProcess();

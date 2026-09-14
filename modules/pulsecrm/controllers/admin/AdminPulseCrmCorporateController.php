@@ -15,7 +15,7 @@ class AdminPulseCrmCorporateController extends ModuleAdminController
         }
         $this->context->smarty->assign(array(
             'accounts' => PulseCrmCorporate::accounts(Tools::getValue('status') ?: null, Tools::getValue('q', '')),
-            'companies' => PulseCrmService::tableExists('pulse_company') ? Db::getInstance()->executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name') : array(),
+            'companies' => PulseCrmService::tableExists('pulse_company') ? PulseDb::executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name') : array(),
             'pipeline' => PulseCrmCorporate::pipeline(), 'opportunities' => PulseCrmCorporate::opportunities(),
             'production' => PulseCrmCorporate::productionReport(Tools::getValue('year', date('Y'))), 'year' => (int) Tools::getValue('year', date('Y')),
             'follow_ups' => PulseCrmCorporate::followUps(14), 'stale' => PulseCrmCorporate::stale(60),
@@ -27,7 +27,7 @@ class AdminPulseCrmCorporateController extends ModuleAdminController
     protected function roomTypes()
     {
         if (!PulseCrmService::tableExists('htl_room_type')) { return array(); }
-        return Db::getInstance()->executeS('SELECT rt.id_product, pl.name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) $this->context->language->id.' ORDER BY pl.name');
+        return PulseDb::executeS('SELECT rt.id_product, pl.name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) $this->context->language->id.' ORDER BY pl.name');
     }
 
     public function postProcess()

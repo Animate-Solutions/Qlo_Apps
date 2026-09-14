@@ -18,7 +18,7 @@ class PulseTaTimesheet
 
     public static function get($idStaff, $date)
     {
-        return Db::getInstance()->getRow('SELECT t.*, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name, s.position, p.name period_name, p.status period_status
+        return PulseDb::getRow('SELECT t.*, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name, s.position, p.name period_name, p.status period_status
             FROM `'._DB_PREFIX_.self::T.'` t INNER JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=t.id_pulse_ta_staff
             LEFT JOIN `'._DB_PREFIX_.self::T_PERIOD.'` p ON p.id_pulse_ta_period=t.id_pulse_ta_period
             WHERE t.id_pulse_ta_staff='.(int) $idStaff.' AND t.business_date="'.pSQL($date).'"');
@@ -27,7 +27,7 @@ class PulseTaTimesheet
     /** The punches behind one timesheet, in the order the engine read them. Evidence for a dispute. */
     public static function punches($idTimesheet)
     {
-        return Db::getInstance()->executeS('SELECT tp.role, tp.seq, tp.virtual, p.*, d.name device_name FROM `'._DB_PREFIX_.'pulse_ta_timesheet_punch` tp
+        return PulseDb::executeS('SELECT tp.role, tp.seq, tp.virtual, p.*, d.name device_name FROM `'._DB_PREFIX_.'pulse_ta_timesheet_punch` tp
             INNER JOIN `'._DB_PREFIX_.'pulse_ta_punch` p ON p.id_pulse_ta_punch=tp.id_pulse_ta_punch
             LEFT JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=p.id_pulse_ta_device
             WHERE tp.id_pulse_ta_timesheet='.(int) $idTimesheet.' ORDER BY tp.seq, p.punched_at');
@@ -36,7 +36,7 @@ class PulseTaTimesheet
     /** Grid for the Timesheets screen: one row per staff member per day in the range. */
     public static function grid($from, $to, $department = '', $status = '')
     {
-        return Db::getInstance()->executeS('SELECT t.*, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name, s.position, s.pay_basis,
+        return PulseDb::executeS('SELECT t.*, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name, s.position, s.pay_basis,
                 (SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_exception` e WHERE e.id_pulse_ta_timesheet=t.id_pulse_ta_timesheet AND e.status="open") open_exceptions
             FROM `'._DB_PREFIX_.self::T.'` t INNER JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=t.id_pulse_ta_staff
             WHERE t.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'
@@ -47,7 +47,7 @@ class PulseTaTimesheet
     /** Per-person totals over a range — what a payroll run reads. */
     public static function totals($from, $to, $department = '')
     {
-        return Db::getInstance()->executeS('SELECT t.id_pulse_ta_staff, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name, s.department, s.position, s.pay_basis,
+        return PulseDb::executeS('SELECT t.id_pulse_ta_staff, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name, s.department, s.position, s.pay_basis,
                 s.hourly_rate, s.daily_rate, COUNT(*) days,
                 SUM(t.status NOT IN ("absent","rest","leave","holiday") AND t.worked_minutes>0) days_worked,
                 SUM(t.status="absent") days_absent, SUM(t.status="leave") days_leave,
@@ -62,7 +62,7 @@ class PulseTaTimesheet
     /** Department roll-up for the cost report and the labour-per-room KPI. */
     public static function byDepartment($from, $to)
     {
-        return Db::getInstance()->executeS('SELECT t.department, COUNT(DISTINCT t.id_pulse_ta_staff) staff, COUNT(*) days,
+        return PulseDb::executeS('SELECT t.department, COUNT(DISTINCT t.id_pulse_ta_staff) staff, COUNT(*) days,
                 SUM(t.worked_minutes) worked_minutes, SUM(t.ot_minutes) ot_minutes, SUM(t.ot_weighted_minutes) ot_weighted_minutes,
                 SUM(t.night_minutes) night_minutes, SUM(t.status="absent") absences, SUM(t.late_minutes>0) late_days
             FROM `'._DB_PREFIX_.self::T.'` t WHERE t.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"
@@ -73,34 +73,34 @@ class PulseTaTimesheet
 
     public static function periods($limit = 60)
     {
-        return Db::getInstance()->executeS('SELECT p.*, CONCAT(a.firstname," ",a.lastname) approver, CONCAT(b.firstname," ",b.lastname) submitter
+        return PulseDb::executeS('SELECT p.*, CONCAT(a.firstname," ",a.lastname) approver, CONCAT(b.firstname," ",b.lastname) submitter
             FROM `'._DB_PREFIX_.self::T_PERIOD.'` p LEFT JOIN `'._DB_PREFIX_.'employee` a ON a.id_employee=p.id_employee_approved
             LEFT JOIN `'._DB_PREFIX_.'employee` b ON b.id_employee=p.id_employee_submitted
             ORDER BY p.date_from DESC, p.department LIMIT '.(int) $limit);
     }
 
-    public static function period($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T_PERIOD.'` WHERE id_pulse_ta_period='.(int) $id); }
+    public static function period($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T_PERIOD.'` WHERE id_pulse_ta_period='.(int) $id); }
 
     /** Is this person's date inside an approved or locked period? The gate every write checks. */
     public static function isLocked($idStaff, $date)
     {
         $s = PulseTaService::staff($idStaff);
         $dept = $s ? $s['department'] : '';
-        $n = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T_PERIOD.'` WHERE status IN ("approved","locked")
+        $n = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T_PERIOD.'` WHERE status IN ("approved","locked")
             AND date_from<="'.pSQL($date).'" AND date_to>="'.pSQL($date).'" AND (department="" OR department="'.pSQL($dept).'")');
         if ($n) { return true; }
-        return (bool) Db::getInstance()->getValue('SELECT locked FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_staff='.(int) $idStaff.' AND business_date="'.pSQL($date).'"');
+        return (bool) PulseDb::getValue('SELECT locked FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_staff='.(int) $idStaff.' AND business_date="'.pSQL($date).'"');
     }
 
     public static function createPeriod($name, $from, $to, $department = '')
     {
         if (!strtotime($from) || !strtotime($to) || strtotime($to) < strtotime($from)) { throw new PrestaShopException('Choose a valid period'); }
-        $clash = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T_PERIOD.'` WHERE department="'.pSQL($department).'"
+        $clash = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T_PERIOD.'` WHERE department="'.pSQL($department).'"
             AND date_from<="'.pSQL($to).'" AND date_to>="'.pSQL($from).'" AND status<>"reopened"');
         if ($clash) { throw new PrestaShopException('That range overlaps the existing period "'.$clash['name'].'"'); }
-        Db::getInstance()->insert(self::T_PERIOD, array('name' => pSQL(Tools::substr($name, 0, 64)), 'department' => pSQL($department),
+        PulseDb::insert(self::T_PERIOD, array('name' => pSQL(Tools::substr($name, 0, 64)), 'department' => pSQL($department),
             'date_from' => pSQL($from), 'date_to' => pSQL($to), 'status' => 'open', 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')));
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         self::refreshPeriod($id);
         PulseTaService::audit('period_create', array('id' => $id, 'name' => $name, 'from' => $from, 'to' => $to, 'department' => $department), self::T_PERIOD, $id);
         return $id;
@@ -112,12 +112,12 @@ class PulseTaTimesheet
         $p = self::period($id);
         if (!$p) { return false; }
         $where = 't.business_date BETWEEN "'.pSQL($p['date_from']).'" AND "'.pSQL($p['date_to']).'"'.($p['department'] ? ' AND t.department="'.pSQL($p['department']).'"' : '');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` t SET t.id_pulse_ta_period='.(int) $id.' WHERE '.$where.' AND (t.id_pulse_ta_period IS NULL OR t.id_pulse_ta_period='.(int) $id.')');
-        $agg = Db::getInstance()->getRow('SELECT COUNT(DISTINCT t.id_pulse_ta_staff) staff, SUM(t.worked_minutes) w, SUM(t.ot_weighted_minutes) o
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` t SET t.id_pulse_ta_period='.(int) $id.' WHERE '.$where.' AND (t.id_pulse_ta_period IS NULL OR t.id_pulse_ta_period='.(int) $id.')');
+        $agg = PulseDb::getRow('SELECT COUNT(DISTINCT t.id_pulse_ta_staff) staff, SUM(t.worked_minutes) w, SUM(t.ot_weighted_minutes) o
             FROM `'._DB_PREFIX_.self::T.'` t WHERE '.$where);
-        $open = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_exception` e WHERE e.status="open" AND e.severity="block"
+        $open = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ta_exception` e WHERE e.status="open" AND e.severity="block"
             AND e.business_date BETWEEN "'.pSQL($p['date_from']).'" AND "'.pSQL($p['date_to']).'"'.($p['department'] ? ' AND e.department="'.pSQL($p['department']).'"' : ''));
-        Db::getInstance()->update(self::T_PERIOD, array('staff_count' => (int) (isset($agg['staff']) ? $agg['staff'] : 0),
+        PulseDb::update(self::T_PERIOD, array('staff_count' => (int) (isset($agg['staff']) ? $agg['staff'] : 0),
             'worked_minutes' => (int) (isset($agg['w']) ? $agg['w'] : 0), 'ot_weighted_minutes' => (int) (isset($agg['o']) ? $agg['o'] : 0),
             'open_exceptions' => $open, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_period='.(int) $id);
         return true;
@@ -140,7 +140,7 @@ class PulseTaTimesheet
         if (!$p) { throw new PrestaShopException('Period not found'); }
         if ($p['status'] !== 'open' && $p['status'] !== 'reopened') { throw new PrestaShopException('That period is already '.$p['status']); }
         self::refreshPeriod($id);
-        Db::getInstance()->update(self::T_PERIOD, PulseTaService::nulls(array('status' => 'submitted', 'id_employee_submitted' => PulseTaService::emp() ?: null,
+        PulseDb::update(self::T_PERIOD, PulseTaService::nulls(array('status' => 'submitted', 'id_employee_submitted' => PulseTaService::emp() ?: null,
             'submitted_at' => date('Y-m-d H:i:s'), 'note' => pSQL(Tools::substr($note, 0, 255)), 'date_upd' => date('Y-m-d H:i:s'))), 'id_pulse_ta_period='.(int) $id);
         PulseTaService::audit('period_submit', array('id' => (int) $id, 'note' => $note), self::T_PERIOD, (int) $id);
         return true;
@@ -163,9 +163,9 @@ class PulseTaTimesheet
             throw new PrestaShopException((int) $p['open_exceptions'].' blocking exception(s) are still open in this period — clear them on the Exceptions screen before approving, or approve with override if you are certain.');
         }
         $where = 'business_date BETWEEN "'.pSQL($p['date_from']).'" AND "'.pSQL($p['date_to']).'"'.($p['department'] ? ' AND department="'.pSQL($p['department']).'"' : '');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET locked=1, id_pulse_ta_period='.(int) $id.', date_upd=NOW() WHERE '.$where);
-        $rows = (int) Db::getInstance()->Affected_Rows();
-        Db::getInstance()->update(self::T_PERIOD, array('status' => 'locked', 'id_employee_approved' => (int) $emp,
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` SET locked=1, id_pulse_ta_period='.(int) $id.', date_upd=NOW() WHERE '.$where);
+        $rows = (int) PulseDb::Affected_Rows();
+        PulseDb::update(self::T_PERIOD, array('status' => 'locked', 'id_employee_approved' => (int) $emp,
             'approved_at' => date('Y-m-d H:i:s'), 'locked_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_period='.(int) $id);
         PulseTaService::audit('period_approve', array('id' => (int) $id, 'name' => $p['name'], 'from' => $p['date_from'], 'to' => $p['date_to'],
             'department' => $p['department'], 'timesheets' => $rows, 'forced' => $force ? 1 : 0, 'open_exceptions' => (int) $p['open_exceptions']), self::T_PERIOD, (int) $id);
@@ -182,8 +182,8 @@ class PulseTaTimesheet
         $p = self::period($id);
         if (!$p) { throw new PrestaShopException('Period not found'); }
         $where = 'business_date BETWEEN "'.pSQL($p['date_from']).'" AND "'.pSQL($p['date_to']).'"'.($p['department'] ? ' AND department="'.pSQL($p['department']).'"' : '');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET locked=0, date_upd=NOW() WHERE '.$where);
-        Db::getInstance()->update(self::T_PERIOD, array('status' => 'reopened', 'reopen_reason' => pSQL(Tools::substr($reason, 0, 255), true), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_period='.(int) $id);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` SET locked=0, date_upd=NOW() WHERE '.$where);
+        PulseDb::update(self::T_PERIOD, array('status' => 'reopened', 'reopen_reason' => pSQL(Tools::substr($reason, 0, 255), true), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ta_period='.(int) $id);
         PulseTaService::audit('period_reopen', array('id' => (int) $id, 'name' => $p['name'], 'reason' => $reason), self::T_PERIOD, (int) $id);
         PulseTaService::alert('Timesheet period "'.$p['name'].'" was reopened after approval — '.$reason);
         return true;
@@ -199,11 +199,11 @@ class PulseTaTimesheet
         if (!$lock) {
             $s = PulseTaService::staff($idStaff);
             $dept = $s ? $s['department'] : '';
-            $p = Db::getInstance()->getRow('SELECT name FROM `'._DB_PREFIX_.self::T_PERIOD.'` WHERE status IN ("approved","locked")
+            $p = PulseDb::getRow('SELECT name FROM `'._DB_PREFIX_.self::T_PERIOD.'` WHERE status IN ("approved","locked")
                 AND date_from<="'.pSQL($date).'" AND date_to>="'.pSQL($date).'" AND (department="" OR department="'.pSQL($dept).'")');
             if ($p) { throw new PrestaShopException('That day is inside the approved period "'.$p['name'].'" — reopen the period with a reason instead of unlocking one day'); }
         }
-        Db::getInstance()->update(self::T, array('locked' => $lock ? 1 : 0, 'date_upd' => date('Y-m-d H:i:s')),
+        PulseDb::update(self::T, array('locked' => $lock ? 1 : 0, 'date_upd' => date('Y-m-d H:i:s')),
             'id_pulse_ta_staff='.(int) $idStaff.' AND business_date="'.pSQL($date).'"');
         PulseTaService::audit($lock ? 'timesheet_lock' : 'timesheet_unlock', array('id_staff' => (int) $idStaff, 'date' => $date), self::T, (int) $idStaff);
         return true;
@@ -215,14 +215,14 @@ class PulseTaTimesheet
      */
     public static function payrollExtract($from, $to, $department = '')
     {
-        $rows = Db::getInstance()->executeS('SELECT t.id_pulse_ta_staff, s.staff_no, s.id_hr_employee, s.department, s.pay_basis, s.hourly_rate, s.daily_rate,
+        $rows = PulseDb::executeS('SELECT t.id_pulse_ta_staff, s.staff_no, s.id_hr_employee, s.department, s.pay_basis, s.hourly_rate, s.daily_rate,
                 COUNT(*) days, SUM(t.worked_minutes) worked_minutes, SUM(t.ot_minutes) ot_minutes, SUM(t.ot_weighted_minutes) ot_weighted_minutes,
                 SUM(t.night_minutes) night_minutes, SUM(t.status="absent") days_absent,
                 SUM(t.status NOT IN ("absent","rest","leave","holiday") AND t.worked_minutes>0) days_worked
             FROM `'._DB_PREFIX_.self::T.'` t INNER JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=t.id_pulse_ta_staff
             WHERE t.locked=1 AND t.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'.($department ? ' AND t.department="'.pSQL($department).'"' : '').'
             GROUP BY t.id_pulse_ta_staff ORDER BY s.department, s.staff_no');
-        $unlocked = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE locked=0
+        $unlocked = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE locked=0
             AND business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'.($department ? ' AND department="'.pSQL($department).'"' : ''));
         return array('rows' => is_array($rows) ? $rows : array(), 'unlocked_days' => $unlocked,
             'complete' => $unlocked === 0, 'from' => $from, 'to' => $to, 'department' => $department);
@@ -231,7 +231,7 @@ class PulseTaTimesheet
     /** Overtime register: who worked it, under which rule, and whether it was approved. */
     public static function overtime($from, $to, $department = '')
     {
-        return Db::getInstance()->executeS('SELECT t.*, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name, s.position
+        return PulseDb::executeS('SELECT t.*, s.staff_no, CONCAT(s.firstname," ",s.lastname) staff_name, s.position
             FROM `'._DB_PREFIX_.self::T.'` t INNER JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=t.id_pulse_ta_staff
             WHERE t.ot_minutes>0 AND t.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'.($department ? ' AND t.department="'.pSQL($department).'"' : '').'
             ORDER BY t.business_date DESC, t.ot_minutes DESC');

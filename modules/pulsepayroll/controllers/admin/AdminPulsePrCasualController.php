@@ -18,7 +18,7 @@ class AdminPulsePrCasualController extends ModuleAdminController
             $this->context->smarty->assign(array(
                 'b' => $b, 'sheet' => PulsePrCasual::payoutSheet($id), 'departments' => PulsePrService::departments(),
                 'casuals' => PulsePrService::employees(array('employment_type' => 'casual,service', 'status' => 'active,probation')),
-                'files' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_bank_file` WHERE id_pulse_pr_casual_batch='.(int) $id.' ORDER BY id_pulse_pr_bank_file DESC'),
+                'files' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_bank_file` WHERE id_pulse_pr_casual_batch='.(int) $id.' ORDER BY id_pulse_pr_bank_file DESC'),
                 'tax_pct' => PulsePrService::cfg('CASUAL_TAX_PCT', 0), 'day_rate' => PulsePrService::cfg('CASUAL_DAY_RATE', 7500),
                 'ta' => PulsePrService::ta(), 'acc' => PulsePrService::acc(), 'self_url' => $self, 'currency' => $this->context->currency->sign,
             ));
@@ -57,7 +57,7 @@ class AdminPulsePrCasualController extends ModuleAdminController
     {
         $units = (array) Tools::getValue('u'); $rates = (array) Tools::getValue('r');
         foreach ($units as $idLine => $u) {
-            $l = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_casual_line` WHERE id_pulse_pr_casual_line='.(int) $idLine);
+            $l = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_casual_line` WHERE id_pulse_pr_casual_line='.(int) $idLine);
             if (!$l || (int) $l['id_pulse_pr_casual_batch'] !== (int) $idBatch) { continue; }
             PulsePrCasual::saveLine(array_merge($l, array('id_pulse_pr_casual_line' => (int) $idLine, 'units' => $u, 'rate' => isset($rates[$idLine]) ? $rates[$idLine] : $l['rate'])));
         }

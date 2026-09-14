@@ -10,10 +10,10 @@ class AdminPulseLaundryController extends ModuleAdminController
             $this->context->smarty->assign(array('o' => PulseLaundryService::order($id), 'self_url' => self::$currentIndex.'&token='.$this->token, 'fd' => PulseLaundryService::fd()));
             return $this->setTemplate('order.tpl');
         }
-        $rooms = class_exists('PulseRoom') ? PulseRoom::board() : Db::getInstance()->executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY room_num');
+        $rooms = class_exists('PulseRoom') ? PulseRoom::board() : PulseDb::executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY room_num');
         $this->context->smarty->assign(array(
             'queue' => PulseLaundryService::orders('requested,collected,washing,ready'), 'done' => PulseLaundryService::orders('delivered,cancelled', null, PulseCoreService::businessDate()),
-            'items' => PulseLaundryService::items(), 'rooms' => $rooms, 'vendors' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_laundry_vendor` WHERE active=1'),
+            'items' => PulseLaundryService::items(), 'rooms' => $rooms, 'vendors' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_laundry_vendor` WHERE active=1'),
             'sur_express' => Configuration::get('PULSE_LDY_EXPRESS_PCT'), 'sur_sameday' => Configuration::get('PULSE_LDY_SAMEDAY_PCT'), 'cutoff' => Configuration::get('PULSE_LDY_CUTOFF'),
             'self_url' => self::$currentIndex.'&token='.$this->token, 'fd' => PulseLaundryService::fd(), 'business_date' => PulseCoreService::businessDate(),
             'from' => Tools::getValue('from', date('Y-m-01')), 'to' => Tools::getValue('to', PulseCoreService::businessDate()),

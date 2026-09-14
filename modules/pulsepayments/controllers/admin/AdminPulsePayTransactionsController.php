@@ -14,8 +14,8 @@ class AdminPulsePayTransactionsController extends ModuleAdminController
                 $t['auth_token_masked'] = $t['auth_token'] ? PulsePayService::masked($t['auth_token']) : '';
                 unset($t['auth_token']);
                 $this->context->smarty->assign(array('t' => $t, 'logs' => PulsePayService::logs($t['reference']), 'refunds' => PulsePayService::refunds($t['reference']),
-                    'children' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE id_parent='.(int) $t['id_pulse_pay_transaction'].' ORDER BY id_pulse_pay_transaction'),
-                    'postings' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_posting` WHERE id_pulse_pay_transaction='.(int) $t['id_pulse_pay_transaction']),
+                    'children' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE id_parent='.(int) $t['id_pulse_pay_transaction'].' ORDER BY id_pulse_pay_transaction'),
+                    'postings' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_posting` WHERE id_pulse_pay_transaction='.(int) $t['id_pulse_pay_transaction']),
                     'self_url' => $self, 'currency' => $this->context->currency->sign));
                 return $this->setTemplate('transaction.tpl');
             }
@@ -26,7 +26,7 @@ class AdminPulsePayTransactionsController extends ModuleAdminController
             'rows' => PulsePayService::transactions($f), 'f' => $f, 'self_url' => $self, 'gateways' => PulsePayService::gateways(),
             'states' => array('intent', 'awaiting_confirmation', 'authorized', 'captured', 'partially_captured', 'settled', 'refunded', 'partially_refunded', 'voided', 'failed', 'expired'),
             'channels' => array('web', 'desk', 'pos', 'portal', 'link', 'terminal'), 'types' => array('charge', 'preauth', 'capture', 'refund', 'void'),
-            'disputes' => Db::getInstance()->executeS('SELECT d.*, t.reference FROM `'._DB_PREFIX_.'pulse_pay_dispute` d LEFT JOIN `'._DB_PREFIX_.'pulse_pay_transaction` t ON t.id_pulse_pay_transaction=d.id_pulse_pay_transaction ORDER BY d.id_pulse_pay_dispute DESC LIMIT 50'),
+            'disputes' => PulseDb::executeS('SELECT d.*, t.reference FROM `'._DB_PREFIX_.'pulse_pay_dispute` d LEFT JOIN `'._DB_PREFIX_.'pulse_pay_transaction` t ON t.id_pulse_pay_transaction=d.id_pulse_pay_transaction ORDER BY d.id_pulse_pay_dispute DESC LIMIT 50'),
             'currency' => $this->context->currency->sign,
         ));
         $this->setTemplate('transactions.tpl');
@@ -52,7 +52,7 @@ class AdminPulsePayTransactionsController extends ModuleAdminController
                 $this->confirmations[] = $this->l('Payment confirmed and posted');
             }
             if (Tools::isSubmit('addDispute')) { PulsePayService::dispute(array('reference' => Tools::getValue('reference'), 'category' => Tools::getValue('category'), 'amount' => (float) Tools::getValue('amount'), 'reason' => Tools::getValue('reason'), 'dispute_ref' => Tools::getValue('dispute_ref'), 'due_at' => Tools::getValue('due_at'))); $this->confirmations[] = $this->l('Dispute logged'); }
-            if (Tools::isSubmit('setDispute')) { Db::getInstance()->update('pulse_pay_dispute', array('status' => pSQL(Tools::getValue('status')), 'evidence' => pSQL(Tools::getValue('evidence'), true), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_dispute='.(int) Tools::getValue('id_dispute')); $this->confirmations[] = $this->l('Dispute updated'); }
+            if (Tools::isSubmit('setDispute')) { PulseDb::update('pulse_pay_dispute', array('status' => pSQL(Tools::getValue('status')), 'evidence' => pSQL(Tools::getValue('evidence'), true), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_dispute='.(int) Tools::getValue('id_dispute')); $this->confirmations[] = $this->l('Dispute updated'); }
         } catch (Exception $e) { $this->errors[] = $e->getMessage(); }
         return parent::postProcess();
     }

@@ -1,5 +1,3 @@
-{extends file='page.tpl'}
-{block name='page_content'}
 <div class="pulse-guest" style="max-width:720px;margin:0 auto">
 {if isset($invalid)}<h2>Link not valid</h2><p>This pre-check-in link has expired or is incorrect. Please contact the hotel.</p>
 {elseif isset($done)}<h2>You're all set, {$b.guest}!</h2><p>Your registration is complete. On arrival, go straight to the desk to collect your key for room {$b.room_num}. We look forward to welcoming you on {$b.date_from}.</p>
@@ -34,7 +32,7 @@
 <button name="submitPrecheckin" class="btn btn-primary btn-lg btn-block" style="margin-top:12px">Complete registration</button>
 </form>
 <script src="{$module_dir}views/js/signature.js"></script>
-<style>.sig-pad{border:1px dashed #999;background:#fff;width:100%;height:140px;touch-action:none}.offer{border:1px solid #ddd;border-radius:4px;padding:8px 12px;margin:6px 0;display:flex;justify-content:space-between}</style>
+<style>{literal}.sig-pad{border:1px dashed #999;background:#fff;width:100%;height:140px;touch-action:none}.offer{border:1px solid #ddd;border-radius:4px;padding:8px 12px;margin:6px 0;display:flex;justify-content:space-between}{/literal}</style>
 {/if}
 </div>
-{/block}
+

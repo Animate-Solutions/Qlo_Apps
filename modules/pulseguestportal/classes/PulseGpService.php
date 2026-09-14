@@ -18,6 +18,24 @@ class PulseGpService
     public static function event($name, array $p = array()) { if (class_exists('PulseCoreService')) { PulseCoreService::event($name, $p); } }
     public static function nextNo($prefix) { $n = (int) PulseCoreService::setting('pulseguestportal', 'seq_'.$prefix) + 1; PulseCoreService::setting('pulseguestportal', 'seq_'.$prefix, $n); return $prefix.date('ymd').str_pad($n % 10000, 4, '0', STR_PAD_LEFT); }
 
+    /**
+     * The property a screen is installed in.
+     *
+     * The set presents its MAC or its serial — that is all a launcher can send at boot — and the device
+     * registry, filled in when the desk paired the screen to a room, says which property that screen
+     * hangs in. A set that has never paired has no row to read, so first boot falls back to the property
+     * named in the URL the launcher was configured with, which is per-property anyway. Neither path
+     * reveals anything but the branding: the room, the stay and the folio still come from the API once
+     * the device has a token of its own.
+     */
+    public static function enterHotel()
+    {
+        $uid = PulseGpDevice::uid(Tools::getValue('mac', Tools::getValue('macaddress', '')), Tools::getValue('serial', Tools::getValue('duid', '')));
+        $id = $uid ? PulseCoreService::hotelOf('pulse_gp_device', 'uid', $uid) : 0;
+        if ($id) { return PulseCoreService::enterHotel($id); }
+        return PulseCoreService::enterHotelNamed(PulseCoreService::namedHotel());
+    }
+
     /* ---------- languages & branding ---------- */
     public static function langs() { $l = array_filter(array_map('trim', explode(',', (string) self::cfg('LANGS', 'en,fr,pcm,ar')))); $out = array(); foreach ($l as $c) { if (isset(self::LANGS[$c])) { $out[$c] = self::LANGS[$c]; } } return $out ? $out : array('en' => 'English'); }
     public static function lang($code) { $l = self::langs(); return isset($l[$code]) ? $code : self::defaultLang(); }
@@ -54,10 +72,10 @@ class PulseGpService
         $limit = (int) ($limit === null ? self::cfg('RATE_PER_MIN', 120) : $limit);
         if ($limit <= 0) { return true; }
         $w = (int) floor(time() / 60);
-        Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_gp_rate` (`bucket`,`window_start`,`hits`) VALUES ("'.pSQL(Tools::substr($bucket, 0, 64)).'",'.$w.',1) ON DUPLICATE KEY UPDATE `hits`=`hits`+1');
-        $hits = (int) Db::getInstance()->getValue('SELECT hits FROM `'._DB_PREFIX_.'pulse_gp_rate` WHERE bucket="'.pSQL(Tools::substr($bucket, 0, 64)).'" AND window_start='.$w);
+        PulseDb::execute('INSERT INTO `'._DB_PREFIX_.'pulse_gp_rate` (`bucket`,`window_start`,`hits`) VALUES ("'.pSQL(Tools::substr($bucket, 0, 64)).'",'.$w.',1) ON DUPLICATE KEY UPDATE `hits`=`hits`+1');
+        $hits = (int) PulseDb::getValue('SELECT hits FROM `'._DB_PREFIX_.'pulse_gp_rate` WHERE bucket="'.pSQL(Tools::substr($bucket, 0, 64)).'" AND window_start='.$w);
         if ($hits > $limit) { throw new PrestaShopException('Too many requests', 429); }
-        if (($w % 30) === 0) { Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_gp_rate` WHERE window_start<'.($w - 60)); }
+        if (($w % 30) === 0) { PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_gp_rate` WHERE window_start<'.($w - 60)); }
         return true;
     }
 
@@ -147,13 +165,13 @@ class PulseGpService
     /** Booking row for a stay, with the guest's first name split out for the greeting. */
     public static function booking($idBooking)
     {
-        $b = Db::getInstance()->getRow('SELECT b.id, b.id_order, b.id_customer, b.id_room, b.room_type_name, b.date_from, b.date_to, b.total_price_tax_incl, b.id_product,
+        $b = PulseDb::getRow('SELECT b.id, b.id_order, b.id_customer, b.id_room, b.room_type_name, b.date_from, b.date_to, b.total_price_tax_incl, b.id_product,
                 DATEDIFF(b.date_to,b.date_from) nights, r.room_num, r.floor, c.firstname, c.lastname, c.email, CONCAT(c.firstname," ",c.lastname) guest
             FROM `'._DB_PREFIX_.'htl_booking_detail` b
             INNER JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer
             LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room
             WHERE b.id='.(int) $idBooking);
-        if ($b && Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_guest_profile"')) { $b['vip_level'] = (int) Db::getInstance()->getValue('SELECT vip_level FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.(int) $b['id_customer']); }
+        if ($b && PulseDb::executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_guest_profile"')) { $b['vip_level'] = (int) PulseDb::getValue('SELECT vip_level FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.(int) $b['id_customer']); }
         return $b;
     }
 

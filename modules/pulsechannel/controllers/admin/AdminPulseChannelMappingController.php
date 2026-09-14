@@ -12,7 +12,7 @@ class AdminPulseChannelMappingController extends ModuleAdminController
             'channels' => PulseChService::channels(), 'id_channel' => $idChannel,
             'mappings' => PulseChMapping::all($idChannel), 'unmapped' => PulseChMapping::unmapped(), 'broken' => PulseChMapping::broken(),
             'room_types' => PulseChService::roomTypes(), 'rate_plans' => PulseChService::ratePlans(false),
-            'edit' => Tools::getValue('id_mapping') ? Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_mapping='.(int) Tools::getValue('id_mapping')) : null,
+            'edit' => Tools::getValue('id_mapping') ? PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ch_mapping` WHERE id_pulse_ch_mapping='.(int) Tools::getValue('id_mapping')) : null,
             'self_url' => self::$currentIndex.'&token='.$this->token,
         ));
         $this->setTemplate('mapping.tpl');
@@ -54,7 +54,7 @@ class AdminPulseChannelMappingController extends ModuleAdminController
                     'refundable' => (int) Tools::getValue('rp_refundable'), 'min_los' => (int) Tools::getValue('rp_min_los'), 'max_los' => (int) Tools::getValue('rp_max_los'),
                     'release_days' => (int) Tools::getValue('rp_release'), 'active' => (int) Tools::getValue('rp_active', 1), 'sort' => (int) Tools::getValue('rp_sort'));
                 if (!$d['code'] || !$d['name']) { throw new PrestaShopException($this->l('Rate plan code and name are required')); }
-                $id ? Db::getInstance()->update('pulse_ch_rate_plan', $d, 'id_pulse_ch_rate_plan='.$id) : Db::getInstance()->insert('pulse_ch_rate_plan', $d);
+                $id ? PulseDb::update('pulse_ch_rate_plan', $d, 'id_pulse_ch_rate_plan='.$id) : PulseDb::insert('pulse_ch_rate_plan', $d);
                 $this->confirmations[] = $this->l('Rate plan saved');
             }
         } catch (Exception $e) { $this->errors[] = $e->getMessage(); }

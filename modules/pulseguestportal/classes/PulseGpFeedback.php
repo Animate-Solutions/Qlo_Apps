@@ -21,8 +21,8 @@ class PulseGpFeedback
             'comment' => pSQL(Tools::substr((string) (isset($d['comment']) ? $d['comment'] : ''), 0, 2000), true),
             'locale' => pSQL($session['locale']), 'source' => 'portal', 'business_date' => pSQL(PulseGpService::bd()), 'date_add' => date('Y-m-d H:i:s'),
         );
-        Db::getInstance()->insert('pulse_gp_feedback', $row);
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_gp_feedback', $row);
+        $id = (int) PulseDb::Insert_ID();
         $low = (int) PulseGpService::cfg('FEEDBACK_ALERT_AT', 3);
         if ($row['rating_overall'] > 0 && $row['rating_overall'] <= $low) {
             if (class_exists('PulseTicket')) {
@@ -38,12 +38,12 @@ class PulseGpFeedback
         return $id;
     }
 
-    public static function given($idBooking) { return (bool) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_gp_feedback` WHERE id_htl_booking='.(int) $idBooking); }
-    public static function recent($limit = 50) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_feedback` ORDER BY id_pulse_gp_feedback DESC LIMIT '.(int) $limit); }
+    public static function given($idBooking) { return (bool) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_gp_feedback` WHERE id_htl_booking='.(int) $idBooking); }
+    public static function recent($limit = 50) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_feedback` ORDER BY id_pulse_gp_feedback DESC LIMIT '.(int) $limit); }
     /** Averages and NPS for the dashboard; NPS is promoters minus detractors as a whole percentage. */
     public static function stats($from, $to)
     {
-        $s = Db::getInstance()->getRow('SELECT COUNT(*) n, ROUND(AVG(NULLIF(rating_overall,0)),2) overall, ROUND(AVG(NULLIF(rating_room,0)),2) room, ROUND(AVG(NULLIF(rating_service,0)),2) service,
+        $s = PulseDb::getRow('SELECT COUNT(*) n, ROUND(AVG(NULLIF(rating_overall,0)),2) overall, ROUND(AVG(NULLIF(rating_room,0)),2) room, ROUND(AVG(NULLIF(rating_service,0)),2) service,
             ROUND(AVG(NULLIF(rating_fnb,0)),2) fnb, ROUND(AVG(NULLIF(rating_cleanliness,0)),2) cleanliness,
             SUM(nps>=9) promoters, SUM(nps<=6 AND nps IS NOT NULL) detractors, SUM(nps IS NOT NULL) rated
             FROM `'._DB_PREFIX_.'pulse_gp_feedback` WHERE business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');

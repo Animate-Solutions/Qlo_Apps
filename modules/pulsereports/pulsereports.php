@@ -23,7 +23,8 @@ class PulseReports extends Module
         if (!parent::install()) { return false; }
         foreach ($this->hooks as $h) { if (!$this->registerHook($h)) { return false; } }
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/install.sql'));
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (strpos($q, '--') !== 0 && !Db::getInstance()->execute($q)) { return false; } }
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (!PulseDb::execute($q)) { return false; } }
         $parent = (int) Tab::getIdFromClassName('AdminPulseCore'); $i = 60;
         foreach ($this->tabs as $c => $n) { $t = new Tab(); $t->class_name = $c; $t->module = $this->name; $t->id_parent = $parent; $t->position = $i++; foreach (Language::getLanguages(true) as $l) { $t->name[$l['id_lang']] = $n; } if (!$t->add()) { return false; } }
         foreach (array('PULSE_RPT_APPROVAL_LIMIT' => 50000, 'PULSE_RPT_VARIANCE_ALERT' => 1000, 'PULSE_RPT_HIGH_BALANCE' => 200000, 'PULSE_RPT_CRON_TOKEN' => Tools::passwdGen(32)) as $k => $v) { Configuration::updateValue($k, $v); }
@@ -34,8 +35,8 @@ class PulseReports extends Module
     {
         foreach ($this->tabs as $c => $n) { if ($id = (int) Tab::getIdFromClassName($c)) { $t = new Tab($id); $t->delete(); } }
         foreach (array('APPROVAL_LIMIT', 'VARIANCE_ALERT', 'HIGH_BALANCE', 'CRON_TOKEN') as $k) { Configuration::deleteByName('PULSE_RPT_'.$k); }
-        Db::getInstance()->execute(str_replace('PREFIX_', _DB_PREFIX_, str_replace(";\n", '; ', Tools::file_get_contents(dirname(__FILE__).'/sql/uninstall.sql'))));
-        foreach (array('expense_category', 'expense', 'budget', 'report_schedule', 'report_log') as $t) { Db::getInstance()->execute('DROP TABLE IF EXISTS `'._DB_PREFIX_.'pulse_'.$t.'`'); }
+        PulseDb::execute(str_replace('PREFIX_', _DB_PREFIX_, str_replace(";\n", '; ', Tools::file_get_contents(dirname(__FILE__).'/sql/uninstall.sql'))));
+        foreach (array('expense_category', 'expense', 'budget', 'report_schedule', 'report_log') as $t) { PulseDb::execute('DROP TABLE IF EXISTS `'._DB_PREFIX_.'pulse_'.$t.'`'); }
         return parent::uninstall();
     }
 

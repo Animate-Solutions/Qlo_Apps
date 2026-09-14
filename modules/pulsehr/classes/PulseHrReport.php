@@ -8,7 +8,7 @@ class PulseHrReport
     /** Headcount and establishment by department, with the vacancies and the over-establishment both visible. */
     public static function headcount()
     {
-        $rows = Db::getInstance()->executeS('SELECT d.code, d.name department,
+        $rows = PulseDb::executeS('SELECT d.code, d.name department,
                 SUM(e.status<>"exited") headcount, SUM(e.status="probation") probation, SUM(e.status="active") confirmed,
                 SUM(e.status="on_leave") on_leave, SUM(e.status="suspended") suspended, SUM(e.gender="f" AND e.status<>"exited") female,
                 (SELECT COALESCE(SUM(p.establishment),0) FROM `'._DB_PREFIX_.'pulse_hr_position` p WHERE p.id_pulse_hr_department=d.id_pulse_hr_department AND p.active=1) establishment
@@ -28,7 +28,7 @@ class PulseHrReport
     /** Joiners, leavers and the turnover rate on the average headcount for the window. */
     public static function turnover($from, $to)
     {
-        $db = Db::getInstance();
+        $db = PulseDb::handle();
         $rows = $db->executeS('SELECT d.code, d.name department,
                 SUM(e.hire_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'") joiners,
                 SUM(e.exit_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'") leavers,
@@ -51,7 +51,7 @@ class PulseHrReport
     /** Leavers in the window with how long they lasted — the "we keep losing room attendants at four months" report. */
     public static function leavers($from, $to)
     {
-        return Db::getInstance()->executeS('SELECT e.staff_no, CONCAT(e.firstname," ",e.lastname) employee_name, d.name department, p.title position,
+        return PulseDb::executeS('SELECT e.staff_no, CONCAT(e.firstname," ",e.lastname) employee_name, d.name department, p.title position,
                 e.hire_date, e.exit_date, e.exit_type, e.exit_reason, e.rehire_eligible, DATEDIFF(e.exit_date, e.hire_date) days_served
             FROM `'._DB_PREFIX_.'pulse_hr_employee` e
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
@@ -62,7 +62,7 @@ class PulseHrReport
     /** Absence: leave days taken by type and department, plus the unexplained gaps the roster shows. */
     public static function absence($from, $to)
     {
-        $rows = Db::getInstance()->executeS('SELECT d.name department, t.code type_code, t.name type_name, t.paid,
+        $rows = PulseDb::executeS('SELECT d.name department, t.code type_code, t.name type_name, t.paid,
                 COUNT(*) requests, ROUND(SUM(r.days),2) days
             FROM `'._DB_PREFIX_.'pulse_hr_leave_request` r
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=r.id_pulse_hr_employee
@@ -70,7 +70,7 @@ class PulseHrReport
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
             WHERE r.status IN ("approved","taken") AND r.date_from<="'.pSQL($to).'" AND r.date_to>="'.pSQL($from).'"
             GROUP BY d.id_pulse_hr_department, t.id_pulse_hr_leave_type ORDER BY d.name, t.sort');
-        $rostered = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_roster` WHERE roster_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND is_off=0 AND status IN ("planned","published")');
+        $rostered = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_hr_roster` WHERE roster_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" AND is_off=0 AND status IN ("planned","published")');
         $days = 0;
         foreach ($rows as $r) { $days += (float) $r['days']; }
         return array('rows' => $rows, 'total_days' => round($days, 2), 'rostered_shifts' => $rostered,
@@ -89,7 +89,7 @@ class PulseHrReport
             $day = date('Y-m-d', $d);
             $hours = 0;
             if (PulseHrService::ta() && PulseHrService::tableExists('pulse_ta_timesheet')) {
-                $hours = (float) Db::getInstance()->getValue('SELECT COALESCE(SUM(worked_minutes),0)/60 FROM `'._DB_PREFIX_.'pulse_ta_timesheet` WHERE business_date="'.pSQL($day).'"'.($dept ? ' AND department="'.pSQL($dept).'"' : ''));
+                $hours = (float) PulseDb::getValue('SELECT COALESCE(SUM(worked_minutes)/60,0) FROM `'._DB_PREFIX_.'pulse_ta_timesheet` WHERE business_date="'.pSQL($day).'"');
                 if ($hours > 0) { $source = 'timesheets'; }
             }
             if ($hours <= 0) {
@@ -132,7 +132,7 @@ class PulseHrReport
     public static function service()
     {
         $bands = array('Under 6 months' => 0, '6–12 months' => 0, '1–3 years' => 0, '3–5 years' => 0, 'Over 5 years' => 0);
-        foreach (Db::getInstance()->executeS('SELECT hire_date FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE status<>"exited" AND hire_date IS NOT NULL') as $e) {
+        foreach (PulseDb::executeS('SELECT hire_date FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE status<>"exited" AND hire_date IS NOT NULL') as $e) {
             $m = (int) floor((time() - strtotime($e['hire_date'])) / 2629800);
             if ($m < 6) { $bands['Under 6 months']++; } elseif ($m < 12) { $bands['6–12 months']++; } elseif ($m < 36) { $bands['1–3 years']++; } elseif ($m < 60) { $bands['3–5 years']++; } else { $bands['Over 5 years']++; }
         }

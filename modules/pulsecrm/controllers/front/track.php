@@ -10,16 +10,21 @@ require_once _PS_MODULE_DIR_.'pulsecrm/classes/autoload.php';
 class PulseCrmTrackModuleFrontController extends ModuleFrontController
 {
     public $ssl = true;
+    protected $hotel = 0;
 
     public function init()
     {
         $action = preg_replace('/[^a-z]/', '', Tools::getValue('a', 'open'));
         $token = preg_replace('/[^a-f0-9]/', '', Tools::getValue('t'));
-        if ($action === 'open') { PulseCrmCampaign::markOpen($token); $this->pixel(); }
+        // The recipient row is the only thing that says which property sent this, so the hotel is settled
+        // before a single count is touched. A token that names no property is still answered — a
+        // forwarded email must not show a broken image or a dead link — it is simply not counted.
+        $this->hotel = PulseCrmService::enterHotelFromToken('pulse_crm_campaign_recipient', $token);
+        if ($action === 'open') { if ($this->hotel) { PulseCrmCampaign::markOpen($token); } $this->pixel(); }
         if ($action === 'click') {
             $url = base64_decode(Tools::getValue('u'), true);
             $ok = $url && PulseCrmService::verify($token.'|'.$url, Tools::getValue('s')) && preg_match('#^https?://#i', $url);
-            PulseCrmCampaign::markClick($token);
+            if ($this->hotel) { PulseCrmCampaign::markClick($token); }
             Tools::redirect($ok ? $url : PulseCrmService::baseUrl());
         }
         parent::init();
@@ -27,7 +32,7 @@ class PulseCrmTrackModuleFrontController extends ModuleFrontController
 
     public function postProcess()
     {
-        if (!Tools::isSubmit('submitUnsub')) { return; }
+        if (!$this->hotel || !Tools::isSubmit('submitUnsub')) { return; }
         $token = preg_replace('/[^a-f0-9]/', '', Tools::getValue('t'));
         $r = PulseCrmCampaign::unsubscribe($token, Tools::getValue('reason'));
         $this->context->smarty->assign(array('done' => (bool) $r, 'reason' => Tools::getValue('reason')));
@@ -37,7 +42,7 @@ class PulseCrmTrackModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
         $token = preg_replace('/[^a-f0-9]/', '', Tools::getValue('t'));
-        $r = PulseCrmCampaign::byToken($token);
+        $r = $this->hotel ? PulseCrmCampaign::byToken($token) : null;
         $this->context->smarty->assign(array('r' => $r, 'token' => $token, 'hotel' => Configuration::get('PS_SHOP_NAME'),
             'already' => $r && $r['status'] === 'unsubscribed', 'action' => PulseCrmService::link('track', array('a' => 'unsub', 't' => $token))));
         $this->setTemplate('unsubscribe.tpl');

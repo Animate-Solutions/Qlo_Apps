@@ -98,13 +98,11 @@ class PulseFrontDesk extends Module
 
     protected function runSql($file)
     {
-        $path = dirname(__FILE__).'/sql/'.$file.'.sql';
-        if (!file_exists($path)) { return true; }
-        $sql = Tools::file_get_contents($path);
+        $sql = Tools::file_get_contents(dirname(__FILE__).'/sql/'.$file.'.sql');
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), $sql);
         $sql = preg_replace('/^\s*--.*$/m', '', $sql);
         foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) {
-            if ($q !== '' && !Db::getInstance()->execute($q)) { return false; }
+            if (!Db::getInstance()->execute($q)) { return false; }
         }
         return true;
     }
@@ -113,7 +111,7 @@ class PulseFrontDesk extends Module
     {
         $paymentState = (int) Configuration::get('PS_OS_PAYMENT');
         if ($paymentState && Validate::isLoadedObject(new OrderState($paymentState))) { return $paymentState; }
-        return (int) Db::getInstance()->getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC');
+        return (int) PulseDb::getValue('SELECT id_order_state FROM `'._DB_PREFIX_.'order_state` WHERE deleted=0 ORDER BY paid DESC, logable DESC, id_order_state ASC');
     }
 
     public function getContent() { Tools::redirectAdmin($this->context->link->getAdminLink('AdminPulseFdSettings')); }
@@ -143,7 +141,7 @@ class PulseFrontDesk extends Module
     /** Front-desk panel on the QloApps order page: per-room status, folio balance, quick actions. */
     public function hookDisplayAdminOrderContentOrder($params)
     {
-        $rows = Db::getInstance()->executeS('SELECT b.id, b.room_num, b.room_type_name, b.date_from, b.date_to, b.id_status, f.folio_no, f.balance, f.id_pulse_folio
+        $rows = PulseDb::executeS('SELECT b.id, b.room_num, b.room_type_name, b.date_from, b.date_to, b.id_status, f.folio_no, f.balance, f.id_pulse_folio
             FROM `'._DB_PREFIX_.'htl_booking_detail` b LEFT JOIN `'._DB_PREFIX_.'pulse_folio` f ON f.id_htl_booking=b.id AND f.status="open"
             WHERE b.id_order='.(int) $params['order']->id);
         $this->context->smarty->assign(array('rooms' => $rows, 'link_arrivals' => $this->context->link->getAdminLink('AdminPulseArrivals'), 'link_folio' => $this->context->link->getAdminLink('AdminPulseFolio')));
@@ -155,7 +153,7 @@ class PulseFrontDesk extends Module
     {
         $cancelStates = array((int) Configuration::get('PS_OS_CANCELED'), (int) Configuration::get('PS_OS_REFUND'));
         if (in_array((int) $params['newOrderStatus']->id, $cancelStates)) {
-            foreach (Db::getInstance()->executeS('SELECT id_room FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order='.(int) $params['id_order']) as $r) {
+            foreach (PulseDb::executeS('SELECT id_room FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order='.(int) $params['id_order']) as $r) {
                 PulseRoom::setFoStatus($r['id_room'], 'vacant', null);
             }
         }

@@ -7,7 +7,10 @@ class AdminPulseGuestProfileController extends ModuleAdminController
         $this->bootstrap = true; $this->table = 'customer'; $this->className = 'Customer'; $this->identifier = 'id_customer'; $this->addRowAction('view');
         parent::__construct(); $this->meta_title = $this->l('Guest Profiles');
         $this->_select = 'gp.vip_level, gp.stays, gp.nights, gp.lifetime_revenue, gp.last_stay, gp.blacklisted, comp.name company';
-        $this->_join = 'LEFT JOIN `'._DB_PREFIX_.'pulse_guest_profile` gp ON gp.id_customer=a.id_customer LEFT JOIN `'._DB_PREFIX_.'pulse_company` comp ON comp.id_pulse_company=gp.id_pulse_company';
+        // The customer list itself is shop-wide, but the Pulse columns hanging off it are not:
+        // a guest's stay history and company belong to one property, so each join is scoped.
+        $this->_join = 'LEFT JOIN `'._DB_PREFIX_.'pulse_guest_profile` gp ON gp.id_customer=a.id_customer'.PulseHotelContext::sql('gp')
+            .' LEFT JOIN `'._DB_PREFIX_.'pulse_company` comp ON comp.id_pulse_company=gp.id_pulse_company'.PulseHotelContext::sql('comp');
         $this->fields_list = array(
             'id_customer' => array('title' => 'ID'), 'firstname' => array('title' => $this->l('First name')), 'lastname' => array('title' => $this->l('Last name')), 'email' => array('title' => 'Email'),
             'company' => array('title' => $this->l('Company'), 'havingFilter' => true), 'vip_level' => array('title' => 'VIP', 'havingFilter' => true),
@@ -25,7 +28,7 @@ class AdminPulseGuestProfileController extends ModuleAdminController
         }
         if ($this->display === 'view') {
             $id = (int) Tools::getValue('id_customer');
-            $this->context->smarty->assign(array('p' => PulseGuestProfile::get($id), 'companies' => Db::getInstance()->executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'), 'self_url' => self::$currentIndex.'&token='.$this->token.'&id_customer='.$id.'&viewcustomer'));
+            $this->context->smarty->assign(array('p' => PulseGuestProfile::get($id), 'companies' => PulseDb::executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'), 'self_url' => self::$currentIndex.'&token='.$this->token.'&id_customer='.$id.'&viewcustomer'));
             $this->context->smarty->assign('content', $this->context->smarty->fetch($this->getTemplatePath().'pulse_guest_profile/view.tpl'));
             return;
         }

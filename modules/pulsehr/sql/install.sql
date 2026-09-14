@@ -3,26 +3,30 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_department` (
   `cost_centre` VARCHAR(32) DEFAULT NULL, `id_head` INT UNSIGNED DEFAULT NULL COMMENT 'pulse_hr_employee of the HOD',
   `credit_minutes_per_room` SMALLINT NOT NULL DEFAULT 0 COMMENT 'housekeeping-style coverage credit; 0 = not room-driven',
   `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_hr_department`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_department`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
-3
+
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_section` (
   `id_pulse_hr_section` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_hr_department` INT UNSIGNED NOT NULL, `code` VARCHAR(32) NOT NULL, `name` VARCHAR(64) NOT NULL,
-  `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_section`), UNIQUE KEY `code` (`code`), KEY `dept` (`id_pulse_hr_department`)
+  `active` TINYINT(1) NOT NULL DEFAULT 1, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_section`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `dept` (`id_pulse_hr_department`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_grade` (
   `id_pulse_hr_grade` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(16) NOT NULL, `name` VARCHAR(64) NOT NULL, `level` TINYINT UNSIGNED NOT NULL DEFAULT 1,
   `salary_min` DECIMAL(20,6) NOT NULL DEFAULT 0, `salary_max` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `annual_leave_days` DECIMAL(6,2) NOT NULL DEFAULT 21, `notice_days` SMALLINT NOT NULL DEFAULT 30, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_hr_grade`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_grade`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_position` (
   `id_pulse_hr_position` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(32) NOT NULL, `title` VARCHAR(96) NOT NULL,
   `id_pulse_hr_department` INT UNSIGNED NOT NULL, `id_pulse_hr_section` INT UNSIGNED DEFAULT NULL, `id_pulse_hr_grade` INT UNSIGNED DEFAULT NULL,
   `establishment` SMALLINT NOT NULL DEFAULT 1 COMMENT 'budgeted headcount for this position', `night_shift` TINYINT(1) NOT NULL DEFAULT 0,
-  `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_position`), UNIQUE KEY `code` (`code`), KEY `dept` (`id_pulse_hr_department`)
+  `active` TINYINT(1) NOT NULL DEFAULT 1, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_position`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `dept` (`id_pulse_hr_department`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_employee` (
@@ -46,7 +50,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_employee` (
   `exit_reason` VARCHAR(255) DEFAULT NULL, `rehire_eligible` TINYINT(1) NOT NULL DEFAULT 1,
   `pin_hash` CHAR(64) DEFAULT NULL, `pin_set_at` DATETIME DEFAULT NULL, `ess_enabled` TINYINT(1) NOT NULL DEFAULT 1, `ess_locked_until` DATETIME DEFAULT NULL,
   `note` VARCHAR(255) DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_employee`), UNIQUE KEY `staff_no` (`staff_no`), KEY `status` (`status`), KEY `dept` (`id_pulse_hr_department`), KEY `pse` (`id_employee`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_employee`), UNIQUE KEY `staff_no` (`id_hotel`,`staff_no`), KEY `status` (`status`), KEY `dept` (`id_pulse_hr_department`), KEY `pse` (`id_employee`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_contract` (
@@ -62,7 +67,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_contract` (
   `reason` ENUM('hire','confirmation','promotion','salary_review','transfer','renewal','demotion','correction','exit') NOT NULL DEFAULT 'hire',
   `status` ENUM('draft','active','superseded','ended') NOT NULL DEFAULT 'active', `note` VARCHAR(255) DEFAULT NULL,
   `id_employee_created` INT UNSIGNED DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_contract`), UNIQUE KEY `emp_from` (`id_pulse_hr_employee`,`effective_from`), KEY `window` (`effective_from`,`effective_to`), KEY `no` (`contract_no`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_contract`), UNIQUE KEY `emp_from` (`id_hotel`,`id_pulse_hr_employee`,`effective_from`), KEY `window` (`effective_from`,`effective_to`), KEY `no` (`contract_no`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_document` (
@@ -73,7 +79,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_document` (
   `verified` TINYINT(1) NOT NULL DEFAULT 0, `verified_by` INT UNSIGNED DEFAULT NULL, `remind_days` SMALLINT NOT NULL DEFAULT 30, `last_reminded` DATE DEFAULT NULL,
   `status` ENUM('valid','expiring','expired','revoked') NOT NULL DEFAULT 'valid', `note` VARCHAR(255) DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_document`), KEY `emp` (`id_pulse_hr_employee`), KEY `exp` (`expires_on`), KEY `type` (`type`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_document`), KEY `emp` (`id_pulse_hr_employee`), KEY `exp` (`expires_on`), KEY `type` (`type`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_type` (
@@ -83,12 +90,14 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_type` (
   `min_service_months` SMALLINT NOT NULL DEFAULT 0, `gender` ENUM('any','m','f') NOT NULL DEFAULT 'any',
   `working_days_only` TINYINT(1) NOT NULL DEFAULT 1, `requires_document` TINYINT(1) NOT NULL DEFAULT 0, `encashable` TINYINT(1) NOT NULL DEFAULT 0,
   `colour` VARCHAR(7) NOT NULL DEFAULT '#2e86c1', `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_hr_leave_type`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_leave_type`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_entitlement` (
   `id_pulse_hr_leave_entitlement` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_hr_leave_type` INT UNSIGNED NOT NULL, `id_pulse_hr_grade` INT UNSIGNED NOT NULL,
-  `days` DECIMAL(6,2) NOT NULL DEFAULT 0, PRIMARY KEY (`id_pulse_hr_leave_entitlement`), UNIQUE KEY `tg` (`id_pulse_hr_leave_type`,`id_pulse_hr_grade`)
+  `days` DECIMAL(6,2) NOT NULL DEFAULT 0, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_leave_entitlement`), UNIQUE KEY `tg` (`id_hotel`,`id_pulse_hr_leave_type`,`id_pulse_hr_grade`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_balance` (
@@ -96,7 +105,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_balance` (
   `year` SMALLINT NOT NULL, `opening` DECIMAL(6,2) NOT NULL DEFAULT 0, `carried` DECIMAL(6,2) NOT NULL DEFAULT 0, `accrued` DECIMAL(6,2) NOT NULL DEFAULT 0,
   `taken` DECIMAL(6,2) NOT NULL DEFAULT 0, `pending` DECIMAL(6,2) NOT NULL DEFAULT 0, `encashed` DECIMAL(6,2) NOT NULL DEFAULT 0, `adjustment` DECIMAL(6,2) NOT NULL DEFAULT 0,
   `last_accrued` CHAR(7) DEFAULT NULL COMMENT 'YYYY-MM of the last monthly accrual, so a re-run cannot double-accrue', `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_leave_balance`), UNIQUE KEY `ety` (`id_pulse_hr_employee`,`id_pulse_hr_leave_type`,`year`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_leave_balance`), UNIQUE KEY `ety` (`id_hotel`,`id_pulse_hr_employee`,`id_pulse_hr_leave_type`,`year`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_request` (
@@ -108,7 +118,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_request` (
   `id_pulse_hr_document` INT UNSIGNED DEFAULT NULL, `source` ENUM('admin','ess','api') NOT NULL DEFAULT 'admin',
   `encash_days` DECIMAL(6,2) NOT NULL DEFAULT 0, `decision_note` VARCHAR(255) DEFAULT NULL, `decided_by` INT UNSIGNED DEFAULT NULL, `decided_at` DATETIME DEFAULT NULL,
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_leave_request`), UNIQUE KEY `no` (`request_no`), KEY `emp` (`id_pulse_hr_employee`,`status`), KEY `win` (`date_from`,`date_to`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_leave_request`), UNIQUE KEY `no` (`id_hotel`,`request_no`), KEY `emp` (`id_pulse_hr_employee`,`status`), KEY `win` (`date_from`,`date_to`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_approval` (
@@ -116,14 +127,15 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_leave_approval` (
   `role` VARCHAR(32) NOT NULL DEFAULT 'manager', `id_pulse_hr_employee` INT UNSIGNED DEFAULT NULL COMMENT 'nominated approver', `id_employee` INT UNSIGNED DEFAULT NULL COMMENT 'who actually clicked',
   `action` ENUM('pending','approved','rejected','skipped') NOT NULL DEFAULT 'pending', `comment` VARCHAR(255) DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_leave_approval`), KEY `req` (`id_pulse_hr_leave_request`,`level`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_leave_approval`), KEY `req` (`id_pulse_hr_leave_request`,`level`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_blackout` (
   `id_pulse_hr_blackout` INT UNSIGNED NOT NULL AUTO_INCREMENT, `name` VARCHAR(96) NOT NULL, `department` VARCHAR(32) DEFAULT NULL COMMENT 'NULL = every department',
   `date_from` DATE NOT NULL, `date_to` DATE NOT NULL, `max_off` SMALLINT NOT NULL DEFAULT 0 COMMENT '0 = nobody may be off',
   `min_occupancy_pct` DECIMAL(6,3) NOT NULL DEFAULT 0 COMMENT 'only bites when forecast occupancy is at or above this', `reason` VARCHAR(255) DEFAULT NULL,
-  `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_blackout`), KEY `win` (`date_from`,`date_to`)
+  `active` TINYINT(1) NOT NULL DEFAULT 1, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_blackout`), KEY `win` (`date_from`,`date_to`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_shift` (
@@ -132,7 +144,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_shift` (
   `paid_hours` DECIMAL(6,2) NOT NULL DEFAULT 8, `night` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'payroll reads this for the night allowance',
   `split` TINYINT(1) NOT NULL DEFAULT 0, `on_call` TINYINT(1) NOT NULL DEFAULT 0, `department` VARCHAR(32) DEFAULT NULL,
   `colour` VARCHAR(7) NOT NULL DEFAULT '#5bc0de', `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_hr_shift`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_shift`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_roster` (
@@ -141,7 +155,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_roster` (
   `is_off` TINYINT(1) NOT NULL DEFAULT 0, `status` ENUM('planned','published','swapped','cancelled') NOT NULL DEFAULT 'planned',
   `note` VARCHAR(128) DEFAULT NULL, `published_at` DATETIME DEFAULT NULL, `published_by` INT UNSIGNED DEFAULT NULL,
   `id_employee_created` INT UNSIGNED DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_roster`), UNIQUE KEY `de` (`roster_date`,`id_pulse_hr_employee`), KEY `dept` (`roster_date`,`department`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_roster`), UNIQUE KEY `de` (`id_hotel`,`roster_date`,`id_pulse_hr_employee`), KEY `dept` (`roster_date`,`department`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_roster_swap` (
@@ -150,20 +165,21 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_roster_swap` (
   `id_roster_to` INT UNSIGNED DEFAULT NULL COMMENT 'their shift, when it is a straight swap', `reason` VARCHAR(255) DEFAULT NULL,
   `status` ENUM('pending','accepted','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
   `decided_by` INT UNSIGNED DEFAULT NULL, `decided_at` DATETIME DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_roster_swap`), KEY `r` (`id_pulse_hr_roster`), KEY `st` (`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_roster_swap`), KEY `r` (`id_pulse_hr_roster`), KEY `st` (`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_checklist_template` (
   `id_pulse_hr_checklist_template` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(32) NOT NULL, `name` VARCHAR(96) NOT NULL,
   `type` ENUM('onboarding','offboarding') NOT NULL DEFAULT 'onboarding', `department` VARCHAR(32) DEFAULT NULL COMMENT 'NULL = any department',
-  `active` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_checklist_template`), UNIQUE KEY `code` (`code`)
+  `active` TINYINT(1) NOT NULL DEFAULT 1, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_checklist_template`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_checklist_task_template` (
   `id_pulse_hr_checklist_task_template` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_hr_checklist_template` INT UNSIGNED NOT NULL,
   `sort` SMALLINT NOT NULL DEFAULT 0, `title` VARCHAR(128) NOT NULL, `owner_department` VARCHAR(32) DEFAULT 'admin', `due_offset_days` SMALLINT NOT NULL DEFAULT 0,
   `action` ENUM('none','keycard_issue','keycard_revoke','pos_pin','pos_disable','ess_pin','ess_disable','document','asset_issue','asset_return','induction','exit_interview','final_settlement') NOT NULL DEFAULT 'none',
-  `mandatory` TINYINT(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_checklist_task_template`), KEY `tpl` (`id_pulse_hr_checklist_template`,`sort`)
+  `mandatory` TINYINT(1) NOT NULL DEFAULT 1, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_checklist_task_template`), KEY `tpl` (`id_pulse_hr_checklist_template`,`sort`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_checklist` (
@@ -171,7 +187,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_checklist` (
   `type` ENUM('onboarding','offboarding') NOT NULL DEFAULT 'onboarding', `id_pulse_hr_checklist_template` INT UNSIGNED DEFAULT NULL,
   `status` ENUM('open','completed','cancelled') NOT NULL DEFAULT 'open', `opened_on` DATE NOT NULL, `due_on` DATE DEFAULT NULL, `completed_on` DATE DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_checklist`), KEY `emp` (`id_pulse_hr_employee`,`type`), KEY `st` (`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_checklist`), KEY `emp` (`id_pulse_hr_employee`,`type`), KEY `st` (`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_checklist_task` (
@@ -181,7 +198,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_checklist_task` (
   `action` ENUM('none','keycard_issue','keycard_revoke','pos_pin','pos_disable','ess_pin','ess_disable','document','asset_issue','asset_return','induction','exit_interview','final_settlement') NOT NULL DEFAULT 'none',
   `action_ref` VARCHAR(64) DEFAULT NULL, `mandatory` TINYINT(1) NOT NULL DEFAULT 1, `note` VARCHAR(255) DEFAULT NULL,
   `done_by` INT UNSIGNED DEFAULT NULL, `done_at` DATETIME DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_checklist_task`), KEY `cl` (`id_pulse_hr_checklist`,`sort`), KEY `st` (`status`,`due_on`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_checklist_task`), KEY `cl` (`id_pulse_hr_checklist`,`sort`), KEY `st` (`status`,`due_on`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_case` (
@@ -192,13 +210,14 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_case` (
   `status` ENUM('open','acknowledged','responded','closed','withdrawn') NOT NULL DEFAULT 'open', `outcome` VARCHAR(255) DEFAULT NULL,
   `expires_on` DATE DEFAULT NULL COMMENT 'a warning stops counting after this date', `suspension_from` DATE DEFAULT NULL, `suspension_to` DATE DEFAULT NULL,
   `unpaid` TINYINT(1) NOT NULL DEFAULT 0, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_case`), UNIQUE KEY `no` (`case_no`), KEY `emp` (`id_pulse_hr_employee`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_case`), UNIQUE KEY `no` (`id_hotel`,`case_no`), KEY `emp` (`id_pulse_hr_employee`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_appraisal_cycle` (
   `id_pulse_hr_appraisal_cycle` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(24) NOT NULL, `name` VARCHAR(96) NOT NULL,
   `period_from` DATE NOT NULL, `period_to` DATE NOT NULL, `due_on` DATE DEFAULT NULL, `status` ENUM('open','in_progress','closed') NOT NULL DEFAULT 'open',
-  `date_add` DATETIME NOT NULL, PRIMARY KEY (`id_pulse_hr_appraisal_cycle`), UNIQUE KEY `code` (`code`)
+  `date_add` DATETIME NOT NULL, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_pulse_hr_appraisal_cycle`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_appraisal` (
@@ -207,14 +226,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_appraisal` (
   `status` ENUM('draft','self_review','reviewer','signed','closed') NOT NULL DEFAULT 'draft', `overall_rating` DECIMAL(4,2) NOT NULL DEFAULT 0,
   `reviewer_comment` TEXT, `employee_comment` TEXT, `recommendation` ENUM('none','confirm','promote','increment','training','pip','exit') NOT NULL DEFAULT 'none',
   `employee_signed_at` DATETIME DEFAULT NULL, `reviewer_signed_at` DATETIME DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_appraisal`), UNIQUE KEY `ce` (`id_pulse_hr_appraisal_cycle`,`id_pulse_hr_employee`), KEY `emp` (`id_pulse_hr_employee`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_appraisal`), UNIQUE KEY `ce` (`id_hotel`,`id_pulse_hr_appraisal_cycle`,`id_pulse_hr_employee`), KEY `emp` (`id_pulse_hr_employee`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_appraisal_objective` (
   `id_pulse_hr_appraisal_objective` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_hr_appraisal` INT UNSIGNED NOT NULL, `sort` SMALLINT NOT NULL DEFAULT 0,
   `title` VARCHAR(128) NOT NULL, `description` VARCHAR(255) DEFAULT NULL, `weight` DECIMAL(6,3) NOT NULL DEFAULT 0, `target` VARCHAR(128) DEFAULT NULL,
   `result` VARCHAR(128) DEFAULT NULL, `rating` DECIMAL(4,2) NOT NULL DEFAULT 0, `comment` VARCHAR(255) DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_hr_appraisal_objective`), KEY `ap` (`id_pulse_hr_appraisal`,`sort`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_appraisal_objective`), KEY `ap` (`id_pulse_hr_appraisal`,`sort`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_training` (
@@ -222,7 +243,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_training` (
   `provider` VARCHAR(96) DEFAULT NULL, `type` ENUM('induction','safety','food_hygiene','fire','first_aid','service','technical','compliance','other') NOT NULL DEFAULT 'other',
   `completed_on` DATE DEFAULT NULL, `expires_on` DATE DEFAULT NULL, `cost` DECIMAL(20,6) NOT NULL DEFAULT 0, `certificate_no` VARCHAR(64) DEFAULT NULL,
   `note` VARCHAR(255) DEFAULT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_training`), KEY `emp` (`id_pulse_hr_employee`), KEY `exp` (`expires_on`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_training`), KEY `emp` (`id_pulse_hr_employee`), KEY `exp` (`expires_on`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_ess_session` (
@@ -230,13 +252,15 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_ess_session` (
   `token_hash` CHAR(64) NOT NULL, `expires_at` DATETIME NOT NULL, `payslip_until` DATETIME DEFAULT NULL COMMENT 'salary is only served inside this short window, after a PIN re-entry',
   `ip` VARCHAR(45) DEFAULT NULL, `user_agent` VARCHAR(255) DEFAULT NULL, `revoked` TINYINT(1) NOT NULL DEFAULT 0, `revoke_reason` VARCHAR(32) DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_ess_session`), UNIQUE KEY `sid` (`sid`), KEY `emp` (`id_pulse_hr_employee`,`revoked`), KEY `exp` (`expires_at`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_ess_session`), UNIQUE KEY `sid` (`id_hotel`,`sid`), KEY `emp` (`id_pulse_hr_employee`,`revoked`), KEY `exp` (`expires_at`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_ess_login` (
   `id_pulse_hr_ess_login` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `staff_no` VARCHAR(32) DEFAULT NULL, `ip` VARCHAR(45) DEFAULT NULL,
   `ok` TINYINT(1) NOT NULL DEFAULT 0, `reason` VARCHAR(48) DEFAULT NULL, `user_agent` VARCHAR(255) DEFAULT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_ess_login`), KEY `sn` (`staff_no`,`date_add`), KEY `ip` (`ip`,`date_add`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_ess_login`), KEY `sn` (`staff_no`,`date_add`), KEY `ip` (`ip`,`date_add`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_punch` (
@@ -248,18 +272,20 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_punch` (
   `device` VARCHAR(64) DEFAULT NULL, `ip` VARCHAR(45) DEFAULT NULL, `id_pulse_hr_roster` INT UNSIGNED DEFAULT NULL,
   `synced` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'handed to Pulse Time when that module is installed', `note` VARCHAR(255) DEFAULT NULL,
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_punch`), UNIQUE KEY `dedupe` (`id_pulse_hr_employee`,`punched_at`,`direction`), KEY `bd` (`business_date`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_punch`), UNIQUE KEY `dedupe` (`id_hotel`,`id_pulse_hr_employee`,`punched_at`,`direction`), KEY `bd` (`business_date`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_change_request` (
   `id_pulse_hr_change_request` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_hr_employee` INT UNSIGNED NOT NULL, `field` VARCHAR(32) NOT NULL,
   `old_value` VARCHAR(255) DEFAULT NULL, `new_value` VARCHAR(255) DEFAULT NULL, `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   `note` VARCHAR(255) DEFAULT NULL, `decided_by` INT UNSIGNED DEFAULT NULL, `decided_at` DATETIME DEFAULT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_hr_change_request`), KEY `emp` (`id_pulse_hr_employee`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_hr_change_request`), KEY `emp` (`id_pulse_hr_employee`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_hr_rate` (
-  `bucket` VARCHAR(64) NOT NULL, `window_start` INT UNSIGNED NOT NULL, `hits` INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (`bucket`,`window_start`)
+  `bucket` VARCHAR(64) NOT NULL, `window_start` INT UNSIGNED NOT NULL, `hits` INT UNSIGNED NOT NULL DEFAULT 0, `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1, PRIMARY KEY (`id_hotel`,`bucket`,`window_start`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_hr_department` (`code`,`name`,`cost_centre`,`credit_minutes_per_room`,`sort`) VALUES

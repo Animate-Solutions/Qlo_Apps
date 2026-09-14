@@ -19,10 +19,21 @@ class PulsePrService
     public static function fd() { return Module::isEnabled('pulsefrontdesk') && class_exists('PulseFolio'); }
     public static function pos() { return Module::isEnabled('pulsepos') && self::tableExists('pulse_pos_check'); }
     public static function comms() { return class_exists('PulseComms'); }
-    public static function tableExists($t) { return (bool) Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.pSQL($t).'"'); }
+    public static function tableExists($t) { return (bool) PulseDb::executeS('SHOW TABLES LIKE "'._DB_PREFIX_.pSQL($t).'"'); }
     public static function bd() { return class_exists('PulseCoreService') ? PulseCoreService::businessDate() : date('Y-m-d'); }
     public static function emp() { $c = Context::getContext(); return isset($c->employee) && $c->employee ? (int) $c->employee->id : 0; }
     public static function cfg($k, $default = null) { $v = Configuration::get('PULSE_PR_'.$k); return ($v === false || $v === null || $v === '') ? $default : $v; }
+
+    /**
+     * The property whose payroll produced a payslip link. A payslip belongs to one run and a run to one
+     * property, so the token in the link names the hotel and nothing else in the request has to.
+     * Returns 0 for a token that matches no payslip, which the page answers as an expired link.
+     */
+    public static function enterHotelFromToken($token)
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/', (string) $token)) { return 0; }
+        return PulseCoreService::enterHotel(PulseCoreService::hotelOf('pulse_pr_payslip', 'token', $token));
+    }
     public static function country() { return self::cfg('COUNTRY', 'NG'); }
     public static function currency() { return self::cfg('CURRENCY', 'NGN'); }
     public static function periodsPerYear() { $n = (int) self::cfg('PERIODS_PER_YEAR', 12); return $n > 0 ? $n : 12; }
@@ -37,7 +48,7 @@ class PulsePrService
     {
         $n = (int) self::cfg('EMPLOYER_STAFF_COUNT', 0);
         if ($n > 0) { return $n; }
-        if (self::$staffCount === null) { self::$staffCount = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status<>"exited"'); }
+        if (self::$staffCount === null) { self::$staffCount = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status<>"exited"'); }
         return self::$staffCount;
     }
 
@@ -65,7 +76,7 @@ class PulsePrService
     /** Module-local audit row; also mirrors to the suite audit trail so the whole hotel has one timeline. */
     public static function log($idRun, $event, $entity = 'run', $detail = null, $idEntity = null)
     {
-        Db::getInstance()->insert('pulse_pr_audit', array(
+        PulseDb::insert('pulse_pr_audit', array(
             'id_pulse_pr_run' => $idRun ? (int) $idRun : null, 'entity' => pSQL($entity), 'id_entity' => $idEntity ? (int) $idEntity : null,
             'event' => pSQL(Tools::substr($event, 0, 48)), 'detail' => pSQL(is_string($detail) ? $detail : json_encode($detail), true),
             'id_employee' => self::emp(), 'ip' => pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)), 'date_add' => date('Y-m-d H:i:s'),
@@ -76,7 +87,7 @@ class PulsePrService
 
     public static function auditTrail($idRun, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT a.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_pr_audit` a LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=a.id_employee WHERE a.id_pulse_pr_run='.(int) $idRun.' ORDER BY a.id_pulse_pr_audit DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT a.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_pr_audit` a LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=a.id_employee WHERE a.id_pulse_pr_run='.(int) $idRun.' ORDER BY a.id_pulse_pr_audit DESC LIMIT '.(int) $limit);
     }
 
     /* ---------------- countries ---------------- */
@@ -84,24 +95,24 @@ class PulsePrService
     public static function countryRow($code)
     {
         $code = Tools::strtoupper(Tools::substr((string) $code, 0, 2));
-        if (!isset(self::$countryCache[$code])) { self::$countryCache[$code] = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_country` WHERE code="'.pSQL($code).'"'); }
+        if (!isset(self::$countryCache[$code])) { self::$countryCache[$code] = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_country` WHERE code="'.pSQL($code).'"'); }
         return self::$countryCache[$code] ? self::$countryCache[$code] : null;
     }
 
-    public static function countries($activeOnly = true) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_country` WHERE 1'.($activeOnly ? ' AND active=1' : '').' ORDER BY code'); }
+    public static function countries($activeOnly = true) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_country` WHERE 1'.($activeOnly ? ' AND active=1' : '').' ORDER BY code'); }
 
     /* ---------------- pay elements ---------------- */
 
     public static function elements($activeOnly = true, $type = null)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_element` WHERE 1'.($activeOnly ? ' AND active=1' : '').($type ? ' AND type="'.pSQL($type).'"' : '').' ORDER BY sequence, code');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_element` WHERE 1'.($activeOnly ? ' AND active=1' : '').($type ? ' AND type="'.pSQL($type).'"' : '').' ORDER BY sequence, code');
     }
 
     /** Element rows are read once per element per request — the calculator asks for them in a tight loop. */
     public static function element($code)
     {
         $code = Tools::strtoupper((string) $code);
-        if (!isset(self::$elementCache[$code])) { self::$elementCache[$code] = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_element` WHERE code="'.pSQL($code).'"'); }
+        if (!isset(self::$elementCache[$code])) { self::$elementCache[$code] = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_element` WHERE code="'.pSQL($code).'"'); }
         return self::$elementCache[$code] ? self::$elementCache[$code] : null;
     }
 
@@ -129,10 +140,10 @@ class PulsePrService
         );
         if ($row['calc'] === 'percent' && $row['percent_of'] === '') { throw new PrestaShopException('A percent element needs a named base (BASIC, BHT, GROSS, TAXABLE_GROSS or another element code)'); }
         self::$elementCache = array();
-        $ex = (int) Db::getInstance()->getValue('SELECT id_pulse_pr_element FROM `'._DB_PREFIX_.'pulse_pr_element` WHERE code="'.pSQL($code).'"');
-        if ($ex) { Db::getInstance()->update('pulse_pr_element', $row, 'id_pulse_pr_element='.$ex, 0, true); self::log(null, 'element_save', 'element', $row, $ex); return $ex; }
-        Db::getInstance()->insert('pulse_pr_element', $row, true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        $ex = (int) PulseDb::getValue('SELECT id_pulse_pr_element FROM `'._DB_PREFIX_.'pulse_pr_element` WHERE code="'.pSQL($code).'"');
+        if ($ex) { PulseDb::update('pulse_pr_element', $row, 'id_pulse_pr_element='.$ex, 0, true); self::log(null, 'element_save', 'element', $row, $ex); return $ex; }
+        PulseDb::insert('pulse_pr_element', $row, true);
+        $id = (int) PulseDb::Insert_ID();
         self::log(null, 'element_save', 'element', $row, $id);
         return $id;
     }
@@ -153,12 +164,12 @@ class PulsePrService
         if (!empty($f['country'])) { $w[] = 'e.country="'.pSQL($f['country']).'"'; }
         if (!empty($f['q'])) { $q = pSQL($f['q']); $w[] = '(e.staff_no LIKE "%'.$q.'%" OR e.firstname LIKE "%'.$q.'%" OR e.lastname LIKE "%'.$q.'%")'; }
         if (!empty($f['ids'])) { $w[] = 'e.id_pulse_pr_employee IN ('.implode(',', array_map('intval', (array) $f['ids'])).')'; }
-        return Db::getInstance()->executeS('SELECT e.* FROM `'._DB_PREFIX_.'pulse_pr_employee` e WHERE '.implode(' AND ', $w).' ORDER BY e.department, e.lastname, e.firstname');
+        return PulseDb::executeS('SELECT e.* FROM `'._DB_PREFIX_.'pulse_pr_employee` e WHERE '.implode(' AND ', $w).' ORDER BY e.department, e.lastname, e.firstname');
     }
 
-    public static function employee($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE id_pulse_pr_employee='.(int) $id); }
-    public static function employeeByStaffNo($no) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE staff_no="'.pSQL($no).'"'); }
-    public static function departments() { return Db::getInstance()->executeS('SELECT department, COUNT(*) n FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status<>"exited" GROUP BY department ORDER BY department'); }
+    public static function employee($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE id_pulse_pr_employee='.(int) $id); }
+    public static function employeeByStaffNo($no) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE staff_no="'.pSQL($no).'"'); }
+    public static function departments() { return PulseDb::executeS('SELECT department, COUNT(*) n FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE status<>"exited" GROUP BY department ORDER BY department'); }
 
     public static function saveEmployee(array $d)
     {
@@ -198,12 +209,12 @@ class PulsePrService
         if ($row['pay_method'] === 'bank' && $row['account_no'] !== '' && !preg_match('/^[0-9]{8,20}$/', $row['account_no'])) { throw new PrestaShopException('A bank account number must be 8 to 20 digits'); }
         if (!empty($d['payslip_pin'])) { $row['payslip_pin'] = pSQL(self::hashPin($d['payslip_pin'])); }
         self::$staffCount = null;
-        if ($id) { Db::getInstance()->update('pulse_pr_employee', $row, 'id_pulse_pr_employee='.$id, 0, true); }
+        if ($id) { PulseDb::update('pulse_pr_employee', $row, 'id_pulse_pr_employee='.$id, 0, true); }
         else {
             if (self::employeeByStaffNo($row['staff_no'])) { throw new PrestaShopException('Staff number '.$d['staff_no'].' already exists'); }
             $row['date_add'] = date('Y-m-d H:i:s');
             if (!isset($row['payslip_pin'])) { $row['payslip_pin'] = pSQL(self::hashPin(self::defaultPin($row['staff_no']))); }
-            Db::getInstance()->insert('pulse_pr_employee', $row, true); $id = (int) Db::getInstance()->Insert_ID();
+            PulseDb::insert('pulse_pr_employee', $row, true); $id = (int) PulseDb::Insert_ID();
         }
         self::log(null, 'employee_save', 'employee', array('staff_no' => $row['staff_no']), $id);
         return $id;
@@ -249,7 +260,7 @@ class PulsePrService
         if (!self::hr()) { return false; }
         $onDate = $onDate ? $onDate : self::bd();
         $h = (class_exists('PulseHrEmployee') && method_exists('PulseHrEmployee', 'get')) ? PulseHrEmployee::get((int) $idHrEmployee) : null;
-        if (!$h) { $h = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE id_pulse_hr_employee='.(int) $idHrEmployee); }
+        if (!$h) { $h = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_employee` WHERE id_pulse_hr_employee='.(int) $idHrEmployee); }
         if (!$h) { return false; }
         $c = self::hrContract((int) $idHrEmployee, $onDate);
         // what HR actually knows. Department, section, position and grade live behind id_* joins in HR, so
@@ -276,7 +287,7 @@ class PulsePrService
                 if (isset($c[$k]) && $c[$k] !== null && $c[$k] !== '') { $hr[$to] = $c[$k]; }
             }
         }
-        $ex = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE id_hr_employee='.(int) $idHrEmployee);
+        $ex = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE id_hr_employee='.(int) $idHrEmployee);
         // start from what payroll already holds so a sync never blanks a payroll-only field (tax state, NSITF
         // number, bank code, hold flag) and — the expensive one — never resets the pay rate to zero because no
         // contract version was in force on the date. HR overlays only what it actually knows.
@@ -315,7 +326,7 @@ class PulsePrService
         $from = in_array('effective_from', $cols) ? 'effective_from' : (in_array('date_start', $cols) ? 'date_start' : null);
         $to = in_array('effective_to', $cols) ? 'effective_to' : (in_array('date_end', $cols) ? 'date_end' : null);
         if (!$from || !$to) { return null; }
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_contract` WHERE id_pulse_hr_employee='.(int) $idHrEmployee.(in_array('status', $cols) ? ' AND status<>"draft"' : '').' AND `'.bqSQL($from).'`<="'.pSQL($onDate).'" AND (`'.bqSQL($to).'` IS NULL OR `'.bqSQL($to).'`>="'.pSQL($onDate).'") ORDER BY `'.bqSQL($from).'` DESC LIMIT 1');
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_contract` WHERE id_pulse_hr_employee='.(int) $idHrEmployee.(in_array('status', $cols) ? ' AND status<>"draft"' : '').' AND `'.bqSQL($from).'`<="'.pSQL($onDate).'" AND (`'.bqSQL($to).'` IS NULL OR `'.bqSQL($to).'`>="'.pSQL($onDate).'") ORDER BY `'.bqSQL($from).'` DESC');
     }
 
     /** Pull the whole HR roster into payroll. Returns the number of rows created or refreshed. */
@@ -323,7 +334,7 @@ class PulsePrService
     {
         if (!self::hr()) { return 0; }
         $n = 0;
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_hr_employee FROM `'._DB_PREFIX_.'pulse_hr_employee`') as $r) {
+        foreach (PulseDb::executeS('SELECT id_pulse_hr_employee FROM `'._DB_PREFIX_.'pulse_hr_employee`') as $r) {
             try { if (self::syncFromHr((int) $r['id_pulse_hr_employee'], $onDate)) { $n++; } } catch (Exception $e) { self::log(null, 'hr_sync_fail', 'employee', $e->getMessage(), (int) $r['id_pulse_hr_employee']); }
         }
         return $n;
@@ -332,7 +343,7 @@ class PulsePrService
     public static function markExit($idHrEmployee, $exitDate = null)
     {
         $exitDate = $exitDate ? $exitDate : self::bd();
-        return Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_pr_employee` SET status="exited", exit_date="'.pSQL($exitDate).'", date_upd=NOW() WHERE id_hr_employee='.(int) $idHrEmployee);
+        return PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_pr_employee` SET status="exited", exit_date="'.pSQL($exitDate).'", date_upd=NOW() WHERE id_hr_employee='.(int) $idHrEmployee);
     }
 
     /* ---------------- pay structures ---------------- */
@@ -340,12 +351,12 @@ class PulsePrService
     /** The elements assigned to an employee on a date, falling back to the grade default then to DEFAULT. */
     public static function structure($idEmployee, $onDate, $grade = '')
     {
-        $rows = Db::getInstance()->executeS('SELECT s.*, e.name, e.type, e.calc, e.percent_of, e.taxable, e.pensionable, e.nsitfable, e.in_basic, e.proratable, e.recurring, e.gl_account, e.sequence, e.statutory_code, e.formula, e.default_value
+        $rows = PulseDb::executeS('SELECT s.*, e.name, e.type, e.calc, e.percent_of, e.taxable, e.pensionable, e.nsitfable, e.in_basic, e.proratable, e.recurring, e.gl_account, e.sequence, e.statutory_code, e.formula, e.default_value
             FROM `'._DB_PREFIX_.'pulse_pr_employee_element` s INNER JOIN `'._DB_PREFIX_.'pulse_pr_element` e ON e.code=s.element_code
             WHERE s.id_pulse_pr_employee='.(int) $idEmployee.' AND s.effective_from<="'.pSQL($onDate).'" AND (s.effective_to IS NULL OR s.effective_to>="'.pSQL($onDate).'") AND e.active=1 ORDER BY e.sequence, s.element_code');
         if ($rows) { return self::latestPerElement($rows); }
         foreach (array_filter(array($grade, 'DEFAULT')) as $g) {
-            $rows = Db::getInstance()->executeS('SELECT s.*, e.name, e.type, e.calc, e.percent_of, e.taxable, e.pensionable, e.nsitfable, e.in_basic, e.proratable, e.recurring, e.gl_account, e.sequence, e.statutory_code, e.formula, e.default_value
+            $rows = PulseDb::executeS('SELECT s.*, e.name, e.type, e.calc, e.percent_of, e.taxable, e.pensionable, e.nsitfable, e.in_basic, e.proratable, e.recurring, e.gl_account, e.sequence, e.statutory_code, e.formula, e.default_value
                 FROM `'._DB_PREFIX_.'pulse_pr_employee_element` s INNER JOIN `'._DB_PREFIX_.'pulse_pr_element` e ON e.code=s.element_code
                 WHERE s.id_pulse_pr_employee IS NULL AND s.grade="'.pSQL($g).'" AND s.effective_from<="'.pSQL($onDate).'" AND (s.effective_to IS NULL OR s.effective_to>="'.pSQL($onDate).'") AND e.active=1 ORDER BY e.sequence, s.element_code');
             if ($rows) { return self::latestPerElement($rows); }
@@ -374,15 +385,15 @@ class PulsePrService
             'note' => pSQL(Tools::substr(isset($d['note']) ? $d['note'] : '', 0, 160)), 'date_add' => date('Y-m-d H:i:s'),
         );
         if ($row['id_pulse_pr_employee'] === null && $row['grade'] === '') { throw new PrestaShopException('A structure line needs either an employee or a grade'); }
-        Db::getInstance()->insert('pulse_pr_employee_element', $row, true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pr_employee_element', $row, true);
+        $id = (int) PulseDb::Insert_ID();
         self::log(null, 'structure_save', 'structure', $row, $id);
         return $id;
     }
 
     public static function deleteStructureLine($id)
     {
-        Db::getInstance()->delete('pulse_pr_employee_element', 'id_pulse_pr_employee_element='.(int) $id);
+        PulseDb::delete('pulse_pr_employee_element', 'id_pulse_pr_employee_element='.(int) $id);
         self::log(null, 'structure_delete', 'structure', null, (int) $id);
         return true;
     }
@@ -393,7 +404,7 @@ class PulsePrService
     public static function declarations($idEmployee, $onDate)
     {
         $out = array();
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_declaration` WHERE id_pulse_pr_employee='.(int) $idEmployee.' AND date_from<="'.pSQL($onDate).'" AND (date_to IS NULL OR date_to>="'.pSQL($onDate).'") ORDER BY date_from') as $r) { $out[$r['code']] = $r; }
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_declaration` WHERE id_pulse_pr_employee='.(int) $idEmployee.' AND date_from<="'.pSQL($onDate).'" AND (date_to IS NULL OR date_to>="'.pSQL($onDate).'") ORDER BY date_from') as $r) { $out[$r['code']] = $r; }
         return $out;
     }
 
@@ -416,8 +427,8 @@ class PulsePrService
             'date_upd' => date('Y-m-d H:i:s'),
         );
         $id = (int) (isset($d['id_pulse_pr_declaration']) ? $d['id_pulse_pr_declaration'] : 0);
-        if ($id) { Db::getInstance()->update('pulse_pr_declaration', $row, 'id_pulse_pr_declaration='.$id, 0, true); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_pr_declaration', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_pr_declaration', $row, 'id_pulse_pr_declaration='.$id, 0, true); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert('pulse_pr_declaration', $row, true); $id = (int) PulseDb::Insert_ID(); }
         self::log(null, 'declaration_save', 'declaration', $row, $id);
         return $id;
     }
@@ -425,7 +436,7 @@ class PulsePrService
     /** End a declaration or withdraw a consent — never delete it, the payslip history has to stay explicable. */
     public static function endDeclaration($id, $dateTo = null)
     {
-        Db::getInstance()->update('pulse_pr_declaration', array('date_to' => pSQL($dateTo ? $dateTo : date('Y-m-d')), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_declaration='.(int) $id);
+        PulseDb::update('pulse_pr_declaration', array('date_to' => pSQL($dateTo ? $dateTo : date('Y-m-d')), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_declaration='.(int) $id);
         self::log(null, 'declaration_end', 'declaration', array('date_to' => $dateTo), (int) $id);
         return true;
     }
@@ -439,7 +450,7 @@ class PulsePrService
      */
     public static function timesheet($idEmployee, $period, $idHrEmployee = null)
     {
-        $local = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_timesheet` WHERE id_pulse_pr_employee='.(int) $idEmployee.' AND period="'.pSQL($period).'"');
+        $local = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_timesheet` WHERE id_pulse_pr_employee='.(int) $idEmployee.' AND period="'.pSQL($period).'"');
         if ($local && (int) $local['approved']) { return $local; }
         $remote = self::timesheetFromTa($idHrEmployee, $period);
         if ($remote) { return $remote; }
@@ -459,7 +470,7 @@ class PulsePrService
         if (!in_array('period', $cols) || !in_array('approved', $cols)) { return null; }
         $key = in_array('id_pulse_hr_employee', $cols) ? 'id_pulse_hr_employee' : (in_array('id_employee', $cols) ? 'id_employee' : null);
         if (!$key) { return null; }
-        $t = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_timesheet` WHERE `'.bqSQL($key).'`='.(int) $idHrEmployee.' AND `period`="'.pSQL($period).'" AND `approved`=1');
+        $t = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_timesheet` WHERE `'.bqSQL($key).'`='.(int) $idHrEmployee.' AND `period`="'.pSQL($period).'" AND `approved`=1');
         return $t ? self::normaliseTimesheet($t) : null;
     }
 
@@ -477,7 +488,7 @@ class PulsePrService
     public static function columns($table)
     {
         $out = array();
-        foreach ((array) Db::getInstance()->executeS('SHOW COLUMNS FROM `'._DB_PREFIX_.bqSQL($table).'`') as $c) { $out[] = $c['Field']; }
+        foreach ((array) PulseDb::executeS('SHOW COLUMNS FROM `'._DB_PREFIX_.bqSQL($table).'`') as $c) { $out[] = $c['Field']; }
         return $out;
     }
 
@@ -495,11 +506,11 @@ class PulsePrService
             'date_approved' => !empty($d['approved']) ? date('Y-m-d H:i:s') : null,
             'note' => pSQL(Tools::substr(isset($d['note']) ? $d['note'] : '', 0, 160)), 'date_upd' => date('Y-m-d H:i:s'),
         );
-        $ex = (int) Db::getInstance()->getValue('SELECT id_pulse_pr_timesheet FROM `'._DB_PREFIX_.'pulse_pr_timesheet` WHERE id_pulse_pr_employee='.(int) $d['id_pulse_pr_employee'].' AND period="'.pSQL($d['period']).'"');
-        if ($ex) { Db::getInstance()->update('pulse_pr_timesheet', $row, 'id_pulse_pr_timesheet='.$ex, 0, true); return $ex; }
+        $ex = (int) PulseDb::getValue('SELECT id_pulse_pr_timesheet FROM `'._DB_PREFIX_.'pulse_pr_timesheet` WHERE id_pulse_pr_employee='.(int) $d['id_pulse_pr_employee'].' AND period="'.pSQL($d['period']).'"');
+        if ($ex) { PulseDb::update('pulse_pr_timesheet', $row, 'id_pulse_pr_timesheet='.$ex, 0, true); return $ex; }
         $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert('pulse_pr_timesheet', $row, true);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pr_timesheet', $row, true);
+        return (int) PulseDb::Insert_ID();
     }
 
     /* ---------------- proration ---------------- */
@@ -564,7 +575,7 @@ class PulsePrService
     public static function accrueDaily($businessDate)
     {
         $period = Tools::substr((string) $businessDate, 0, 7);
-        $itf = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(itf_er),0) FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.period LIKE "'.pSQL(Tools::substr($period, 0, 4)).'-%" AND r.status IN ("approved","paid","posted")'), 2);
+        $itf = round((float) PulseDb::getValue('SELECT COALESCE(SUM(itf_er),0) FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.period LIKE "'.pSQL(Tools::substr($period, 0, 4)).'-%" AND r.status IN ("approved","paid","posted")'), 2);
         $year = (int) Tools::substr($period, 0, 4);
         if ($itf > 0) { self::upsertRemittance('itf', $year.'-12', 'Industrial Training Fund', $itf, ($year + 1).'-04-01'); }
         return true;
@@ -573,38 +584,38 @@ class PulsePrService
     /** Create or refresh a statutory remittance row; a row already paid is never overwritten. */
     public static function upsertRemittance($scheme, $period, $authority, $amount, $dueDate)
     {
-        $ex = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_remittance` WHERE scheme="'.pSQL($scheme).'" AND period="'.pSQL($period).'"');
+        $ex = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_remittance` WHERE scheme="'.pSQL($scheme).'" AND period="'.pSQL($period).'"');
         if ($ex && $ex['status'] === 'paid') { return (int) $ex['id_pulse_pr_remittance']; }
         $row = array('scheme' => pSQL($scheme), 'period' => pSQL($period), 'authority' => pSQL(Tools::substr($authority, 0, 96)), 'amount_due' => round((float) $amount, 2), 'due_date' => pSQL($dueDate), 'date_upd' => date('Y-m-d H:i:s'));
         if ($ex) {
             if ((float) $ex['amount_paid'] > 0 && (float) $ex['amount_paid'] < $row['amount_due']) { $row['status'] = 'part'; }
-            Db::getInstance()->update('pulse_pr_remittance', $row, 'id_pulse_pr_remittance='.(int) $ex['id_pulse_pr_remittance'], 0, true);
+            PulseDb::update('pulse_pr_remittance', $row, 'id_pulse_pr_remittance='.(int) $ex['id_pulse_pr_remittance'], 0, true);
             return (int) $ex['id_pulse_pr_remittance'];
         }
         $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert('pulse_pr_remittance', $row, true);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_pr_remittance', $row, true);
+        return (int) PulseDb::Insert_ID();
     }
 
     public static function remittances($status = null, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_remittance` WHERE 1'.($status ? ' AND status="'.pSQL($status).'"' : '').' ORDER BY due_date DESC, scheme LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_remittance` WHERE 1'.($status ? ' AND status="'.pSQL($status).'"' : '').' ORDER BY due_date DESC, scheme LIMIT '.(int) $limit);
     }
 
     public static function payRemittance($id, $amount, $date, $reference)
     {
-        $r = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_remittance` WHERE id_pulse_pr_remittance='.(int) $id);
+        $r = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_remittance` WHERE id_pulse_pr_remittance='.(int) $id);
         if (!$r) { throw new PrestaShopException('Unknown remittance'); }
         $paid = round((float) $r['amount_paid'] + (float) $amount, 2);
         $status = $paid + 0.005 >= (float) $r['amount_due'] ? 'paid' : 'part';
-        Db::getInstance()->update('pulse_pr_remittance', array('amount_paid' => $paid, 'date_paid' => pSQL($date), 'reference' => pSQL(Tools::substr($reference, 0, 96)), 'status' => $status, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_remittance='.(int) $id);
+        PulseDb::update('pulse_pr_remittance', array('amount_paid' => $paid, 'date_paid' => pSQL($date), 'reference' => pSQL(Tools::substr($reference, 0, 96)), 'status' => $status, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_remittance='.(int) $id);
         self::log(null, 'remittance_pay', 'remittance', array('scheme' => $r['scheme'], 'amount' => $amount), (int) $id);
         return true;
     }
 
     /* ---------------- misc ---------------- */
 
-    public static function banks($activeOnly = true) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_bank` WHERE 1'.($activeOnly ? ' AND active=1' : '').' ORDER BY sort, name'); }
+    public static function banks($activeOnly = true) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_bank` WHERE 1'.($activeOnly ? ' AND active=1' : '').' ORDER BY sort, name'); }
 
     /** CSV body for any report table — same helper the rest of the suite uses. */
     public static function toCsv(array $rows)
@@ -621,6 +632,6 @@ class PulsePrService
     public static function occupiedRoomNights($from, $to)
     {
         if (!self::fd() || !class_exists('HotelBookingDetail')) { return 0; }
-        return (int) Db::getInstance()->getValue('SELECT COALESCE(SUM(DATEDIFF(LEAST(date_to,"'.pSQL($to).'"), GREATEST(date_from,"'.pSQL($from).'"))),0) FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE is_cancelled=0 AND is_refunded=0 AND date_from<="'.pSQL($to).'" AND date_to>="'.pSQL($from).'"');
+        return (int) PulseDb::getValue('SELECT COALESCE(SUM(DATEDIFF(LEAST(date_to,"'.pSQL($to).'"), GREATEST(date_from,"'.pSQL($from).'"))),0) FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE is_cancelled=0 AND is_refunded=0 AND date_from<="'.pSQL($to).'" AND date_to>="'.pSQL($from).'"');
     }
 }

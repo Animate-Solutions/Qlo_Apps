@@ -5,7 +5,7 @@ class AdminPulseInventoryPurchasingController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
-        $D = Db::getInstance(); $items = $D->executeS('SELECT i.id_pulse_inv_item, i.sku, i.name, i.unit, i.purchase_unit, i.purchase_factor, i.last_cost FROM `'._DB_PREFIX_.'pulse_inv_item` i WHERE i.active=1 ORDER BY i.name');
+        $D = PulseDb::handle(); $items = $D->executeS('SELECT i.id_pulse_inv_item, i.sku, i.name, i.unit, i.purchase_unit, i.purchase_factor, i.last_cost FROM `'._DB_PREFIX_.'pulse_inv_item` i WHERE i.active=1 ORDER BY i.name');
         $data = array('items' => $items, 'stores' => $D->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_inv_store` WHERE active=1'), 'suppliers' => $D->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_inv_supplier` WHERE active=1 ORDER BY name'),
             'requests' => $D->executeS('SELECT r.*, sf.code from_store, st.code to_store, CONCAT(e.firstname," ",e.lastname) who, (SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_inv_request_line` l WHERE l.id_pulse_inv_request=r.id_pulse_inv_request) request_lines FROM `'._DB_PREFIX_.'pulse_inv_request` r LEFT JOIN `'._DB_PREFIX_.'pulse_inv_store` sf ON sf.id_pulse_inv_store=r.id_store_from LEFT JOIN `'._DB_PREFIX_.'pulse_inv_store` st ON st.id_pulse_inv_store=r.id_store_to LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=r.requested_by ORDER BY FIELD(r.status,"submitted","approved","partially_issued"), r.id_pulse_inv_request DESC LIMIT 60'),
             'pos' => $D->executeS('SELECT p.*, s.name supplier FROM `'._DB_PREFIX_.'pulse_inv_po` p INNER JOIN `'._DB_PREFIX_.'pulse_inv_supplier` s ON s.id_pulse_inv_supplier=p.id_pulse_inv_supplier ORDER BY p.id_pulse_inv_po DESC LIMIT 40'),
@@ -13,6 +13,7 @@ class AdminPulseInventoryPurchasingController extends ModuleAdminController
             'reorder' => PulseInvService::reorderSuggestions(), 'self_url' => self::$currentIndex.'&token='.$this->token, 'approval_limit' => Configuration::get('PULSE_INV_PO_APPROVAL_LIMIT'), 'cur' => $this->context->currency->sign);
         if ($id = (int) Tools::getValue('id_request')) { $data['req'] = $D->getRow('SELECT r.*, sf.name from_store, st.name to_store FROM `'._DB_PREFIX_.'pulse_inv_request` r LEFT JOIN `'._DB_PREFIX_.'pulse_inv_store` sf ON sf.id_pulse_inv_store=r.id_store_from LEFT JOIN `'._DB_PREFIX_.'pulse_inv_store` st ON st.id_pulse_inv_store=r.id_store_to WHERE r.id_pulse_inv_request='.$id); $data['req_lines'] = $D->executeS('SELECT l.*, i.name, i.unit, i.sku, COALESCE(s.qty,0) available FROM `'._DB_PREFIX_.'pulse_inv_request_line` l INNER JOIN `'._DB_PREFIX_.'pulse_inv_item` i ON i.id_pulse_inv_item=l.id_pulse_inv_item LEFT JOIN `'._DB_PREFIX_.'pulse_inv_stock` s ON s.id_pulse_inv_item=i.id_pulse_inv_item AND s.id_pulse_inv_store='.(int) $data['req']['id_store_from'].' WHERE l.id_pulse_inv_request='.$id); }
         if ($id = (int) Tools::getValue('id_po')) { $data['po'] = PulseInvPurchasing::po($id); }
+        $data += array('lines' => array());
         $this->context->smarty->assign($data);
         $this->setTemplate('purchasing.tpl');
     }

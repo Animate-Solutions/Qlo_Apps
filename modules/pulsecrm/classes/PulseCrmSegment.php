@@ -96,9 +96,9 @@ class PulseCrmSegment
         return '('.implode($glue, $parts).')';
     }
 
-    public static function all($activeOnly = false) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_segment`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY is_system DESC, name'); }
-    public static function get($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_segment` WHERE id_pulse_crm_segment='.(int) $id); }
-    public static function byCode($code) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_segment` WHERE code="'.pSQL($code).'"'); }
+    public static function all($activeOnly = false) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_segment`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY is_system DESC, name'); }
+    public static function get($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_segment` WHERE id_pulse_crm_segment='.(int) $id); }
+    public static function byCode($code) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_segment` WHERE code="'.pSQL($code).'"'); }
 
     public static function save(array $d, $id = 0)
     {
@@ -106,21 +106,21 @@ class PulseCrmSegment
         self::compile($rules); // validate before we store anything
         $row = array('name' => pSQL($d['name']), 'description' => pSQL(isset($d['description']) ? $d['description'] : ''), 'rules_json' => pSQL($rules, true),
             'active' => isset($d['active']) ? (int) $d['active'] : 1, 'date_upd' => date('Y-m-d H:i:s'));
-        if ($id) { Db::getInstance()->update('pulse_crm_segment', $row, 'id_pulse_crm_segment='.(int) $id); return (int) $id; }
+        if ($id) { PulseDb::update('pulse_crm_segment', $row, 'id_pulse_crm_segment='.(int) $id); return (int) $id; }
         $row['code'] = pSQL(isset($d['code']) && $d['code'] ? Tools::str2url($d['code']) : Tools::substr(Tools::str2url($d['name']), 0, 30));
         $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert('pulse_crm_segment', $row);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_crm_segment', $row);
+        return (int) PulseDb::Insert_ID();
     }
 
     /** Count without materialising — the preview button on the segment editor. */
     public static function preview($rules, $limit = 25)
     {
         $where = self::compile($rules);
-        $count = (int) Db::getInstance()->getValue('SELECT COUNT(DISTINCT c.id_customer)'.self::from().' AND '.$where);
+        $count = (int) PulseDb::getValue('SELECT COUNT(DISTINCT c.id_customer)'.self::from().' AND '.$where);
         $gp = PulseCrmService::gp();
         $cols = $gp ? 'gp.stays, gp.lifetime_revenue, gp.last_stay' : '0 stays, 0 lifetime_revenue, NULL last_stay';
-        $rows = Db::getInstance()->executeS('SELECT DISTINCT c.id_customer, c.firstname, c.lastname, c.email, '.$cols.self::from().' AND '.$where.($gp ? ' ORDER BY gp.lifetime_revenue DESC' : '').' LIMIT '.(int) $limit);
+        $rows = PulseDb::executeS('SELECT DISTINCT c.id_customer, c.firstname, c.lastname, c.email, '.$cols.self::from().' AND '.$where.($gp ? ' ORDER BY gp.lifetime_revenue DESC' : '').' LIMIT '.(int) $limit);
         return array('count' => $count, 'rows' => $rows);
     }
 
@@ -128,7 +128,7 @@ class PulseCrmSegment
     public static function refresh($id)
     {
         $s = self::get($id); if (!$s) { return 0; }
-        $t0 = microtime(true); $db = Db::getInstance();
+        $t0 = microtime(true); $db = PulseDb::handle();
         try { $where = self::compile($s['rules_json']); }
         catch (Exception $e) { $db->update('pulse_crm_segment', array('last_error' => pSQL($e->getMessage()), 'last_refresh' => date('Y-m-d H:i:s')), 'id_pulse_crm_segment='.(int) $id); return 0; }
         $db->execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_segment_member` WHERE id_pulse_crm_segment='.(int) $id);
@@ -142,7 +142,7 @@ class PulseCrmSegment
     public static function refreshAll($limit = 50)
     {
         $out = array('segments' => 0, 'members' => 0);
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_crm_segment FROM `'._DB_PREFIX_.'pulse_crm_segment` WHERE active=1 ORDER BY COALESCE(last_refresh,"1970-01-01") LIMIT '.(int) $limit) as $s) {
+        foreach (PulseDb::executeS('SELECT id_pulse_crm_segment FROM `'._DB_PREFIX_.'pulse_crm_segment` WHERE active=1 ORDER BY COALESCE(last_refresh,"1970-01-01") LIMIT '.(int) $limit) as $s) {
             $out['members'] += self::refresh((int) $s['id_pulse_crm_segment']); $out['segments']++;
         }
         return $out;
@@ -151,7 +151,7 @@ class PulseCrmSegment
     public static function members($id, $limit = 200, $offset = 0)
     {
         $gp = PulseCrmService::gp();
-        return Db::getInstance()->executeS('SELECT c.id_customer, c.firstname, c.lastname, c.email, '.($gp ? 'gp.stays, gp.lifetime_revenue, gp.last_stay' : '0 stays, 0 lifetime_revenue, NULL last_stay').'
+        return PulseDb::executeS('SELECT c.id_customer, c.firstname, c.lastname, c.email, '.($gp ? 'gp.stays, gp.lifetime_revenue, gp.last_stay' : '0 stays, 0 lifetime_revenue, NULL last_stay').'
             FROM `'._DB_PREFIX_.'pulse_crm_segment_member` sm INNER JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=sm.id_customer
             '.($gp ? 'LEFT JOIN `'._DB_PREFIX_.'pulse_guest_profile` gp ON gp.id_customer=c.id_customer' : '').'
             WHERE sm.id_pulse_crm_segment='.(int) $id.($gp ? ' ORDER BY gp.lifetime_revenue DESC' : '').' LIMIT '.(int) $offset.','.(int) $limit);
@@ -159,7 +159,7 @@ class PulseCrmSegment
 
     public static function remove($id)
     {
-        Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_segment_member` WHERE id_pulse_crm_segment='.(int) $id);
-        return Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_segment` WHERE id_pulse_crm_segment='.(int) $id.' AND is_system=0');
+        PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_segment_member` WHERE id_pulse_crm_segment='.(int) $id);
+        return PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_segment` WHERE id_pulse_crm_segment='.(int) $id.' AND is_system=0');
     }
 }

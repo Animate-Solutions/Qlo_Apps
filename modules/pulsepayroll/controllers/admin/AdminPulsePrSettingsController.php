@@ -58,8 +58,8 @@ class AdminPulsePrSettingsController extends ModuleAdminController
             'sort_code' => pSQL(Tools::substr((string) Tools::getValue('sort_code'), 0, 16)), 'swift' => pSQL(Tools::substr((string) Tools::getValue('swift'), 0, 16)),
             'country' => pSQL(Tools::substr((string) Tools::getValue('bcountry', 'NG'), 0, 2)), 'template' => pSQL(Tools::getValue('btemplate', 'nibss')),
             'active' => (int) (bool) Tools::getValue('bactive', 1), 'sort' => (int) Tools::getValue('bsort'));
-        $ex = (int) Db::getInstance()->getValue('SELECT id_pulse_pr_bank FROM `'._DB_PREFIX_.'pulse_pr_bank` WHERE name="'.$row['name'].'"');
-        if ($ex) { return Db::getInstance()->update('pulse_pr_bank', $row, 'id_pulse_pr_bank='.$ex, 0, true); }
-        return Db::getInstance()->insert('pulse_pr_bank', $row, true);
+        $ex = (int) PulseDb::getValue('SELECT id_pulse_pr_bank FROM `'._DB_PREFIX_.'pulse_pr_bank` WHERE name="'.$row['name'].'"');
+        if ($ex) { return PulseDb::update('pulse_pr_bank', $row, 'id_pulse_pr_bank='.$ex, 0, true); }
+        return PulseDb::insert('pulse_pr_bank', $row, true);
     }
 }

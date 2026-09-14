@@ -27,8 +27,9 @@ class AdminPulseCrmSettingsController extends ModuleAdminController
     {
         parent::initContent();
         $this->context->smarty->assign(array(
-            'options' => PulseCrmProfile::options(), 'tags' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_tag` ORDER BY name'),
-            'consent_summary' => Db::getInstance()->executeS('SELECT channel, state, COUNT(*) n FROM `'._DB_PREFIX_.'pulse_crm_consent` GROUP BY channel, state ORDER BY channel, state'),
+            
+            'id_option' => (int) Tools::getValue('id_option'), 'id_tag' => (int) Tools::getValue('id_tag'),'options' => PulseCrmProfile::options(), 'tags' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_tag` ORDER BY name'),
+            'consent_summary' => PulseDb::executeS('SELECT channel, state, COUNT(*) n FROM `'._DB_PREFIX_.'pulse_crm_consent` GROUP BY channel, state ORDER BY channel, state'),
             'cron_token' => Configuration::get('PULSE_CRM_CRON_TOKEN'), 'cron_url' => PulseCrmService::baseUrl().'modules/pulsecrm/cron/crm.php?token='.Configuration::get('PULSE_CRM_CRON_TOKEN'),
             'quiet' => PulseCrmService::inQuietHours(), 'comms' => PulseCrmService::comms(), 'fd' => PulseCrmService::fd(),
             'sms_adapter' => Configuration::get('PULSE_FD_SMS_ADAPTER'), 'sms_key' => Configuration::get('PULSE_FD_SMS_API_KEY') ? true : false,
@@ -46,13 +47,13 @@ class AdminPulseCrmSettingsController extends ModuleAdminController
                 $d = array('category' => pSQL(Tools::getValue('category')), 'code' => pSQL(Tools::str2url(Tools::getValue('code'))), 'label' => pSQL(Tools::getValue('label')),
                     'sort' => (int) Tools::getValue('sort'), 'active' => (int) Tools::getValue('active', 1));
                 if (!$d['code'] || !$d['label']) { throw new PrestaShopException($this->l('A preference option needs a code and a label')); }
-                $id ? Db::getInstance()->update('pulse_crm_preference_option', $d, 'id_pulse_crm_preference_option='.$id) : Db::getInstance()->insert('pulse_crm_preference_option', $d);
+                $id ? PulseDb::update('pulse_crm_preference_option', $d, 'id_pulse_crm_preference_option='.$id) : PulseDb::insert('pulse_crm_preference_option', $d);
                 $this->confirmations[] = $this->l('Preference option saved');
             }
             if (Tools::isSubmit('saveTagDef')) {
                 $id = (int) Tools::getValue('id_tag');
                 $d = array('code' => pSQL(Tools::str2url(Tools::getValue('tcode'))), 'name' => pSQL(Tools::getValue('tname')), 'colour' => pSQL(Tools::getValue('tcolour', 'default')));
-                $id ? Db::getInstance()->update('pulse_crm_tag', $d, 'id_pulse_crm_tag='.$id) : Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_crm_tag` (code,name,colour) VALUES ("'.$d['code'].'","'.$d['name'].'","'.$d['colour'].'")');
+                $id ? PulseDb::update('pulse_crm_tag', $d, 'id_pulse_crm_tag='.$id) : PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_crm_tag` (code,name,colour) VALUES ("'.$d['code'].'","'.$d['name'].'","'.$d['colour'].'")');
                 $this->confirmations[] = $this->l('Tag saved');
             }
             if (Tools::isSubmit('rollToken')) { Configuration::updateValue('PULSE_CRM_CRON_TOKEN', Tools::passwdGen(32)); $this->confirmations[] = $this->l('Cron token rolled — update your crontab'); }

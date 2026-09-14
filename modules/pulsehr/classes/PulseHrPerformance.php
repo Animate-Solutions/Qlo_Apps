@@ -12,7 +12,7 @@ class PulseHrPerformance
 
     public static function getCase($id)
     {
-        return Db::getInstance()->getRow('SELECT c.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name,
+        return PulseDb::getRow('SELECT c.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name,
                 CONCAT(iss.firstname," ",iss.lastname) issued_by_name
             FROM `'._DB_PREFIX_.self::T.'` c INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=c.id_pulse_hr_employee
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
@@ -21,7 +21,7 @@ class PulseHrPerformance
 
     public static function cases($status = null, $idEmployee = 0, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT c.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
+        return PulseDb::executeS('SELECT c.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
             FROM `'._DB_PREFIX_.self::T.'` c INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=c.id_pulse_hr_employee
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
             WHERE 1'.($status ? ' AND c.status IN ("'.implode('","', array_map('pSQL', explode(',', $status))).'")' : '').($idEmployee ? ' AND c.id_pulse_hr_employee='.(int) $idEmployee : '')
@@ -31,7 +31,7 @@ class PulseHrPerformance
     /** Live warnings: how many count against someone right now (expired ones stop counting). */
     public static function liveWarnings($idEmployee)
     {
-        return (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.(int) $idEmployee.'
+        return (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.(int) $idEmployee.'
             AND type IN ("verbal_warning","written_warning","final_warning") AND status<>"withdrawn" AND (expires_on IS NULL OR expires_on>=CURDATE())');
     }
 
@@ -51,10 +51,10 @@ class PulseHrPerformance
             $row['suspension_to'] = !empty($d['suspension_to']) ? pSQL(date('Y-m-d', strtotime($d['suspension_to']))) : $row['suspension_from'];
             if ($row['suspension_to'] < $row['suspension_from']) { throw new PrestaShopException('The suspension ends before it starts'); }
         }
-        if ($id) { Db::getInstance()->update(self::T, $row, 'id_pulse_hr_case='.(int) $id, 0, true); }
+        if ($id) { PulseDb::update(self::T, $row, 'id_pulse_hr_case='.(int) $id, 0, true); }
         else {
             $row['case_no'] = PulseHrService::nextNo('DC'); $row['status'] = 'open'; $row['date_add'] = date('Y-m-d H:i:s');
-            Db::getInstance()->insert(self::T, $row, true); $id = (int) Db::getInstance()->Insert_ID();
+            PulseDb::insert(self::T, $row, true); $id = (int) PulseDb::Insert_ID();
         }
         if ($row['type'] === 'suspension' && !empty($row['suspension_from']) && $row['suspension_from'] <= date('Y-m-d')) { PulseHrEmployee::setStatus((int) $row['id_pulse_hr_employee'], 'suspended', 'Case '.$id); }
         PulseCoreService::audit('pulsehr', 'discipline_case', array('type' => $row['type'], 'subject' => $row['subject'], 'id_employee' => $row['id_pulse_hr_employee']), self::T, $id);
@@ -67,7 +67,7 @@ class PulseHrPerformance
         $c = self::getCase($idCase);
         if (!$c || (int) $c['id_pulse_hr_employee'] !== (int) $idEmployee) { throw new PrestaShopException('Case not found'); }
         if ($c['acknowledged_at']) { return true; }
-        Db::getInstance()->update(self::T, array('acknowledged_at' => date('Y-m-d H:i:s'), 'ack_ip' => pSQL(Tools::substr((string) ($ip ? $ip : Tools::getRemoteAddr()), 0, 45)),
+        PulseDb::update(self::T, array('acknowledged_at' => date('Y-m-d H:i:s'), 'ack_ip' => pSQL(Tools::substr((string) ($ip ? $ip : Tools::getRemoteAddr()), 0, 45)),
             'response' => pSQL($response, true), 'responded_at' => $response ? date('Y-m-d H:i:s') : null,
             'status' => $response ? 'responded' : 'acknowledged', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_case='.(int) $idCase, 0, true);
         PulseCoreService::audit('pulsehr', 'discipline_acknowledged', array('case_no' => $c['case_no'], 'responded' => $response ? 1 : 0), self::T, (int) $idCase);
@@ -78,7 +78,7 @@ class PulseHrPerformance
     {
         $c = self::getCase($idCase);
         if (!$c) { throw new PrestaShopException('Case not found'); }
-        Db::getInstance()->update(self::T, array('status' => pSQL(in_array($status, array('closed', 'withdrawn')) ? $status : 'closed'), 'outcome' => pSQL($outcome), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_case='.(int) $idCase, 0, true);
+        PulseDb::update(self::T, array('status' => pSQL(in_array($status, array('closed', 'withdrawn')) ? $status : 'closed'), 'outcome' => pSQL($outcome), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_case='.(int) $idCase, 0, true);
         if ($c['type'] === 'suspension') {
             $e = PulseHrEmployee::get((int) $c['id_pulse_hr_employee']);
             if ($e && $e['status'] === 'suspended') { PulseHrEmployee::setStatus((int) $c['id_pulse_hr_employee'], 'active', 'Suspension closed'); }
@@ -88,36 +88,36 @@ class PulseHrPerformance
 
     /* ---------- appraisals ---------- */
 
-    public static function cycles() { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_appraisal_cycle` ORDER BY period_from DESC'); }
+    public static function cycles() { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_appraisal_cycle` ORDER BY period_from DESC'); }
     public static function saveCycle(array $d, $id = 0)
     {
         $row = array('code' => pSQL($d['code']), 'name' => pSQL($d['name']), 'period_from' => pSQL(date('Y-m-d', strtotime($d['period_from']))), 'period_to' => pSQL(date('Y-m-d', strtotime($d['period_to']))),
             'due_on' => !empty($d['due_on']) ? pSQL(date('Y-m-d', strtotime($d['due_on']))) : null, 'status' => pSQL(in_array(isset($d['status']) ? $d['status'] : '', array('open', 'in_progress', 'closed')) ? $d['status'] : 'open'));
         if ($row['period_to'] < $row['period_from']) { throw new PrestaShopException('The cycle ends before it starts'); }
-        if ($id) { Db::getInstance()->update('pulse_hr_appraisal_cycle', $row, 'id_pulse_hr_appraisal_cycle='.(int) $id, 0, true); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_hr_appraisal_cycle', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_hr_appraisal_cycle', $row, 'id_pulse_hr_appraisal_cycle='.(int) $id, 0, true); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert('pulse_hr_appraisal_cycle', $row, true); $id = (int) PulseDb::Insert_ID(); }
         return $id;
     }
 
     /** Open an appraisal for everyone confirmed and in post, each against their own manager. */
     public static function openCycle($idCycle, $dept = null)
     {
-        $c = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_appraisal_cycle` WHERE id_pulse_hr_appraisal_cycle='.(int) $idCycle);
+        $c = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_appraisal_cycle` WHERE id_pulse_hr_appraisal_cycle='.(int) $idCycle);
         if (!$c) { throw new PrestaShopException('Cycle not found'); }
         $n = 0;
         foreach (PulseHrEmployee::search(array('department' => $dept, 'status' => 'active,on_leave', 'limit' => 500)) as $e) {
-            if (Db::getInstance()->getValue('SELECT id_pulse_hr_appraisal FROM `'._DB_PREFIX_.'pulse_hr_appraisal` WHERE id_pulse_hr_appraisal_cycle='.(int) $idCycle.' AND id_pulse_hr_employee='.(int) $e['id_pulse_hr_employee'])) { continue; }
-            Db::getInstance()->insert('pulse_hr_appraisal', array('id_pulse_hr_appraisal_cycle' => (int) $idCycle, 'id_pulse_hr_employee' => (int) $e['id_pulse_hr_employee'],
+            if (PulseDb::getValue('SELECT id_pulse_hr_appraisal FROM `'._DB_PREFIX_.'pulse_hr_appraisal` WHERE id_pulse_hr_appraisal_cycle='.(int) $idCycle.' AND id_pulse_hr_employee='.(int) $e['id_pulse_hr_employee'])) { continue; }
+            PulseDb::insert('pulse_hr_appraisal', array('id_pulse_hr_appraisal_cycle' => (int) $idCycle, 'id_pulse_hr_employee' => (int) $e['id_pulse_hr_employee'],
                 'id_reviewer' => $e['id_manager'] ? (int) $e['id_manager'] : null, 'status' => 'draft', 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), true, true, Db::INSERT_IGNORE);
             $n++;
         }
-        Db::getInstance()->update('pulse_hr_appraisal_cycle', array('status' => 'in_progress'), 'id_pulse_hr_appraisal_cycle='.(int) $idCycle, 0, true);
+        PulseDb::update('pulse_hr_appraisal_cycle', array('status' => 'in_progress'), 'id_pulse_hr_appraisal_cycle='.(int) $idCycle, 0, true);
         return $n;
     }
 
     public static function appraisals($idCycle = 0, $idEmployee = 0)
     {
-        return Db::getInstance()->executeS('SELECT a.*, cy.name cycle_name, cy.period_from, cy.period_to, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no,
+        return PulseDb::executeS('SELECT a.*, cy.name cycle_name, cy.period_from, cy.period_to, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no,
                 d.name dept_name, CONCAT(r.firstname," ",r.lastname) reviewer_name
             FROM `'._DB_PREFIX_.'pulse_hr_appraisal` a
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_appraisal_cycle` cy ON cy.id_pulse_hr_appraisal_cycle=a.id_pulse_hr_appraisal_cycle
@@ -129,11 +129,11 @@ class PulseHrPerformance
 
     public static function appraisal($id)
     {
-        $a = Db::getInstance()->getRow('SELECT a.*, cy.name cycle_name, cy.period_from, cy.period_to, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no
+        $a = PulseDb::getRow('SELECT a.*, cy.name cycle_name, cy.period_from, cy.period_to, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no
             FROM `'._DB_PREFIX_.'pulse_hr_appraisal` a
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_appraisal_cycle` cy ON cy.id_pulse_hr_appraisal_cycle=a.id_pulse_hr_appraisal_cycle
             INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=a.id_pulse_hr_employee WHERE a.id_pulse_hr_appraisal='.(int) $id);
-        if ($a) { $a['objectives'] = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_appraisal_objective` WHERE id_pulse_hr_appraisal='.(int) $id.' ORDER BY sort'); }
+        if ($a) { $a['objectives'] = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_appraisal_objective` WHERE id_pulse_hr_appraisal='.(int) $id.' ORDER BY sort'); }
         return $a;
     }
 
@@ -144,14 +144,14 @@ class PulseHrPerformance
             'target' => pSQL(isset($d['target']) ? $d['target'] : ''), 'result' => pSQL(isset($d['result']) ? $d['result'] : ''),
             'rating' => (float) (isset($d['rating']) ? $d['rating'] : 0), 'comment' => pSQL(isset($d['comment']) ? $d['comment'] : ''));
         if (!$row['title'] || !$row['id_pulse_hr_appraisal']) { throw new PrestaShopException('An objective needs an appraisal and a title'); }
-        if ($id) { Db::getInstance()->update('pulse_hr_appraisal_objective', $row, 'id_pulse_hr_appraisal_objective='.(int) $id, 0, true); } else { Db::getInstance()->insert('pulse_hr_appraisal_objective', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_hr_appraisal_objective', $row, 'id_pulse_hr_appraisal_objective='.(int) $id, 0, true); } else { PulseDb::insert('pulse_hr_appraisal_objective', $row, true); $id = (int) PulseDb::Insert_ID(); }
         self::rate((int) $row['id_pulse_hr_appraisal']);
         return $id;
     }
     public static function removeObjective($id)
     {
-        $o = Db::getInstance()->getRow('SELECT id_pulse_hr_appraisal FROM `'._DB_PREFIX_.'pulse_hr_appraisal_objective` WHERE id_pulse_hr_appraisal_objective='.(int) $id);
-        Db::getInstance()->delete('pulse_hr_appraisal_objective', 'id_pulse_hr_appraisal_objective='.(int) $id);
+        $o = PulseDb::getRow('SELECT id_pulse_hr_appraisal FROM `'._DB_PREFIX_.'pulse_hr_appraisal_objective` WHERE id_pulse_hr_appraisal_objective='.(int) $id);
+        PulseDb::delete('pulse_hr_appraisal_objective', 'id_pulse_hr_appraisal_objective='.(int) $id);
         if ($o) { self::rate((int) $o['id_pulse_hr_appraisal']); }
         return true;
     }
@@ -159,11 +159,11 @@ class PulseHrPerformance
     /** Weighted overall rating. Weights that do not sum to 100 are normalised rather than silently wrong. */
     public static function rate($idAppraisal)
     {
-        $rows = Db::getInstance()->executeS('SELECT weight, rating FROM `'._DB_PREFIX_.'pulse_hr_appraisal_objective` WHERE id_pulse_hr_appraisal='.(int) $idAppraisal);
+        $rows = PulseDb::executeS('SELECT weight, rating FROM `'._DB_PREFIX_.'pulse_hr_appraisal_objective` WHERE id_pulse_hr_appraisal='.(int) $idAppraisal);
         $w = 0; $sum = 0;
         foreach ($rows as $r) { $w += (float) $r['weight']; $sum += (float) $r['weight'] * (float) $r['rating']; }
         $overall = $w > 0 ? round($sum / $w, 2) : 0;
-        Db::getInstance()->update('pulse_hr_appraisal', array('overall_rating' => $overall, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_appraisal='.(int) $idAppraisal, 0, true);
+        PulseDb::update('pulse_hr_appraisal', array('overall_rating' => $overall, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_appraisal='.(int) $idAppraisal, 0, true);
         return $overall;
     }
 
@@ -175,7 +175,7 @@ class PulseHrPerformance
             'id_reviewer' => !empty($d['id_reviewer']) ? (int) $d['id_reviewer'] : null, 'date_upd' => date('Y-m-d H:i:s'));
         if (!empty($d['sign_reviewer'])) { $row['reviewer_signed_at'] = date('Y-m-d H:i:s'); }
         if (!empty($d['sign_employee'])) { $row['employee_signed_at'] = date('Y-m-d H:i:s'); }
-        Db::getInstance()->update('pulse_hr_appraisal', $row, 'id_pulse_hr_appraisal='.(int) $id, 0, true);
+        PulseDb::update('pulse_hr_appraisal', $row, 'id_pulse_hr_appraisal='.(int) $id, 0, true);
         self::rate($id);
         return true;
     }
@@ -184,7 +184,7 @@ class PulseHrPerformance
 
     public static function training($idEmployee = 0, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT t.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
+        return PulseDb::executeS('SELECT t.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name
             FROM `'._DB_PREFIX_.'pulse_hr_training` t INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=t.id_pulse_hr_employee
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
             WHERE 1'.($idEmployee ? ' AND t.id_pulse_hr_employee='.(int) $idEmployee : '').' ORDER BY t.completed_on DESC LIMIT '.(int) $limit);
@@ -198,14 +198,14 @@ class PulseHrPerformance
             'expires_on' => !empty($d['expires_on']) ? pSQL(date('Y-m-d', strtotime($d['expires_on']))) : null,
             'cost' => round((float) (isset($d['cost']) ? $d['cost'] : 0), 2), 'certificate_no' => pSQL(isset($d['certificate_no']) ? $d['certificate_no'] : ''), 'note' => pSQL(isset($d['note']) ? $d['note'] : ''));
         if (!$row['id_pulse_hr_employee'] || !$row['course']) { throw new PrestaShopException('A training record needs an employee and a course'); }
-        if ($id) { Db::getInstance()->update('pulse_hr_training', $row, 'id_pulse_hr_training='.(int) $id, 0, true); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_hr_training', $row, true); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_hr_training', $row, 'id_pulse_hr_training='.(int) $id, 0, true); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert('pulse_hr_training', $row, true); $id = (int) PulseDb::Insert_ID(); }
         return $id;
     }
 
     public static function trainingExpiring($days = 45)
     {
-        return Db::getInstance()->executeS('SELECT t.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name, DATEDIFF(t.expires_on, CURDATE()) days_left
+        return PulseDb::executeS('SELECT t.*, CONCAT(e.firstname," ",e.lastname) employee_name, e.staff_no, d.name dept_name, DATEDIFF(t.expires_on, CURDATE()) days_left
             FROM `'._DB_PREFIX_.'pulse_hr_training` t INNER JOIN `'._DB_PREFIX_.'pulse_hr_employee` e ON e.id_pulse_hr_employee=t.id_pulse_hr_employee
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_department` d ON d.id_pulse_hr_department=e.id_pulse_hr_department
             WHERE e.status<>"exited" AND t.expires_on IS NOT NULL AND t.expires_on<=DATE_ADD(CURDATE(), INTERVAL '.(int) $days.' DAY) ORDER BY t.expires_on');

@@ -59,7 +59,7 @@ class PulseTaEngine
     /** Overtime rules in force on a date, by scope. */
     public static function rules($date, $department = '')
     {
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_ot_rule` WHERE active=1
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_ot_rule` WHERE active=1
             AND effective_from<="'.pSQL($date).'" AND (effective_to IS NULL OR effective_to>="'.pSQL($date).'")
             AND (department="" OR department="'.pSQL($department).'") ORDER BY department DESC, sort');
         $out = array();
@@ -210,7 +210,7 @@ class PulseTaEngine
     {
         $staff = PulseTaService::staff($idStaff);
         if (!$staff) { return array('skipped' => 'no such staff member'); }
-        $existing = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_staff='.$idStaff.' AND business_date="'.pSQL($date).'"');
+        $existing = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_staff='.$idStaff.' AND business_date="'.pSQL($date).'"');
         if ($existing && (int) $existing['locked']) { return array_merge($existing, array('skipped' => 'period locked')); }
         // The row's own flag is not enough: a person with no timesheet yet for a date inside an approved
         // period (a late hire, a device that only just delivered) would otherwise get a fresh, unlocked row
@@ -224,7 +224,7 @@ class PulseTaEngine
         $idTs = $existing ? (int) $existing['id_pulse_ta_timesheet'] : 0;
 
         /* --- 1. the punches this timesheet may claim --- */
-        $punches = Db::getInstance()->executeS('SELECT p.* FROM `'._DB_PREFIX_.'pulse_ta_punch` p
+        $punches = PulseDb::executeS('SELECT p.* FROM `'._DB_PREFIX_.'pulse_ta_punch` p
             WHERE p.id_pulse_ta_staff='.$idStaff.' AND p.punched_at>="'.pSQL($from).'" AND p.punched_at<="'.pSQL($to).'"
             AND p.punched_at<="'.pSQL(date('Y-m-d H:i:s', time() + 3600)).'"
             AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.self::T_LINK.'` tp
@@ -322,7 +322,7 @@ class PulseTaEngine
                 }
                 if (isset($rules['weekly'])) {
                     $ws = self::weekStart($date);
-                    $before = (int) Db::getInstance()->getValue('SELECT SUM(worked_minutes) FROM `'._DB_PREFIX_.self::T.'`
+                    $before = (int) PulseDb::getValue('SELECT SUM(worked_minutes) FROM `'._DB_PREFIX_.self::T.'`
                         WHERE id_pulse_ta_staff='.$idStaff.' AND business_date>="'.pSQL($ws).'" AND business_date<"'.pSQL($date).'"');
                     $t = (int) $rules['weekly']['threshold_minutes'];
                     $over = max(0, ($before + $workedMinutes) - $t) - max(0, $before - $t);
@@ -354,32 +354,32 @@ class PulseTaEngine
             'sources' => pSQL(Tools::substr(implode(',', array_keys($sources)), 0, 64)),
             'built_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         );
-        if ($idTs) { Db::getInstance()->update(self::T, PulseTaService::nulls($row), 'id_pulse_ta_timesheet='.$idTs); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert(self::T, PulseTaService::nulls($row)); $idTs = (int) Db::getInstance()->Insert_ID(); }
+        if ($idTs) { PulseDb::update(self::T, PulseTaService::nulls($row), 'id_pulse_ta_timesheet='.$idTs); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert(self::T, PulseTaService::nulls($row)); $idTs = (int) PulseDb::Insert_ID(); }
 
         /* --- 9. link the punches this timesheet consumed --- */
-        Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.self::T_LINK.'` WHERE id_pulse_ta_timesheet='.$idTs);
+        PulseDb::execute('DELETE FROM `'._DB_PREFIX_.self::T_LINK.'` WHERE id_pulse_ta_timesheet='.$idTs);
         $claimed = array(); $i = 0;
         foreach ($seq as $s) {
             $role = $s['role'];
             if ($s['raw_direction'] === 'break_out') { $role = 'break_out'; } elseif ($s['raw_direction'] === 'break_in') { $role = 'break_in'; }
-            Db::getInstance()->insert(self::T_LINK, array('id_pulse_ta_timesheet' => $idTs, 'id_pulse_ta_punch' => (int) $s['id'], 'seq' => $i++,
+            PulseDb::insert(self::T_LINK, array('id_pulse_ta_timesheet' => $idTs, 'id_pulse_ta_punch' => (int) $s['id'], 'seq' => $i++,
                 'role' => pSQL($role), 'virtual' => $s['source'] === 'adjustment' ? 1 : 0), false, true, Db::INSERT_IGNORE);
             $claimed[] = (int) $s['id'];
         }
         foreach ($ignored as $p) {
-            Db::getInstance()->insert(self::T_LINK, array('id_pulse_ta_timesheet' => $idTs, 'id_pulse_ta_punch' => (int) $p['id_pulse_ta_punch'], 'seq' => $i++,
+            PulseDb::insert(self::T_LINK, array('id_pulse_ta_timesheet' => $idTs, 'id_pulse_ta_punch' => (int) $p['id_pulse_ta_punch'], 'seq' => $i++,
                 'role' => 'ignored', 'virtual' => 0), false, true, Db::INSERT_IGNORE);
             $claimed[] = (int) $p['id_pulse_ta_punch'];
         }
 
         /* --- 10. a later, unlocked timesheet may have been holding one of these punches: take it back and rebuild it --- */
         if ($claimed && $depth < 1) {
-            $stolen = Db::getInstance()->executeS('SELECT DISTINCT t.id_pulse_ta_staff, t.business_date FROM `'._DB_PREFIX_.self::T_LINK.'` tp
+            $stolen = PulseDb::executeS('SELECT DISTINCT t.id_pulse_ta_staff, t.business_date FROM `'._DB_PREFIX_.self::T_LINK.'` tp
                 INNER JOIN `'._DB_PREFIX_.self::T.'` t ON t.id_pulse_ta_timesheet=tp.id_pulse_ta_timesheet
                 WHERE tp.id_pulse_ta_punch IN ('.implode(',', array_map('intval', $claimed)).') AND t.id_pulse_ta_timesheet<>'.$idTs.' AND t.locked=0');
             foreach ((array) $stolen as $st) {
-                Db::getInstance()->execute('DELETE tp FROM `'._DB_PREFIX_.self::T_LINK.'` tp
+                PulseDb::execute('DELETE tp FROM `'._DB_PREFIX_.self::T_LINK.'` tp
                     INNER JOIN `'._DB_PREFIX_.self::T.'` t ON t.id_pulse_ta_timesheet=tp.id_pulse_ta_timesheet
                     WHERE t.id_pulse_ta_staff='.(int) $st['id_pulse_ta_staff'].' AND t.business_date="'.pSQL($st['business_date']).'"
                       AND tp.id_pulse_ta_punch IN ('.implode(',', array_map('intval', $claimed)).')');
@@ -390,7 +390,7 @@ class PulseTaEngine
         /* --- 11. exceptions --- */
         $keep = self::raiseExceptions($staff, $date, $idTs, $w, $seq, $missingIn, $missingOut, $lateMinutes, $earlyOut, $workedMinutes, $intervals, $dupes, $status);
         PulseTaExceptionQueue::autoCloseFor($idStaff, $date, $keep);
-        Db::getInstance()->update(self::T, array('has_exception' => count($keep) ? 1 : 0), 'id_pulse_ta_timesheet='.$idTs);
+        PulseDb::update(self::T, array('has_exception' => count($keep) ? 1 : 0), 'id_pulse_ta_timesheet='.$idTs);
 
         $row['id_pulse_ta_timesheet'] = $idTs; $row['has_exception'] = count($keep) ? 1 : 0; $row['exceptions'] = count($keep);
         return $row;
@@ -491,7 +491,7 @@ class PulseTaEngine
     protected static function flagOfflineDevices($date)
     {
         $stale = (int) self::cfg('DEVICE_STALE_MIN', 60);
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_device` WHERE status="active"
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_device` WHERE status="active"
             AND (last_seen_at IS NULL OR last_seen_at<DATE_SUB(NOW(), INTERVAL '.max(5, $stale).' MINUTE))');
         foreach ((array) $rows as $d) {
             PulseTaExceptionQueue::raise(null, $date, 'device_offline', 'warn',

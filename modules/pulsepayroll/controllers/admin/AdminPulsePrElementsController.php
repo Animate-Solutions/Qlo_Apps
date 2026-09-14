@@ -10,9 +10,9 @@ class AdminPulsePrElementsController extends ModuleAdminController
         $self = self::$currentIndex.'&token='.$this->token;
         $this->context->smarty->assign(array(
             'elements' => PulsePrService::elements(false), 'bases' => PulsePrCalc::baseNames(),
-            'grades' => Db::getInstance()->executeS('SELECT DISTINCT grade FROM `'._DB_PREFIX_.'pulse_pr_employee_element` WHERE id_pulse_pr_employee IS NULL AND grade<>"" ORDER BY grade'),
+            'grades' => PulseDb::executeS('SELECT DISTINCT grade FROM `'._DB_PREFIX_.'pulse_pr_employee_element` WHERE id_pulse_pr_employee IS NULL AND grade<>"" ORDER BY grade'),
             'grade' => Tools::getValue('grade', 'DEFAULT'),
-            'grade_rows' => Db::getInstance()->executeS('SELECT s.*, e.name, e.type FROM `'._DB_PREFIX_.'pulse_pr_employee_element` s LEFT JOIN `'._DB_PREFIX_.'pulse_pr_element` e ON e.code=s.element_code WHERE s.id_pulse_pr_employee IS NULL AND s.grade="'.pSQL(Tools::getValue('grade', 'DEFAULT')).'" ORDER BY e.sequence, s.element_code'),
+            'grade_rows' => PulseDb::executeS('SELECT s.*, e.name, e.type FROM `'._DB_PREFIX_.'pulse_pr_employee_element` s LEFT JOIN `'._DB_PREFIX_.'pulse_pr_element` e ON e.code=s.element_code WHERE s.id_pulse_pr_employee IS NULL AND s.grade="'.pSQL(Tools::getValue('grade', 'DEFAULT')).'" ORDER BY e.sequence, s.element_code'),
             'edit' => Tools::getValue('code') ? PulsePrService::element(Tools::getValue('code')) : null,
             'self_url' => $self, 'contributions' => PulsePrStatutory::contributionRows(PulsePrService::country(), date('Y-m-d')),
         ));
@@ -42,7 +42,7 @@ class AdminPulsePrElementsController extends ModuleAdminController
     /** Sanity-check a grade structure before anyone is paid on it: do the percentages add up to the package? */
     protected function checkGrade($grade)
     {
-        $rows = Db::getInstance()->executeS('SELECT s.*, e.type FROM `'._DB_PREFIX_.'pulse_pr_employee_element` s LEFT JOIN `'._DB_PREFIX_.'pulse_pr_element` e ON e.code=s.element_code WHERE s.id_pulse_pr_employee IS NULL AND s.grade="'.pSQL($grade).'" AND (s.effective_to IS NULL OR s.effective_to>="'.pSQL(date('Y-m-d')).'")');
+        $rows = PulseDb::executeS('SELECT s.*, e.type FROM `'._DB_PREFIX_.'pulse_pr_employee_element` s LEFT JOIN `'._DB_PREFIX_.'pulse_pr_element` e ON e.code=s.element_code WHERE s.id_pulse_pr_employee IS NULL AND s.grade="'.pSQL($grade).'" AND (s.effective_to IS NULL OR s.effective_to>="'.pSQL(date('Y-m-d')).'")');
         $pct = 0; $fixed = 0;
         foreach ($rows as $r) { if ($r['type'] !== 'earning') { continue; } $pct += (float) $r['percent']; $fixed += (float) $r['amount']; }
         if (abs($pct - 100) < 0.0001) { $this->confirmations[] = sprintf($this->l('Grade %s: the earning percentages add up to 100%% of the package.'), $grade).($fixed > 0 ? ' '.sprintf($this->l('There are also fixed amounts totalling %s on top.'), number_format($fixed, 2)) : ''); }

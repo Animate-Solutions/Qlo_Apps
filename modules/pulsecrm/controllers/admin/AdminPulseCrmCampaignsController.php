@@ -41,14 +41,14 @@ class AdminPulseCrmCampaignsController extends ModuleAdminController
             }
             if (Tools::isSubmit('testCampaign')) {
                 $c = PulseCrmCampaign::get((int) Tools::getValue('id_campaign_a'));
-                $idc = (int) Db::getInstance()->getValue('SELECT id_customer FROM `'._DB_PREFIX_.'customer` WHERE email="'.pSQL(Tools::getValue('test_email')).'" AND deleted=0');
+                $idc = (int) PulseDb::getValue('SELECT id_customer FROM `'._DB_PREFIX_.'customer` WHERE email="'.pSQL(Tools::getValue('test_email')).'" AND deleted=0');
                 if (!$idc) { throw new PrestaShopException($this->l('No customer account with that email — send the test to a real guest record so the merge tags fill in')); }
                 $vars = PulseCrmService::mergeVars($idc); $vars['subject'] = PulseCrmService::render($c['subject'], $vars);
                 $vars['text'] = PulseCrmService::render($c['body'], $vars); $vars['html'] = PulseCrmCampaign::htmlBody($vars['text']);
                 $r = PulseCrmComms::deliver($idc, $c['channel'], 'crm_campaign', $vars, array('kind' => 'transactional', 'transactional' => 1, 'ignore_quiet' => 1, 'reference' => 'test'));
                 $this->confirmations[] = $r['ok'] ? $this->l('Test sent') : $this->l('Test not sent: ').$r['reason'];
             }
-            if (Tools::isSubmit('setCampaignStatus')) { Db::getInstance()->update('pulse_crm_campaign', array('status' => pSQL(Tools::getValue('status')), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_campaign='.(int) Tools::getValue('id_campaign_a')); $this->confirmations[] = $this->l('Campaign updated'); }
+            if (Tools::isSubmit('setCampaignStatus')) { PulseDb::update('pulse_crm_campaign', array('status' => pSQL(Tools::getValue('status')), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_campaign='.(int) Tools::getValue('id_campaign_a')); $this->confirmations[] = $this->l('Campaign updated'); }
             if (Tools::isSubmit('deleteCampaign')) { PulseCrmCampaign::remove((int) Tools::getValue('id_campaign_a')); Tools::redirectAdmin(self::$currentIndex.'&token='.$this->token.'&conf=1'); }
         } catch (Exception $e) { $this->errors[] = $e->getMessage(); }
         return parent::postProcess();

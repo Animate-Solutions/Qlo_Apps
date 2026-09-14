@@ -16,10 +16,10 @@ class PulseChargeCode extends ObjectModel
     );
     public static function byCode($code)
     {
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_charge_code` WHERE code="'.pSQL($code).'" AND active=1');
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_charge_code` WHERE code="'.pSQL($code).'" AND active=1');
     }
     public static function all($paymentsOnly = null)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_charge_code` WHERE active=1'.($paymentsOnly === null ? '' : ' AND is_payment='.(int) $paymentsOnly).' ORDER BY department, name');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_charge_code` WHERE active=1'.($paymentsOnly === null ? '' : ' AND is_payment='.(int) $paymentsOnly).' ORDER BY department, name');
     }
 }

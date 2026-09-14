@@ -28,7 +28,7 @@ class AdminPulseCrmCasesController extends ModuleAdminController
         try {
             if (Tools::isSubmit('openCase')) {
                 $idc = (int) Tools::getValue('id_customer');
-                if (!$idc && Tools::getValue('guest_email')) { $idc = (int) Db::getInstance()->getValue('SELECT id_customer FROM `'._DB_PREFIX_.'customer` WHERE email="'.pSQL(Tools::getValue('guest_email')).'" AND deleted=0'); }
+                if (!$idc && Tools::getValue('guest_email')) { $idc = (int) PulseDb::getValue('SELECT id_customer FROM `'._DB_PREFIX_.'customer` WHERE email="'.pSQL(Tools::getValue('guest_email')).'" AND deleted=0'); }
                 $id = PulseCrmCase::open(array('source' => 'staff', 'severity' => Tools::getValue('severity', 'medium'), 'department' => Tools::getValue('department', 'frontdesk'),
                     'id_customer' => $idc ?: null, 'id_htl_booking' => (int) Tools::getValue('id_htl_booking') ?: null, 'id_room' => (int) Tools::getValue('id_room') ?: null,
                     'title' => Tools::getValue('title'), 'description' => Tools::getValue('description'), 'owner' => (int) Tools::getValue('owner') ?: null));

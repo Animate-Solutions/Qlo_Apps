@@ -15,11 +15,11 @@ class AdminPulsePrStatutoryController extends ModuleAdminController
             'country' => $country, 'as_at' => $asAt, 'countries' => PulsePrService::countries(false), 'row' => PulsePrService::countryRow($country),
             'pack_label' => $pack->label(), 'pack_verified' => $pack->verified(), 'warnings_list' => $pack->warnings(),
             'bands_now' => PulsePrStatutory::bands($country, $asAt),
-            'bands_all' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tax_band` WHERE country="'.pSQL($country).'" ORDER BY effective_from DESC, seq'),
+            'bands_all' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_tax_band` WHERE country="'.pSQL($country).'" ORDER BY effective_from DESC, seq'),
             'reliefs_now' => PulsePrStatutory::reliefRows($country, $asAt),
-            'reliefs_all' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_relief` WHERE country="'.pSQL($country).'" ORDER BY effective_from DESC, sort'),
+            'reliefs_all' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_relief` WHERE country="'.pSQL($country).'" ORDER BY effective_from DESC, sort'),
             'contribs_now' => PulsePrStatutory::contributionRows($country, $asAt),
-            'contribs_all' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_contribution` WHERE country="'.pSQL($country).'" ORDER BY effective_from DESC, sort'),
+            'contribs_all' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_contribution` WHERE country="'.pSQL($country).'" ORDER BY effective_from DESC, sort'),
             'bases' => PulsePrCalc::baseNames(), 'remittances' => PulsePrService::remittances(null, 40),
             'classes' => array('PulsePrStatutoryGeneric' => 'Generic (table-driven)', 'PulsePrStatutoryNigeria' => 'Nigeria (Nigeria Tax Act 2025)'),
             'self_url' => $self,
@@ -54,7 +54,7 @@ class AdminPulsePrStatutoryController extends ModuleAdminController
         $to = date('Y-m-d', strtotime($from.' -1 day'));
         $current = PulsePrStatutory::bands($country, $to);
         if (!$current) { throw new PrestaShopException('There are no bands in force on '.$to.' to supersede'); }
-        foreach ($current as $b) { Db::getInstance()->update('pulse_pr_tax_band', array('effective_to' => pSQL($to)), 'id_pulse_pr_tax_band='.(int) $b['id_pulse_pr_tax_band']); }
+        foreach ($current as $b) { PulseDb::update('pulse_pr_tax_band', array('effective_to' => pSQL($to)), 'id_pulse_pr_tax_band='.(int) $b['id_pulse_pr_tax_band']); }
         foreach ($current as $b) {
             $b['id_pulse_pr_tax_band'] = 0; $b['effective_from'] = $from; $b['effective_to'] = null;
             $b['note'] = Tools::substr('Copied forward from the set that ended '.$to.'. Edit the rates before the next run.', 0, 160);

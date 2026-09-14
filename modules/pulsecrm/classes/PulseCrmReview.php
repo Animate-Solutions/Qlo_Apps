@@ -11,13 +11,13 @@ class PulseCrmReview
 
     public static function all($from = null, $to = null, $source = null, $unanswered = false, $limit = 300)
     {
-        return Db::getInstance()->executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) responder FROM `'._DB_PREFIX_.'pulse_crm_review` r
+        return PulseDb::executeS('SELECT r.*, CONCAT(e.firstname," ",e.lastname) responder FROM `'._DB_PREFIX_.'pulse_crm_review` r
             LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=r.responded_by WHERE 1'
             .($from ? ' AND r.review_date>="'.pSQL($from).'"' : '').($to ? ' AND r.review_date<="'.pSQL($to).'"' : '')
             .($source ? ' AND r.source="'.pSQL($source).'"' : '').($unanswered ? ' AND r.responded=0' : '')
             .' ORDER BY r.review_date DESC, r.id_pulse_crm_review DESC LIMIT '.(int) $limit);
     }
-    public static function get($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_review` WHERE id_pulse_crm_review='.(int) $id); }
+    public static function get($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_review` WHERE id_pulse_crm_review='.(int) $id); }
 
     /** Save one review. Returns array(id, created) so an import can report what actually changed. */
     public static function save(array $d, $id = 0)
@@ -36,11 +36,11 @@ class PulseCrmReview
             'sentiment' => pSQL(isset($d['sentiment']) && $d['sentiment'] ? $d['sentiment'] : PulseCrmSurvey::sentiment($body, null, $pct)),
             'id_customer' => !empty($d['id_customer']) ? (int) $d['id_customer'] : null, 'id_htl_booking' => !empty($d['id_htl_booking']) ? (int) $d['id_htl_booking'] : null,
             'date_upd' => date('Y-m-d H:i:s'));
-        if (!$id && $row['external_id']) { $id = (int) Db::getInstance()->getValue('SELECT id_pulse_crm_review FROM `'._DB_PREFIX_.'pulse_crm_review` WHERE source="'.pSQL($source).'" AND external_id="'.$row['external_id'].'"'); }
-        if ($id) { Db::getInstance()->update('pulse_crm_review', $row, 'id_pulse_crm_review='.(int) $id); return array('id' => (int) $id, 'created' => false); }
+        if (!$id && $row['external_id']) { $id = (int) PulseDb::getValue('SELECT id_pulse_crm_review FROM `'._DB_PREFIX_.'pulse_crm_review` WHERE source="'.pSQL($source).'" AND external_id="'.$row['external_id'].'"'); }
+        if ($id) { PulseDb::update('pulse_crm_review', $row, 'id_pulse_crm_review='.(int) $id); return array('id' => (int) $id, 'created' => false); }
         $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert('pulse_crm_review', $row);
-        $newId = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_crm_review', $row);
+        $newId = (int) PulseDb::Insert_ID();
         if ($pct <= 40) { self::escalate($newId, $row); }
         PulseCoreService::event('actionPulseCrmReviewAdded', array('id_review' => $newId, 'source' => $source, 'rating_pct' => $pct));
         return array('id' => $newId, 'created' => true);
@@ -99,7 +99,7 @@ class PulseCrmReview
             } catch (Exception $e) { $out['skipped']++; if (count($out['errors']) < 10) { $out['errors'][] = 'row '.($n + 1).': '.$e->getMessage(); } }
         }
         PulseCoreService::audit('pulsecrm', 'review_import', $out);
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_review` SET imported_at=NOW() WHERE imported_at IS NULL AND source="'.pSQL($source).'"');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_review` SET imported_at=NOW() WHERE imported_at IS NULL AND source="'.pSQL($source).'"');
         return $out;
     }
 
@@ -154,7 +154,7 @@ class PulseCrmReview
     public static function respond($id, $text)
     {
         if (!trim($text)) { throw new PrestaShopException('A reply cannot be empty'); }
-        Db::getInstance()->update('pulse_crm_review', array('responded' => 1, 'response_text' => pSQL($text, true), 'responded_at' => date('Y-m-d H:i:s'),
+        PulseDb::update('pulse_crm_review', array('responded' => 1, 'response_text' => pSQL($text, true), 'responded_at' => date('Y-m-d H:i:s'),
             'responded_by' => PulseCrmService::emp() ?: null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_review='.(int) $id);
         PulseCoreService::audit('pulsecrm', 'review_respond', null, 'pulse_crm_review', (int) $id);
         return true;
@@ -163,7 +163,7 @@ class PulseCrmReview
     /** Rolling average, volume and response performance by source. */
     public static function bySource($from, $to)
     {
-        return Db::getInstance()->executeS('SELECT source, COUNT(*) reviews, ROUND(AVG(rating),2) avg_rating, MAX(rating_scale) scale, ROUND(AVG(rating_pct),1) pct,
+        return PulseDb::executeS('SELECT source, COUNT(*) reviews, ROUND(AVG(rating),2) avg_rating, MAX(rating_scale) scale, ROUND(AVG(rating_pct),1) pct,
                 SUM(responded) responded, ROUND(SUM(responded)/COUNT(*)*100,1) response_rate,
                 ROUND(AVG(TIMESTAMPDIFF(HOUR, CONCAT(review_date," 12:00:00"), responded_at)),1) avg_response_hours,
                 SUM(sentiment="negative") negative FROM `'._DB_PREFIX_.'pulse_crm_review`
@@ -173,7 +173,7 @@ class PulseCrmReview
     /** Median response time in hours — the mean is meaningless once one review sits unanswered for a year. */
     public static function medianResponseHours($from, $to)
     {
-        $rows = Db::getInstance()->executeS('SELECT TIMESTAMPDIFF(HOUR, CONCAT(review_date," 12:00:00"), responded_at) h FROM `'._DB_PREFIX_.'pulse_crm_review`
+        $rows = PulseDb::executeS('SELECT TIMESTAMPDIFF(HOUR, CONCAT(review_date," 12:00:00"), responded_at) h FROM `'._DB_PREFIX_.'pulse_crm_review`
             WHERE responded=1 AND responded_at IS NOT NULL AND review_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" ORDER BY h');
         if (!$rows) { return null; }
         $n = count($rows); $mid = (int) floor($n / 2);
@@ -182,10 +182,10 @@ class PulseCrmReview
 
     public static function trend($months = 12)
     {
-        return Db::getInstance()->executeS('SELECT DATE_FORMAT(review_date,"%Y-%m") ym, COUNT(*) reviews, ROUND(AVG(rating_pct),1) pct, SUM(sentiment="negative") negative, SUM(responded) responded
+        return PulseDb::executeS('SELECT DATE_FORMAT(review_date,"%Y-%m") ym, COUNT(*) reviews, ROUND(AVG(rating_pct),1) pct, SUM(sentiment="negative") negative, SUM(responded) responded
             FROM `'._DB_PREFIX_.'pulse_crm_review` WHERE review_date>=DATE_SUB(CURDATE(), INTERVAL '.(int) $months.' MONTH) GROUP BY ym ORDER BY ym');
     }
 
     public static function needsReply($limit = 50) { return self::all(null, null, null, true, $limit); }
-    public static function remove($id) { return Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_review` WHERE id_pulse_crm_review='.(int) $id); }
+    public static function remove($id) { return PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_review` WHERE id_pulse_crm_review='.(int) $id); }
 }

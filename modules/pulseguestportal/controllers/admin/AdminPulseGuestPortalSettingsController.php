@@ -65,7 +65,7 @@ class AdminPulseGuestPortalSettingsController extends ModuleAdminController
             'adapter' => PulseGpService::cfg('CONTROL_ADAPTER', 'PulseGpControlSimulator'), 'adapters' => PulseGpControl::adapters(),
             'pin_set' => PulseGpService::cfg('ADULT_PIN_HASH', '') ? 1 : 0, 'logo' => PulseGpService::cfg('LOGO', ''), 'upload_base' => __PS_BASE_URI__,
             'cron_token' => Configuration::get('PULSE_GP_CRON_TOKEN'), 'api_token' => PulseGpService::cfg('API_TOKEN', ''),
-            'points' => (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_gp_control_point`'),
+            'points' => (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_gp_control_point`'),
             'control_log' => PulseGpControl::log(null, 20), 'test' => Tools::getValue('tested') ? json_decode(Tools::getValue('tested'), true) : null,
             'portal_url' => $this->context->link->getModuleLink('pulseguestportal', 'portal', array(), true),
             'cron_url' => Tools::getShopDomainSsl(true).__PS_BASE_URI__.'modules/pulseguestportal/cron/portal.php?token='.Configuration::get('PULSE_GP_CRON_TOKEN'),
@@ -98,7 +98,7 @@ class AdminPulseGuestPortalSettingsController extends ModuleAdminController
             if (Tools::isSubmit('uploadLogo')) { $p = PulseGpService::uploadImage('logofile', 'logo'); if ($p) { Configuration::updateValue('PULSE_GP_LOGO', $p); $this->confirmations[] = $this->l('Logo uploaded'); } }
             if (Tools::isSubmit('makeToken')) {
                 $tok = hash('sha256', uniqid('gp', true).Tools::passwdGen(24));
-                Db::getInstance()->insert('pulse_api_token', array('label' => pSQL('Guest portal '.date('Y-m-d')), 'token' => pSQL($tok), 'scopes' => 'portal', 'active' => 1, 'date_add' => date('Y-m-d H:i:s')));
+                PulseDb::insert('pulse_api_token', array('label' => pSQL('Guest portal '.date('Y-m-d')), 'token' => pSQL($tok), 'scopes' => 'portal', 'active' => 1, 'date_add' => date('Y-m-d H:i:s')));
                 Configuration::updateValue('PULSE_GP_API_TOKEN', $tok);
                 $this->confirmations[] = $this->l('API token created with scope portal');
             }

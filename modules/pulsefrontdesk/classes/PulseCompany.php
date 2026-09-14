@@ -25,7 +25,7 @@ class PulseCompany extends ObjectModel
     /** The company's open folio (created on demand). */
     public function folio()
     {
-        $id = (int) Db::getInstance()->getValue('SELECT id_pulse_folio FROM `'._DB_PREFIX_.'pulse_folio` WHERE id_pulse_company='.(int) $this->id.' AND type="company" AND status="open"');
+        $id = (int) PulseDb::getValue('SELECT id_pulse_folio FROM `'._DB_PREFIX_.'pulse_folio` WHERE id_pulse_company='.(int) $this->id.' AND type="company" AND status="open"');
         if ($id) { return new PulseFolio($id); }
         $f = new PulseFolio();
         $f->folio_no = PulseFolio::nextFolioNo('company');

@@ -7,13 +7,13 @@ class AdminPulseRoomBoardController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
-        $hotels = Db::getInstance()->executeS('SELECT b.id, bl.hotel_name FROM `'._DB_PREFIX_.'htl_branch_info` b INNER JOIN `'._DB_PREFIX_.'htl_branch_info_lang` bl ON bl.id=b.id AND bl.id_lang='.(int) $this->context->language->id);
+        $hotels = PulseDb::executeS('SELECT b.id, bl.hotel_name FROM `'._DB_PREFIX_.'htl_branch_info` b INNER JOIN `'._DB_PREFIX_.'htl_branch_info_lang` bl ON bl.id=b.id AND bl.id_lang='.(int) $this->context->language->id);
         $this->context->smarty->assign(array(
             'hotels' => $hotels, 'business_date' => PulseCoreService::businessDate(),
             'hk_statuses' => PulseRoom::HK_STATUSES, 'payment_codes' => PulseChargeCode::all(1),
             'ajax_url' => $this->context->link->getAdminLink('AdminPulseRoomBoard'), 'folio_url' => $this->context->link->getAdminLink('AdminPulseFolio'),
             'attendants' => Employee::getEmployees(),
-            'companies' => Db::getInstance()->executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'), 'currencies' => Currency::getCurrencies(false, true),
+            'companies' => PulseDb::executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'), 'currencies' => Currency::getCurrencies(false, true),
         ));
         $this->setTemplate('board.tpl');
     }
@@ -110,7 +110,7 @@ class AdminPulseRoomBoardController extends ModuleAdminController
         if (!$b) { $this->fail('Not found'); }
         $f = PulseFolio::openForBooking($b['id']);
         $this->json(array('ok' => true, 'booking' => $b, 'folio' => $f ? array('id' => $f->id, 'no' => $f->folio_no, 'balance' => $f->balance, 'lines' => $f->lines()) : null,
-            'profile' => PulseGuestProfile::get($b['id_customer']), 'traces' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_trace` WHERE status="open" AND id_htl_booking='.(int) $b['id'])));
+            'profile' => PulseGuestProfile::get($b['id_customer']), 'traces' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_trace` WHERE status="open" AND id_htl_booking='.(int) $b['id'])));
     }
 
     public function ajaxProcessAddTrace()

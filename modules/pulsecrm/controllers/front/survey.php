@@ -10,7 +10,11 @@ class PulseCrmSurveyModuleFrontController extends ModuleFrontController
     public function init()
     {
         parent::init();
-        $this->resp = PulseCrmSurvey::byToken(Tools::getValue('t'));
+        // The hotel first, from the token, because every query below is scoped to it: a page that went
+        // looking for the response before knowing the property would find nothing and call a live link
+        // invalid. A token that names no property gets the same "not valid" page a wrong one does.
+        $t = Tools::getValue('t');
+        $this->resp = PulseCrmService::enterHotelFromToken('pulse_crm_survey_response', $t) ? PulseCrmSurvey::byToken($t) : null;
     }
 
     public function postProcess()

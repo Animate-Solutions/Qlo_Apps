@@ -35,7 +35,17 @@ class PulseHrApiModuleFrontController extends PulseApiController
         $ctx = Context::getContext();
         if (empty($ctx->employee) || !$ctx->employee->id) { $ctx->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1); }
         $tok = isset($_SERVER['HTTP_X_PULSE_ESS']) ? $_SERVER['HTTP_X_PULSE_ESS'] : Tools::getValue('ess_token');
+        // The hotel has to be settled before anything is read: the session token names the property
+        // that issued it, and a first visit follows that property's own link, which names it too.
+        // PulseHrEss::verify() reads a scoped table, so this cannot wait until after it. A request
+        // with neither may still be an integration holding a bearer token, which carries its own
+        // hotel — that is settled by parent::authenticate() below.
+        $hotel = PulseHrService::enterHotel();
+        if (!$hotel && in_array($res, array('login'))) {
+            throw new PrestaShopException('Open the staff portal from your property\'s own link', 400);
+        }
         if ($tok) {
+            if (!$hotel) { throw new PrestaShopException('Open the staff portal from your property\'s own link', 400); }
             $this->ess = PulseHrEss::verify($tok);
             PulseHrService::rateHit('ess'.(int) $this->ess['id_pulse_hr_employee'], (int) PulseHrService::cfg('ESS_RATE_PER_MIN', 30));
             return;

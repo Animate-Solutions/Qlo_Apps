@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_device` (
   `health` ENUM('unknown','online','degraded','offline') NOT NULL DEFAULT 'unknown', `status` ENUM('pending','active','blocked') NOT NULL DEFAULT 'pending',
   `claimed_by` INT UNSIGNED DEFAULT NULL, `claimed_at` DATETIME DEFAULT NULL, `note` VARCHAR(255) NOT NULL DEFAULT '',
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_device`), UNIQUE KEY `name` (`name`), KEY `sn` (`serial`), KEY `st` (`status`,`health`), KEY `mode` (`mode`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_device`), UNIQUE KEY `name` (`id_hotel`,`name`), KEY `sn` (`serial`), KEY `st` (`status`,`health`), KEY `mode` (`mode`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_device_cmd` (
@@ -23,7 +24,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_device_cmd` (
   `status` ENUM('queued','sent','done','failed','expired') NOT NULL DEFAULT 'queued', `sent_at` DATETIME DEFAULT NULL, `replied_at` DATETIME DEFAULT NULL,
   `return_code` VARCHAR(16) NOT NULL DEFAULT '', `reply` VARCHAR(255) NOT NULL DEFAULT '', `attempts` SMALLINT NOT NULL DEFAULT 0,
   `expires_at` DATETIME DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_device_cmd`), KEY `q` (`id_pulse_ta_device`,`status`,`id_pulse_ta_device_cmd`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_device_cmd`), KEY `q` (`id_pulse_ta_device`,`status`,`id_pulse_ta_device_cmd`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_device_log` (
@@ -32,7 +34,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_device_log` (
   `ip` VARCHAR(45) NOT NULL DEFAULT '', `bytes` INT UNSIGNED NOT NULL DEFAULT 0, `rows_in` INT UNSIGNED NOT NULL DEFAULT 0, `rows_kept` INT UNSIGNED NOT NULL DEFAULT 0,
   `result` ENUM('ok','rejected','pending_device','rate_limited','too_large','error') NOT NULL DEFAULT 'ok', `message` VARCHAR(255) NOT NULL DEFAULT '',
   `sample` VARCHAR(512) NOT NULL DEFAULT '' COMMENT 'first line of the body, stored escaped for the admin screen', `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_device_log`), KEY `sn` (`serial`,`date_add`), KEY `d` (`id_pulse_ta_device`,`date_add`), KEY `t` (`date_add`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_device_log`), KEY `sn` (`serial`,`date_add`), KEY `d` (`id_pulse_ta_device`,`date_add`), KEY `t` (`date_add`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_staff` (
@@ -43,7 +46,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_staff` (
   `hourly_rate` DECIMAL(20,6) NOT NULL DEFAULT 0, `daily_rate` DECIMAL(20,6) NOT NULL DEFAULT 0, `ot_eligible` TINYINT(1) NOT NULL DEFAULT 1,
   `source` ENUM('local','hr') NOT NULL DEFAULT 'local', `status` ENUM('active','suspended','exited') NOT NULL DEFAULT 'active', `exit_date` DATE DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_staff`), UNIQUE KEY `staff_no` (`staff_no`), KEY `hr` (`id_hr_employee`), KEY `dept` (`department`,`status`), KEY `emp` (`id_employee`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_staff`), UNIQUE KEY `staff_no` (`id_hotel`,`staff_no`), KEY `hr` (`id_hr_employee`), KEY `dept` (`department`,`status`), KEY `emp` (`id_employee`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_enrolment` (
@@ -55,7 +59,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_enrolment` (
   `has_finger` TINYINT(1) NOT NULL DEFAULT 0, `has_face` TINYINT(1) NOT NULL DEFAULT 0, `has_palm` TINYINT(1) NOT NULL DEFAULT 0, `has_card` TINYINT(1) NOT NULL DEFAULT 0, `has_password` TINYINT(1) NOT NULL DEFAULT 0,
   `status` ENUM('queued','pushed','failed','removed') NOT NULL DEFAULT 'queued', `attempts` SMALLINT NOT NULL DEFAULT 0, `last_error` VARCHAR(255) NOT NULL DEFAULT '',
   `pushed_at` DATETIME DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_enrolment`), UNIQUE KEY `dev_user` (`id_pulse_ta_device`,`device_user_id`), KEY `staff` (`id_pulse_ta_staff`), KEY `st` (`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_enrolment`), UNIQUE KEY `dev_user` (`id_hotel`,`id_pulse_ta_device`,`device_user_id`), KEY `staff` (`id_pulse_ta_staff`), KEY `st` (`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_punch` (
@@ -70,8 +75,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_punch` (
   `raw` TEXT COMMENT 'the exact vendor row this punch came from - evidence for a dispute',
   `dedupe_hash` CHAR(40) NOT NULL COMMENT 'sha1(device|employee_ref|punched_at) - the append-only guard',
   `id_employee_entered` INT UNSIGNED DEFAULT NULL COMMENT 'who keyed a manual punch', `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_punch`), UNIQUE KEY `dedupe` (`dedupe_hash`), KEY `staff_time` (`id_pulse_ta_staff`,`punched_at`),
-  KEY `ref` (`device_serial`,`employee_ref`,`punched_at`), KEY `bdate` (`business_date`), KEY `dev` (`id_pulse_ta_device`,`punched_at`), KEY `unmatched` (`id_pulse_ta_staff`,`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_punch`), UNIQUE KEY `dedupe` (`id_hotel`,`dedupe_hash`), KEY `staff_time` (`id_pulse_ta_staff`,`punched_at`),
+  KEY `ref` (`device_serial`,`employee_ref`,`punched_at`), KEY `bdate` (`business_date`), KEY `dev` (`id_pulse_ta_device`,`punched_at`), KEY `unmatched` (`id_pulse_ta_staff`,`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_adjustment` (
@@ -82,7 +88,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_adjustment` (
   `minutes` INT NOT NULL DEFAULT 0, `reason` VARCHAR(255) NOT NULL DEFAULT '', `id_pulse_ta_exception` BIGINT UNSIGNED DEFAULT NULL,
   `id_employee_requested` INT UNSIGNED DEFAULT NULL, `id_employee_approver` INT UNSIGNED DEFAULT NULL, `approved_at` DATETIME DEFAULT NULL,
   `status` ENUM('pending','approved','rejected','void') NOT NULL DEFAULT 'pending', `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_adjustment`), KEY `sd` (`id_pulse_ta_staff`,`business_date`,`status`), KEY `exc` (`id_pulse_ta_exception`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_adjustment`), KEY `sd` (`id_pulse_ta_staff`,`business_date`,`status`), KEY `exc` (`id_pulse_ta_exception`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_shift` (
@@ -96,7 +103,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_shift` (
   `is_split` TINYINT(1) NOT NULL DEFAULT 0, `split2_start` TIME DEFAULT NULL, `split2_end` TIME DEFAULT NULL,
   `paid_minutes` SMALLINT NOT NULL DEFAULT 480 COMMENT 'nominal paid minutes used for absence and proration', `colour` VARCHAR(7) NOT NULL DEFAULT '#2e86c1',
   `active` TINYINT(1) NOT NULL DEFAULT 1, `sort` SMALLINT NOT NULL DEFAULT 0, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_shift`), UNIQUE KEY `code` (`code`), KEY `dept` (`department`,`active`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_shift`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `dept` (`department`,`active`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_roster` (
@@ -104,7 +112,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_roster` (
   `id_pulse_ta_shift` INT UNSIGNED DEFAULT NULL COMMENT 'NULL with day_type=rest means a rostered day off',
   `day_type` ENUM('work','rest','leave','holiday','training','off_site') NOT NULL DEFAULT 'work', `source` ENUM('local','hr','auto') NOT NULL DEFAULT 'local',
   `note` VARCHAR(128) NOT NULL DEFAULT '', `published` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_roster`), UNIQUE KEY `sd` (`id_pulse_ta_staff`,`roster_date`), KEY `d` (`roster_date`,`id_pulse_ta_shift`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_roster`), UNIQUE KEY `sd` (`id_hotel`,`id_pulse_ta_staff`,`roster_date`), KEY `d` (`roster_date`,`id_pulse_ta_shift`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_timesheet` (
@@ -122,13 +131,15 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_timesheet` (
   `has_exception` TINYINT(1) NOT NULL DEFAULT 0, `adjustments` SMALLINT NOT NULL DEFAULT 0, `sources` VARCHAR(64) NOT NULL DEFAULT '',
   `id_pulse_ta_period` INT UNSIGNED DEFAULT NULL, `locked` TINYINT(1) NOT NULL DEFAULT 0, `note` VARCHAR(255) NOT NULL DEFAULT '',
   `built_at` DATETIME NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_timesheet`), UNIQUE KEY `sd` (`id_pulse_ta_staff`,`business_date`), KEY `bd` (`business_date`,`department`), KEY `per` (`id_pulse_ta_period`), KEY `exc` (`has_exception`,`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_timesheet`), UNIQUE KEY `sd` (`id_hotel`,`id_pulse_ta_staff`,`business_date`), KEY `bd` (`business_date`,`department`), KEY `per` (`id_pulse_ta_period`), KEY `exc` (`has_exception`,`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_timesheet_punch` (
   `id_pulse_ta_timesheet` BIGINT UNSIGNED NOT NULL, `id_pulse_ta_punch` BIGINT UNSIGNED NOT NULL, `seq` SMALLINT NOT NULL DEFAULT 0,
   `role` ENUM('in','out','break_out','break_in','ignored','extra') NOT NULL DEFAULT 'in', `virtual` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'came from an approved adjustment, not a device',
-  PRIMARY KEY (`id_pulse_ta_timesheet`,`id_pulse_ta_punch`), KEY `p` (`id_pulse_ta_punch`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_pulse_ta_timesheet`,`id_pulse_ta_punch`), KEY `p` (`id_pulse_ta_punch`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_exception` (
@@ -142,7 +153,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_exception` (
   `id_employee_resolved` INT UNSIGNED DEFAULT NULL, `resolved_at` DATETIME DEFAULT NULL,
   `dedupe_hash` CHAR(40) NOT NULL COMMENT 'sha1(staff|date|type) so a rebuild reuses the row instead of piling duplicates on a supervisor',
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_exception`), UNIQUE KEY `dedupe` (`dedupe_hash`), KEY `q` (`status`,`business_date`,`department`), KEY `ts` (`id_pulse_ta_timesheet`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_exception`), UNIQUE KEY `dedupe` (`id_hotel`,`dedupe_hash`), KEY `q` (`status`,`business_date`,`department`), KEY `ts` (`id_pulse_ta_timesheet`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_period` (
@@ -153,7 +165,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_period` (
   `open_exceptions` INT UNSIGNED NOT NULL DEFAULT 0, `id_employee_submitted` INT UNSIGNED DEFAULT NULL, `submitted_at` DATETIME DEFAULT NULL,
   `id_employee_approved` INT UNSIGNED DEFAULT NULL, `approved_at` DATETIME DEFAULT NULL, `locked_at` DATETIME DEFAULT NULL,
   `reopen_reason` VARCHAR(255) NOT NULL DEFAULT '', `note` VARCHAR(255) NOT NULL DEFAULT '', `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_period`), UNIQUE KEY `span` (`department`,`date_from`,`date_to`), KEY `st` (`status`,`date_from`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_period`), UNIQUE KEY `span` (`id_hotel`,`department`,`date_from`,`date_to`), KEY `st` (`status`,`date_from`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_ot_rule` (
@@ -162,7 +175,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_ot_rule` (
   `threshold_minutes` INT NOT NULL DEFAULT 480 COMMENT 'minutes worked before this rule starts paying', `multiplier` DECIMAL(6,3) NOT NULL DEFAULT 1.500,
   `cap_minutes` INT NOT NULL DEFAULT 0 COMMENT '0 = uncapped', `requires_approval` TINYINT(1) NOT NULL DEFAULT 1,
   `effective_from` DATE NOT NULL DEFAULT '2000-01-01', `effective_to` DATE DEFAULT NULL, `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_ta_ot_rule`), UNIQUE KEY `code` (`code`), KEY `sc` (`scope`,`active`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_ot_rule`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `sc` (`scope`,`active`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_holiday` (
@@ -178,7 +192,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ta_job` (
   `id_pulse_ta_device` INT UNSIGNED DEFAULT NULL, `id_pulse_ta_staff` INT UNSIGNED DEFAULT NULL, `payload` TEXT,
   `attempts` SMALLINT NOT NULL DEFAULT 0, `last_error` VARCHAR(255) NOT NULL DEFAULT '', `next_try_at` DATETIME NOT NULL,
   `status` ENUM('queued','running','done','failed') NOT NULL DEFAULT 'queued', `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ta_job`), KEY `q` (`status`,`next_try_at`), KEY `d` (`id_pulse_ta_device`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ta_job`), KEY `q` (`status`,`next_try_at`), KEY `d` (`id_pulse_ta_device`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_ta_shift` (`code`,`name`,`department`,`start_time`,`end_time`,`crosses_midnight`,`is_night`,`break_minutes`,`break_paid`,`grace_in_min`,`grace_out_min`,`window_before_min`,`window_after_min`,`min_shift_min`,`max_shift_min`,`paid_minutes`,`colour`,`sort`,`date_add`,`date_upd`) VALUES

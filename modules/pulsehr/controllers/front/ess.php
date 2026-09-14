@@ -8,12 +8,27 @@
  */
 class PulseHrEssModuleFrontController extends ModuleFrontController
 {
-    public function init() { parent::init(); $this->display_header = false; $this->display_footer = false; }
+    protected $idHotel = 0;
+
+    public function init()
+    {
+        parent::init();
+        $this->display_header = false;
+        $this->display_footer = false;
+        // The sections, the geofence and the business date below are all one property's, so which
+        // property is settled first — from the session this phone already holds, or from the link it
+        // followed. A portal that cannot say which property it is for is refused rather than drawn empty.
+        $this->idHotel = PulseHrService::enterHotel();
+    }
+
     public function setMedia() { return true; }
 
     public function initContent()
     {
         parent::initContent();
+        if (!$this->idHotel) {
+            PulseCoreService::refuseNoHotel('This staff portal link does not say which property it is for. Use the link or QR code your own property gave you, or sign in again.');
+        }
         $boot = array(
             'api' => $this->context->link->getModuleLink('pulsehr', 'api', array(), true),
             'hotel' => Configuration::get('PS_SHOP_NAME'),

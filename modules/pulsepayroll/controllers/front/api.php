@@ -7,7 +7,7 @@ class PulsePayrollApiModuleFrontController extends PulseApiController
 {
     protected $resources = array(
         'ping' => 'ping', 'payslips' => 'payslips', 'payslip' => 'payslip', 'ytd' => 'ytd', 'loan_balance' => 'loanBalance',
-        'service_charge_statement' => 'serviceCharge', 'runs' => 'runs', 'run' => 'run', 'remittances' => 'remittances',
+        'service_charge_statement' => 'serviceCharge', 'runs' => 'runs', 'run' => 'runReport', 'remittances' => 'remittances',
     );
 
     protected function ping() { $p = PulsePrStatutory::pack(PulsePrService::country()); return array('module' => 'pulsepayroll', 'country' => PulsePrService::country(), 'pack' => $p->label(), 'verified' => $p->verified()); }
@@ -77,7 +77,7 @@ class PulsePayrollApiModuleFrontController extends PulseApiController
         return PulsePrRun::runs(array(), 24);
     }
 
-    protected function run($id)
+    protected function runReport($id)
     {
         $this->requireScope('payroll');
         $r = PulsePrRun::get($id);

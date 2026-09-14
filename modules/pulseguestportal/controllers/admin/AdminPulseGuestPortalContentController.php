@@ -15,7 +15,7 @@ class AdminPulseGuestPortalContentController extends ModuleAdminController
             'promos' => PulseGpContent::allPromos(), 'promo' => (int) Tools::getValue('id_promo') ? PulseGpContent::promo((int) Tools::getValue('id_promo')) : null,
             'categories' => PulseGpContent::categories(), 'langs' => $langs, 'default_lang' => PulseGpService::defaultLang(),
             'room_types' => PulseGpContent::roomTypes(), 'welcome' => $welcome, 'upload_base' => __PS_BASE_URI__,
-            'allergens' => PulseGpDining::allergens(), 'pos_items' => PulseGpService::pos() ? Db::getInstance()->executeS('SELECT id_pulse_pos_item id, name FROM `'._DB_PREFIX_.'pulse_pos_item` WHERE active=1 ORDER BY name LIMIT 300') : array(),
+            'allergens' => PulseGpDining::allergens(), 'pos_items' => PulseGpService::pos() ? PulseDb::executeS('SELECT id_pulse_pos_item id, name FROM `'._DB_PREFIX_.'pulse_pos_item` WHERE active=1 ORDER BY name LIMIT 300') : array(),
             'self_url' => self::$currentIndex.'&token='.$this->token,
         ));
         $this->setTemplate('content.tpl');

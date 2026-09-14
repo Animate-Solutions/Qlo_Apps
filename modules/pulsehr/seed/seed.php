@@ -17,7 +17,7 @@ if (php_sapi_name() !== 'cli') {
     if (!hash_equals((string) Configuration::get('PULSE_HR_CRON_TOKEN'), (string) $token)) { die('Invalid token'); }
 }
 Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1);
-$db = Db::getInstance();
+$db = PulseDb::handle();
 $today = date('Y-m-d');
 $year = (int) date('Y');
 $summary = array();

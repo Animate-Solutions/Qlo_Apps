@@ -19,7 +19,7 @@ if (php_sapi_name() !== 'cli') {
     if (!hash_equals((string) Configuration::get('PULSE_TA_CRON_TOKEN'), (string) $token)) { die('Invalid token'); }
 }
 Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1);
-$db = Db::getInstance();
+$db = PulseDb::handle();
 $now = date('Y-m-d H:i:s');
 $summary = array();
 
@@ -155,7 +155,7 @@ $victims = array_slice(array_keys($staffIds), 5, 2);
 foreach ($victims as $k => $idStaff) {
     $date = date('Y-m-d', strtotime('-'.(3 + $k).' day'));
     $last = $db->getRow('SELECT id_pulse_ta_punch FROM `'._DB_PREFIX_.'pulse_ta_punch` WHERE id_pulse_ta_staff='.(int) $idStaff.'
-        AND business_date="'.pSQL($date).'" AND direction="out" ORDER BY punched_at DESC LIMIT 1');
+        AND business_date="'.pSQL($date).'" AND direction="out" ORDER BY punched_at DESC');
     if ($last) {
         // Deleting a seeded punch is how we simulate a finger that did not read. Real punches are never deleted.
         $db->delete('pulse_ta_punch', 'id_pulse_ta_punch='.(int) $last['id_pulse_ta_punch']);

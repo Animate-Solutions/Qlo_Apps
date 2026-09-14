@@ -20,7 +20,7 @@ class PulseTaZkPush extends PulseTaDeviceBase
 
     protected function stats()
     {
-        $db = Db::getInstance();
+        $db = PulseDb::handle();
         return array(
             'last_seen' => $db->getValue('SELECT last_seen_at FROM `'._DB_PREFIX_.'pulse_ta_device` WHERE id_pulse_ta_device='.$this->id()),
             'last_punch' => $db->getValue('SELECT last_punch_at FROM `'._DB_PREFIX_.'pulse_ta_device` WHERE id_pulse_ta_device='.$this->id()),
@@ -93,7 +93,7 @@ class PulseTaZkPush extends PulseTaDeviceBase
     /** Whatever the device has told us about itself through OPERLOG USER lines. */
     public function pullUsers()
     {
-        $rows = Db::getInstance()->executeS('SELECT e.device_user_id, e.device_name, e.card_no, e.privilege, e.has_finger, e.has_face, e.has_card, e.has_password
+        $rows = PulseDb::executeS('SELECT e.device_user_id, e.device_name, e.card_no, e.privilege, e.has_finger, e.has_face, e.has_card, e.has_password
             FROM `'._DB_PREFIX_.'pulse_ta_enrolment` e WHERE e.id_pulse_ta_device='.$this->id().' AND e.status<>"removed" ORDER BY e.device_user_id');
         $out = array();
         foreach ((array) $rows as $r) {

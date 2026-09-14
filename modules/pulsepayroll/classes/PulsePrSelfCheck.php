@@ -316,23 +316,23 @@ class PulsePrSelfCheck
 
     protected static function declare($idEmployee, $code, $annualValue, $verified)
     {
-        Db::getInstance()->delete('pulse_pr_declaration', 'id_pulse_pr_employee='.(int) $idEmployee.' AND code="'.pSQL($code).'"');
+        PulseDb::delete('pulse_pr_declaration', 'id_pulse_pr_employee='.(int) $idEmployee.' AND code="'.pSQL($code).'"');
         return PulsePrService::saveDeclaration(array('id_pulse_pr_employee' => $idEmployee, 'code' => $code, 'annual_value' => $annualValue,
             'evidence_ref' => 'Self-check tenancy agreement', 'evidence_verified' => $verified ? 1 : 0, 'date_from' => '2026-01-01'));
     }
 
     protected static function consent($idEmployee, $code, $date)
     {
-        Db::getInstance()->delete('pulse_pr_declaration', 'id_pulse_pr_employee='.(int) $idEmployee.' AND code="'.pSQL($code).'"');
+        PulseDb::delete('pulse_pr_declaration', 'id_pulse_pr_employee='.(int) $idEmployee.' AND code="'.pSQL($code).'"');
         return PulsePrService::saveDeclaration(array('id_pulse_pr_employee' => $idEmployee, 'code' => $code, 'consented' => 1, 'consent_date' => $date,
             'consent_channel' => 'signed form', 'evidence_verified' => 1, 'date_from' => $date));
     }
 
     protected static function opening($idEmployee, $year, $periods, $gross, $taxable, $paye, $pension)
     {
-        Db::getInstance()->delete('pulse_pr_opening', 'id_pulse_pr_employee='.(int) $idEmployee.' AND tax_year='.(int) $year);
+        PulseDb::delete('pulse_pr_opening', 'id_pulse_pr_employee='.(int) $idEmployee.' AND tax_year='.(int) $year);
         if ($periods <= 0) { return true; }
-        return Db::getInstance()->insert('pulse_pr_opening', array(
+        return PulseDb::insert('pulse_pr_opening', array(
             'id_pulse_pr_employee' => (int) $idEmployee, 'tax_year' => (int) $year, 'periods' => (int) $periods,
             'gross' => round((float) $gross, 2), 'taxable' => round((float) $taxable, 2), 'paye' => round((float) $paye, 2),
             'pension_ee' => round((float) $pension, 2), 'net' => 0, 'note' => 'self-check', 'date_add' => date('Y-m-d H:i:s'),
@@ -342,7 +342,7 @@ class PulsePrSelfCheck
     protected static function loan($idEmployee, $amount, $period)
     {
         $id = PulsePrLoan::apply(array('id_pulse_pr_employee' => $idEmployee, 'principal' => $amount, 'instalments' => 1, 'first_period' => $period, 'purpose' => 'self-check'));
-        Db::getInstance()->update('pulse_pr_loan', array('status' => 'disbursed', 'date_disbursed' => date('Y-m-d')), 'id_pulse_pr_loan='.(int) $id);
+        PulseDb::update('pulse_pr_loan', array('status' => 'disbursed', 'date_disbursed' => date('Y-m-d')), 'id_pulse_pr_loan='.(int) $id);
         return $id;
     }
 
@@ -358,18 +358,18 @@ class PulsePrSelfCheck
     public static function cleanup()
     {
         $ids = array();
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_pr_employee FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE staff_no LIKE "'.pSQL(self::PREFIX).'-%"') as $r) { $ids[] = (int) $r['id_pulse_pr_employee']; }
+        foreach (PulseDb::executeS('SELECT id_pulse_pr_employee FROM `'._DB_PREFIX_.'pulse_pr_employee` WHERE staff_no LIKE "'.pSQL(self::PREFIX).'-%"') as $r) { $ids[] = (int) $r['id_pulse_pr_employee']; }
         if (!$ids) { return true; }
         $in = implode(',', $ids);
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_pr_loan FROM `'._DB_PREFIX_.'pulse_pr_loan` WHERE id_pulse_pr_employee IN ('.$in.')') as $l) { Db::getInstance()->delete('pulse_pr_loan_schedule', 'id_pulse_pr_loan='.(int) $l['id_pulse_pr_loan']); }
-        Db::getInstance()->delete('pulse_pr_loan', 'id_pulse_pr_employee IN ('.$in.')');
-        Db::getInstance()->delete('pulse_pr_arrears', 'id_pulse_pr_employee IN ('.$in.')');
-        Db::getInstance()->delete('pulse_pr_declaration', 'id_pulse_pr_employee IN ('.$in.')');
-        Db::getInstance()->delete('pulse_pr_opening', 'id_pulse_pr_employee IN ('.$in.')');
-        Db::getInstance()->delete('pulse_pr_timesheet', 'id_pulse_pr_employee IN ('.$in.')');
-        Db::getInstance()->delete('pulse_pr_employee_element', 'id_pulse_pr_employee IN ('.$in.')');
-        Db::getInstance()->delete('pulse_pr_tronc_line', 'id_pulse_pr_employee IN ('.$in.')');
-        Db::getInstance()->delete('pulse_pr_employee', 'id_pulse_pr_employee IN ('.$in.')');
+        foreach (PulseDb::executeS('SELECT id_pulse_pr_loan FROM `'._DB_PREFIX_.'pulse_pr_loan` WHERE id_pulse_pr_employee IN ('.$in.')') as $l) { PulseDb::delete('pulse_pr_loan_schedule', 'id_pulse_pr_loan='.(int) $l['id_pulse_pr_loan']); }
+        PulseDb::delete('pulse_pr_loan', 'id_pulse_pr_employee IN ('.$in.')');
+        PulseDb::delete('pulse_pr_arrears', 'id_pulse_pr_employee IN ('.$in.')');
+        PulseDb::delete('pulse_pr_declaration', 'id_pulse_pr_employee IN ('.$in.')');
+        PulseDb::delete('pulse_pr_opening', 'id_pulse_pr_employee IN ('.$in.')');
+        PulseDb::delete('pulse_pr_timesheet', 'id_pulse_pr_employee IN ('.$in.')');
+        PulseDb::delete('pulse_pr_employee_element', 'id_pulse_pr_employee IN ('.$in.')');
+        PulseDb::delete('pulse_pr_tronc_line', 'id_pulse_pr_employee IN ('.$in.')');
+        PulseDb::delete('pulse_pr_employee', 'id_pulse_pr_employee IN ('.$in.')');
         return true;
     }
 }

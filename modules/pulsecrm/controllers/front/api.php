@@ -36,7 +36,7 @@ class PulseCrmApiModuleFrontController extends PulseApiController
         if (!empty($body['id_customer'])) { return (int) $body['id_customer']; }
         if (!empty($body['id_room']) || (!$id && !empty($body['room_num']))) {
             $where = !empty($body['id_room']) ? 'b.id_room='.(int) $body['id_room'] : 'r.room_num="'.pSQL($body['room_num']).'"';
-            $row = Db::getInstance()->getRow('SELECT b.id_customer, b.id id_htl_booking FROM `'._DB_PREFIX_.'htl_booking_detail` b
+            $row = PulseDb::getRow('SELECT b.id_customer, b.id id_htl_booking FROM `'._DB_PREFIX_.'htl_booking_detail` b
                 INNER JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room
                 WHERE '.$where.' AND b.is_cancelled=0 AND b.is_refunded=0 AND b.id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY b.date_from DESC');
             if ($row) { return (int) $row['id_customer']; }
@@ -135,7 +135,7 @@ class PulseCrmApiModuleFrontController extends PulseApiController
         $m = PulseCrmLoyalty::memberOf($idc);
         if (!$m) { throw new PrestaShopException('Not a loyalty member', 400); }
         $idBooking = $this->bookingFor($body);
-        if (!$idBooking) { $idBooking = (int) Db::getInstance()->getValue('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_customer='.(int) $idc.' AND is_cancelled=0 AND is_refunded=0 AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY date_from DESC'); }
+        if (!$idBooking) { $idBooking = (int) PulseDb::getValue('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_customer='.(int) $idc.' AND is_cancelled=0 AND is_refunded=0 AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY date_from DESC'); }
         return PulseCrmLoyalty::redeem((int) $m['id_pulse_crm_member'], isset($body['points']) ? (int) $body['points'] : 0, $idBooking ? $idBooking : null, isset($body['note']) ? $body['note'] : 'Portal redemption');
     }
 
@@ -181,7 +181,7 @@ class PulseCrmApiModuleFrontController extends PulseApiController
         $s = PulseCrmSurvey::byCode(isset($body['survey']) ? $body['survey'] : 'in_stay');
         if (!$s) { throw new PrestaShopException('No in-stay survey is configured', 400); }
         $idBooking = $this->bookingFor($body);
-        if (!$idBooking) { $idBooking = (int) Db::getInstance()->getValue('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_customer='.(int) $idc.' AND is_cancelled=0 AND is_refunded=0 AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY date_from DESC'); }
+        if (!$idBooking) { $idBooking = (int) PulseDb::getValue('SELECT id FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_customer='.(int) $idc.' AND is_cancelled=0 AND is_refunded=0 AND id_status='.(int) HotelBookingDetail::STATUS_CHECKED_IN.' ORDER BY date_from DESC'); }
         $inv = PulseCrmSurvey::invite((int) $s['id_pulse_crm_survey'], $idc, $idBooking ? $idBooking : null, 'portal');
         $answers = array();
         foreach (PulseCrmSurvey::questions((int) $s['id_pulse_crm_survey']) as $q) {
@@ -190,7 +190,7 @@ class PulseCrmApiModuleFrontController extends PulseApiController
             elseif ((int) $q['required']) { $answers[$q['code']] = $q['type'] === 'scale5' ? max(1, min(5, (int) round(($score === null ? 8 : $score) / 2))) : ($q['type'] === 'nps' ? ($score === null ? 8 : $score) : 'n/a'); }
         }
         $r = PulseCrmSurvey::submit($inv['token'], $answers, isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null);
-        $case = (int) Db::getInstance()->getValue('SELECT id_pulse_crm_case FROM `'._DB_PREFIX_.'pulse_crm_case` WHERE id_pulse_crm_survey_response='.(int) $r['id_pulse_crm_survey_response']);
+        $case = (int) PulseDb::getValue('SELECT id_pulse_crm_case FROM `'._DB_PREFIX_.'pulse_crm_case` WHERE id_pulse_crm_survey_response='.(int) $r['id_pulse_crm_survey_response']);
         return array('ok' => true, 'nps' => $r['nps'] === null ? null : (int) $r['nps'], 'sentiment' => $r['sentiment'], 'case_opened' => $case ? true : false, 'thanks' => $s['thanks']);
     }
 
@@ -202,7 +202,7 @@ class PulseCrmApiModuleFrontController extends PulseApiController
         $channels = isset($body['channel']) ? array($body['channel']) : array('email', 'sms', 'whatsapp');
         $reason = isset($body['reason']) ? $body['reason'] : '';
         foreach ($channels as $ch) { PulseCrmProfile::setConsent($idc, $ch, 'opt_out', isset($body['source']) ? $body['source'] : 'api', 'API opt-out', $reason); }
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_campaign_recipient` SET status="skipped", skip_reason="opted_out" WHERE id_customer='.(int) $idc.' AND status="queued"');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_campaign_recipient` SET status="skipped", skip_reason="opted_out" WHERE id_customer='.(int) $idc.' AND status="queued"');
         PulseCrmJourney::cancelFor($idc, null, 'opted out');
         return array('ok' => true, 'channels' => $channels, 'consent' => PulseCrmProfile::consent($idc));
     }

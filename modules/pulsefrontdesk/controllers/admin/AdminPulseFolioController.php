@@ -9,7 +9,10 @@ class AdminPulseFolioController extends ModuleAdminController
         parent::__construct();
         $this->meta_title = $this->l('Folios & Cashier');
         $this->_select = 'r.room_num, CONCAT(c.firstname," ",c.lastname) guest, comp.name company';
-        $this->_join = 'LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=a.id_room LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=a.id_customer LEFT JOIN `'._DB_PREFIX_.'pulse_company` comp ON comp.id_pulse_company=a.id_pulse_company';
+        // The list SQL is assembled and run by AdminController itself, so it never passes through
+        // PulseDb; the hotel has to be added here instead, on the list and on each joined Pulse table.
+        $this->_join = 'LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=a.id_room LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=a.id_customer LEFT JOIN `'._DB_PREFIX_.'pulse_company` comp ON comp.id_pulse_company=a.id_pulse_company'.PulseHotelContext::sql('comp');
+        $this->_where = PulseHotelContext::sql('a');
         $this->fields_list = array(
             'folio_no' => array('title' => $this->l('Folio')), 'type' => array('title' => $this->l('Type')),
             'room_num' => array('title' => $this->l('Room'), 'havingFilter' => true), 'guest' => array('title' => $this->l('Guest'), 'havingFilter' => true), 'company' => array('title' => $this->l('Company'), 'havingFilter' => true),
@@ -41,8 +44,8 @@ class AdminPulseFolioController extends ModuleAdminController
         $this->context->smarty->assign(array(
             'folio' => $f, 'lines' => $f->lines(true), 'booking' => $b,
             'charge_codes' => PulseChargeCode::all(0), 'payment_codes' => PulseChargeCode::all(1),
-            'open_folios' => Db::getInstance()->executeS('SELECT id_pulse_folio, folio_no, type FROM `'._DB_PREFIX_.'pulse_folio` WHERE status="open" AND id_pulse_folio<>'.(int) $f->id.' ORDER BY folio_no'),
-            'companies' => Db::getInstance()->executeS('SELECT id_pulse_company, name, credit_limit, ledger_balance FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'),
+            'open_folios' => PulseDb::executeS('SELECT id_pulse_folio, folio_no, type FROM `'._DB_PREFIX_.'pulse_folio` WHERE status="open" AND id_pulse_folio<>'.(int) $f->id.' ORDER BY folio_no'),
+            'companies' => PulseDb::executeS('SELECT id_pulse_company, name, credit_limit, ledger_balance FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'),
             'ajax_url' => $this->context->link->getAdminLink('AdminPulseRoomBoard'), 'self_url' => self::$currentIndex.'&token='.$this->token.'&id_pulse_folio='.$f->id.'&viewpulse_folio',
             'currencies' => Currency::getCurrencies(false, true), 'rules' => $b ? PulseRouting::forBooking($b['id']) : array(), 'regcard' => $b ? PulseRegistrationCard::forBooking($b['id']) : null,
             'hotel' => $b ? $b['hotel_name'] : Configuration::get('PS_SHOP_NAME'), 'currency' => $this->context->currency->sign,
@@ -54,7 +57,7 @@ class AdminPulseFolioController extends ModuleAdminController
     {
         $emp = (int) $this->context->employee->id; $id = PulseCashierSession::currentId($emp);
         $this->context->smarty->assign(array('session_id' => $id, 'totals' => $id ? PulseCashierSession::totals($id) : array(),
-            'movements' => $id ? PulseCashierSession::movements($id) : array(), 'employees' => Employee::getEmployees(), 'currencies' => Currency::getCurrencies(false, true), 'session' => $id ? Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_cashier_session` WHERE id_pulse_cashier_session='.$id) : null,
+            'movements' => $id ? PulseCashierSession::movements($id) : array(), 'employees' => Employee::getEmployees(), 'currencies' => Currency::getCurrencies(false, true), 'session' => $id ? PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_cashier_session` WHERE id_pulse_cashier_session='.$id) : null,
             'self_url' => self::$currentIndex.'&token='.$this->token.'&cashier=1'));
         $this->context->smarty->assign('content', $this->context->smarty->fetch($this->getTemplatePath().'pulse_folio/cashier.tpl'));
     }

@@ -33,18 +33,18 @@ class PulseGpRequest
         }
         if ($type === 'late_checkout' && !empty($d['scheduled_for'])) { $sched = self::parseWhen($d['scheduled_for'], true); }
         // one open request of the same kind per stay is enough — a guest pressing twice must not raise two tickets
-        $dup = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_htl_booking='.$idBooking.' AND type="'.pSQL($type).'" AND status IN ("new","ack","in_progress") AND date_add>DATE_SUB(NOW(), INTERVAL 30 MINUTE)');
+        $dup = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_htl_booking='.$idBooking.' AND type="'.pSQL($type).'" AND status IN ("new","ack","in_progress") AND date_add>DATE_SUB(NOW(), INTERVAL 30 MINUTE)');
         if ($dup && !in_array($type, array('wakeup', 'other', 'maintenance'))) { return self::view($dup); }
-        Db::getInstance()->insert('pulse_gp_request', array(
+        PulseDb::insert('pulse_gp_request', array(
             'request_no' => pSQL(PulseGpService::nextNo('GR')), 'type' => pSQL($type), 'id_pulse_gp_device' => (int) $device['id_pulse_gp_device'],
             'id_room' => $idRoom ? $idRoom : null, 'room_num' => pSQL($device['room_num']), 'id_htl_booking' => $idBooking, 'id_customer' => (int) $session['id_customer'],
             'guest_name' => pSQL($b ? $b['guest'] : $session['guest_name']), 'detail' => pSQL(Tools::substr((string) (isset($d['detail']) ? $d['detail'] : ''), 0, 255)),
             'qty' => max(1, (int) (isset($d['qty']) ? $d['qty'] : 1)), 'scheduled_for' => $sched ? pSQL($sched) : null, 'locale' => pSQL($session['locale']),
             'business_date' => pSQL(PulseGpService::bd()), 'date_add' => $now, 'date_upd' => $now,
         ));
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         try { self::dispatch($id, $type, $idRoom, $idBooking, $session, $d, $sched); }
-        catch (Exception $e) { Db::getInstance()->update('pulse_gp_request', array('status' => 'failed', 'fail_reason' => pSQL(Tools::substr($e->getMessage(), 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_gp_request='.$id);
+        catch (Exception $e) { PulseDb::update('pulse_gp_request', array('status' => 'failed', 'fail_reason' => pSQL(Tools::substr($e->getMessage(), 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_gp_request='.$id);
             if (class_exists('PulseTrace')) { PulseTrace::add('alert', 'Portal request '.self::label($type).' from room '.$device['room_num'].' could not be routed: '.$e->getMessage(), $now, $idBooking, $idRoom, null, 'frontdesk'); } }
         PulseGpService::audit('request', array('type' => $type, 'room' => $device['room_num']), 'pulse_gp_request', $id);
         PulseGpService::event('actionPulsePortalRequest', array('id_request' => $id, 'type' => $type, 'id_room' => $idRoom, 'id_htl_booking' => $idBooking));
@@ -98,10 +98,10 @@ class PulseGpRequest
                 self::closeOpen($idBooking, 'dnd_on'); $u['status'] = 'done';
                 break;
         }
-        Db::getInstance()->update('pulse_gp_request', $u, 'id_pulse_gp_request='.(int) $id);
+        PulseDb::update('pulse_gp_request', $u, 'id_pulse_gp_request='.(int) $id);
     }
 
-    protected static function roomNum($idRoom) { return (string) Db::getInstance()->getValue('SELECT room_num FROM `'._DB_PREFIX_.'htl_room_information` WHERE id='.(int) $idRoom); }
+    protected static function roomNum($idRoom) { return (string) PulseDb::getValue('SELECT room_num FROM `'._DB_PREFIX_.'htl_room_information` WHERE id='.(int) $idRoom); }
     protected static function ticket($category, $department, $priority, $title, $body, $idRoom, $idBooking, array $session)
     {
         if (!class_exists('PulseTicket')) { return null; }
@@ -148,10 +148,10 @@ class PulseGpRequest
         return $t ? date('Y-m-d H:i:s', $t) : null;
     }
 
-    public static function closeOpen($idBooking, $type) { return Db::getInstance()->update('pulse_gp_request', array('status' => 'done', 'date_upd' => date('Y-m-d H:i:s')), 'id_htl_booking='.(int) $idBooking.' AND type="'.pSQL($type).'" AND status IN ("new","ack","in_progress")'); }
-    public static function dndOn($idBooking) { return (bool) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_htl_booking='.(int) $idBooking.' AND type="dnd_on" AND status IN ("new","ack","in_progress")'); }
+    public static function closeOpen($idBooking, $type) { return PulseDb::update('pulse_gp_request', array('status' => 'done', 'date_upd' => date('Y-m-d H:i:s')), 'id_htl_booking='.(int) $idBooking.' AND type="'.pSQL($type).'" AND status IN ("new","ack","in_progress")'); }
+    public static function dndOn($idBooking) { return (bool) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_htl_booking='.(int) $idBooking.' AND type="dnd_on" AND status IN ("new","ack","in_progress")'); }
 
-    public static function get($id) { $r = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_pulse_gp_request='.(int) $id); return $r ? self::view($r) : null; }
+    public static function get($id) { $r = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_pulse_gp_request='.(int) $id); return $r ? self::view($r) : null; }
     /** What the guest screen is allowed to see about a request. */
     public static function view(array $r)
     {
@@ -160,7 +160,7 @@ class PulseGpRequest
     }
     public static function recent($idRoom, $idBooking, $limit = 12)
     {
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_htl_booking='.(int) $idBooking.' ORDER BY id_pulse_gp_request DESC LIMIT '.(int) $limit);
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_htl_booking='.(int) $idBooking.' ORDER BY id_pulse_gp_request DESC LIMIT '.(int) $limit);
         $out = array();
         foreach ($rows as $r) { $out[] = self::view($r); }
         return $out;
@@ -170,16 +170,16 @@ class PulseGpRequest
     public static function queue($status = 'new,ack,in_progress', $date = null)
     {
         $st = '"'.implode('","', array_map('pSQL', explode(',', $status))).'"';
-        $hasTickets = (bool) Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_ticket"');
-        return Db::getInstance()->executeS('SELECT r.*'.($hasTickets ? ', t.status ticket_status, t.ticket_no' : ', NULL ticket_status, NULL ticket_no').'
+        $hasTickets = (bool) PulseDb::executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_ticket"');
+        return PulseDb::executeS('SELECT r.*'.($hasTickets ? ', t.status ticket_status, t.ticket_no' : ', NULL ticket_status, NULL ticket_no').'
             FROM `'._DB_PREFIX_.'pulse_gp_request` r '.($hasTickets ? 'LEFT JOIN `'._DB_PREFIX_.'pulse_ticket` t ON t.id_pulse_ticket=r.id_pulse_ticket ' : '').'
             WHERE r.status IN ('.$st.')'.($date ? ' AND r.business_date="'.pSQL($date).'"' : '').' ORDER BY FIELD(r.status,"new","ack","in_progress"), r.id_pulse_gp_request DESC LIMIT 200');
     }
     public static function setStatus($id, $status)
     {
         if (!in_array($status, array('new', 'ack', 'in_progress', 'done', 'cancelled', 'failed'))) { throw new PrestaShopException('Unknown status'); }
-        Db::getInstance()->update('pulse_gp_request', array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_gp_request='.(int) $id);
-        $r = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_pulse_gp_request='.(int) $id);
+        PulseDb::update('pulse_gp_request', array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_gp_request='.(int) $id);
+        $r = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE id_pulse_gp_request='.(int) $id);
         if ($r && $r['id_room'] && in_array($status, array('in_progress', 'done'))) {
             foreach (PulseGpDevice::byRoom((int) $r['id_room']) as $d) { PulseGpDevice::command((int) $d['id_pulse_gp_device'], 'notify', array('kind' => 'request', 'text' => self::label($r['type']).' — '.$status)); }
         }
@@ -189,6 +189,6 @@ class PulseGpRequest
     /** Wake-up calls that have come due; the cron rings them through Comms and the PABX trace. */
     public static function dueWakeups()
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE type="wakeup" AND status IN ("new","ack") AND scheduled_for IS NOT NULL AND scheduled_for<=NOW()');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_request` WHERE type="wakeup" AND status IN ("new","ack") AND scheduled_for IS NOT NULL AND scheduled_for<=NOW()');
     }
 }

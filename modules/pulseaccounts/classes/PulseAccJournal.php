@@ -40,7 +40,7 @@ class PulseAccJournal
                 'line_no' => ++$n, 'id_pulse_acc_account' => (int) $a['id_pulse_acc_account'], 'account_code' => pSQL($a['code']), 'account_name' => pSQL($a['name']),
                 'debit' => $dr, 'credit' => $cr, 'memo' => pSQL(Tools::substr(isset($l['memo']) ? $l['memo'] : (isset($d['memo']) ? $d['memo'] : ''), 0, 255)),
                 'department' => pSQL(isset($l['department']) ? Tools::substr($l['department'], 0, 32) : ''), 'cost_centre' => pSQL(isset($l['cost_centre']) ? Tools::substr($l['cost_centre'], 0, 32) : ''),
-                'usali_dept' => pSQL($a['usali_dept']), 'entity' => !empty($l['entity']) ? pSQL(Tools::substr($l['entity'], 0, 32)) : null, 'id_entity' => !empty($l['id_entity']) ? (int) $l['id_entity'] : null,
+                'usali_dept' => pSQL($a['usali_dept'] ? $a['usali_dept'] : 'balance_sheet'), 'entity' => !empty($l['entity']) ? pSQL(Tools::substr($l['entity'], 0, 32)) : null, 'id_entity' => !empty($l['id_entity']) ? (int) $l['id_entity'] : null,
                 'id_pulse_company' => !empty($l['id_pulse_company']) ? (int) $l['id_pulse_company'] : null, 'id_supplier' => !empty($l['id_supplier']) ? (int) $l['id_supplier'] : null,
                 'tax_code' => !empty($l['tax_code']) ? pSQL(Tools::substr($l['tax_code'], 0, 16)) : null,
                 'business_date' => pSQL($date), 'period' => pSQL($period), 'posted' => $status === 'posted' ? 1 : 0,
@@ -52,7 +52,7 @@ class PulseAccJournal
         if (abs($debit - $credit) > 0.009) { throw new PrestaShopException('Journal does not balance: debits '.number_format($debit, 2).' vs credits '.number_format($credit, 2).' ('.$source.' '.$ref.')'); }
 
         $no = PulseAccService::nextNo(self::prefix(isset($d['type']) ? $d['type'] : 'general'), 6);
-        $ok = Db::getInstance()->insert('pulse_acc_journal', array(
+        $ok = PulseDb::insert('pulse_acc_journal', array(
             'journal_no' => pSQL($no), 'type' => pSQL(isset($d['type']) ? $d['type'] : 'general'), 'source' => pSQL($source), 'source_ref' => $ref !== null ? pSQL($ref) : null,
             'business_date' => pSQL($date), 'period' => pSQL($period), 'reference' => pSQL(Tools::substr(isset($d['reference']) ? $d['reference'] : '', 0, 64)),
             'memo' => pSQL(Tools::substr(isset($d['memo']) ? $d['memo'] : '', 0, 255)), 'status' => $status, 'total_debit' => $debit, 'total_credit' => $credit,
@@ -64,8 +64,29 @@ class PulseAccJournal
             if ($ref !== null && ($existing = self::bySource($source, $ref))) { return (int) $existing['id_pulse_acc_journal']; }
             throw new PrestaShopException('Journal could not be written ('.$source.' '.$ref.')');
         }
-        $id = (int) Db::getInstance()->Insert_ID();
-        foreach ($lines as $l) { $l['id_pulse_acc_journal'] = $id; Db::getInstance()->insert('pulse_acc_journal_line', $l, true); }
+        $id = (int) PulseDb::Insert_ID();
+        // A journal is all of its lines or none of them. An unchecked line insert here is how a ledger
+        // silently goes out of balance: the header claims it balanced, the lines say otherwise.
+        $written = 0; $failed = '';
+        foreach ($lines as $l) {
+            $l['id_pulse_acc_journal'] = $id;
+            if (PulseDb::insert('pulse_acc_journal_line', $l, true)) { $written++; }
+            else { $failed = PulseDb::getMsgError(); break; }
+        }
+        // Re-read what actually landed. A GL may not take the write layer's word for it: if the lines in the
+        // table do not add up to the header the journal claims, the whole thing comes out again.
+        if ($written === count($lines)) {
+            $chk = PulseDb::getRow('SELECT COUNT(*) n, COALESCE(SUM(debit),0) d, COALESCE(SUM(credit),0) c FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE id_pulse_acc_journal='.(int) $id);
+            if ((int) $chk['n'] !== count($lines) || abs((float) $chk['d'] - $debit) > 0.009 || abs((float) $chk['c'] - $credit) > 0.009) {
+                $written = -1;
+                $failed = 'wrote '.(int) $chk['n'].' of '.count($lines).' lines, Dr '.number_format((float) $chk['d'], 2).' Cr '.number_format((float) $chk['c'], 2).' against a header of Dr '.number_format($debit, 2).' Cr '.number_format($credit, 2);
+            }
+        }
+        if ($written !== count($lines)) {
+            PulseDb::delete('pulse_acc_journal_line', 'id_pulse_acc_journal='.(int) $id);
+            PulseDb::delete('pulse_acc_journal', 'id_pulse_acc_journal='.(int) $id);
+            throw new PrestaShopException('Journal '.$no.' rolled back: line '.($written + 1).' of '.count($lines).' could not be written'.($failed ? ' ('.$failed.')' : '').' ('.$source.' '.$ref.')');
+        }
         PulseCoreService::audit('pulseaccounts', 'journal_'.$status, array('no' => $no, 'source' => $source, 'ref' => $ref, 'debit' => $debit), 'pulse_acc_journal', $id);
         if ($status === 'posted') { PulseCoreService::event('actionPulseAccJournalPosted', array('id_journal' => $id, 'journal_no' => $no, 'source' => $source, 'amount' => $debit, 'business_date' => $date)); }
         return $id;
@@ -77,9 +98,9 @@ class PulseAccJournal
         return isset($p[$type]) ? $p[$type] : 'GJ';
     }
 
-    public static function bySource($source, $ref) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal` WHERE source="'.pSQL($source).'" AND source_ref="'.pSQL($ref).'"'); }
-    public static function get($id) { $j = Db::getInstance()->getRow('SELECT j.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_acc_journal` j LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=j.id_employee WHERE j.id_pulse_acc_journal='.(int) $id); if ($j) { $j['lines'] = self::lines($id); } return $j; }
-    public static function lines($id) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE id_pulse_acc_journal='.(int) $id.' ORDER BY line_no, id_pulse_acc_journal_line'); }
+    public static function bySource($source, $ref) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal` WHERE source="'.pSQL($source).'" AND source_ref="'.pSQL($ref).'"'); }
+    public static function get($id) { $j = PulseDb::getRow('SELECT j.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_acc_journal` j LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=j.id_employee WHERE j.id_pulse_acc_journal='.(int) $id); if ($j) { $j['lines'] = self::lines($id); } return $j; }
+    public static function lines($id) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal_line` WHERE id_pulse_acc_journal='.(int) $id.' ORDER BY line_no, id_pulse_acc_journal_line'); }
 
     public static function search(array $f = array(), $limit = 200)
     {
@@ -90,19 +111,19 @@ class PulseAccJournal
         if (!empty($f['status'])) { $w[] = 'j.status="'.pSQL($f['status']).'"'; }
         if (!empty($f['period'])) { $w[] = 'j.period="'.pSQL($f['period']).'"'; }
         if (!empty($f['q'])) { $q = pSQL($f['q']); $w[] = '(j.journal_no LIKE "%'.$q.'%" OR j.memo LIKE "%'.$q.'%" OR j.reference LIKE "%'.$q.'%" OR j.source_ref LIKE "%'.$q.'%")'; }
-        return Db::getInstance()->executeS('SELECT j.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_acc_journal` j LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=j.id_employee WHERE '.implode(' AND ', $w).' ORDER BY j.business_date DESC, j.id_pulse_acc_journal DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT j.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_acc_journal` j LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=j.id_employee WHERE '.implode(' AND ', $w).' ORDER BY j.business_date DESC, j.id_pulse_acc_journal DESC LIMIT '.(int) $limit);
     }
 
     /** Post a draft journal (period is re-checked at this moment, not at the moment it was drafted). */
     public static function postDraft($id)
     {
-        $j = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal` WHERE id_pulse_acc_journal='.(int) $id);
+        $j = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal` WHERE id_pulse_acc_journal='.(int) $id);
         if (!$j) { throw new PrestaShopException('Unknown journal'); }
         if ($j['status'] !== 'draft') { throw new PrestaShopException('Journal '.$j['journal_no'].' is already '.$j['status']); }
         PulseAccService::assertPeriodOpen($j['business_date']);
         if (abs((float) $j['total_debit'] - (float) $j['total_credit']) > 0.009) { throw new PrestaShopException('Journal '.$j['journal_no'].' does not balance'); }
-        Db::getInstance()->update('pulse_acc_journal', array('status' => 'posted', 'date_posted' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_journal='.(int) $id);
-        Db::getInstance()->update('pulse_acc_journal_line', array('posted' => 1), 'id_pulse_acc_journal='.(int) $id);
+        PulseDb::update('pulse_acc_journal', array('status' => 'posted', 'date_posted' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_journal='.(int) $id);
+        PulseDb::update('pulse_acc_journal_line', array('posted' => 1), 'id_pulse_acc_journal='.(int) $id);
         PulseCoreService::audit('pulseaccounts', 'journal_post', array('no' => $j['journal_no']), 'pulse_acc_journal', (int) $id);
         PulseCoreService::event('actionPulseAccJournalPosted', array('id_journal' => (int) $id, 'journal_no' => $j['journal_no'], 'source' => $j['source'], 'amount' => (float) $j['total_debit'], 'business_date' => $j['business_date']));
         return true;
@@ -111,11 +132,11 @@ class PulseAccJournal
     /** Delete a draft. A posted journal can only be reversed. */
     public static function deleteDraft($id)
     {
-        $j = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal` WHERE id_pulse_acc_journal='.(int) $id);
+        $j = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal` WHERE id_pulse_acc_journal='.(int) $id);
         if (!$j) { return false; }
         if ($j['status'] !== 'draft') { throw new PrestaShopException('Only drafts can be deleted — reverse posted journal '.$j['journal_no'].' instead'); }
-        Db::getInstance()->delete('pulse_acc_journal_line', 'id_pulse_acc_journal='.(int) $id);
-        Db::getInstance()->delete('pulse_acc_journal', 'id_pulse_acc_journal='.(int) $id);
+        PulseDb::delete('pulse_acc_journal_line', 'id_pulse_acc_journal='.(int) $id);
+        PulseDb::delete('pulse_acc_journal', 'id_pulse_acc_journal='.(int) $id);
         PulseCoreService::audit('pulseaccounts', 'journal_draft_delete', array('no' => $j['journal_no']), 'pulse_acc_journal', (int) $id);
         return true;
     }
@@ -126,7 +147,7 @@ class PulseAccJournal
      */
     public static function reverse($id, $reason = '', $date = null)
     {
-        $j = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal` WHERE id_pulse_acc_journal='.(int) $id);
+        $j = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_journal` WHERE id_pulse_acc_journal='.(int) $id);
         if (!$j) { throw new PrestaShopException('Unknown journal'); }
         if ($j['status'] !== 'posted') { throw new PrestaShopException('Journal '.$j['journal_no'].' is '.$j['status'].' — only posted journals can be reversed'); }
         $date = $date ? $date : (PulseAccService::periodOpen($j['business_date']) ? $j['business_date'] : PulseAccService::bd());
@@ -141,7 +162,7 @@ class PulseAccJournal
             'reference' => $j['journal_no'], 'memo' => 'Reversal of '.$j['journal_no'].($reason ? ' — '.$reason : ''), 'reverses' => (int) $id, 'lines' => $lines,
         ));
         // both journals stay live: the original keeps its period intact and the contra lands in its own.
-        Db::getInstance()->update('pulse_acc_journal', array('status' => 'reversed', 'reversed_by' => (int) $idRev, 'reverse_reason' => pSQL(Tools::substr($reason, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_journal='.(int) $id);
+        PulseDb::update('pulse_acc_journal', array('status' => 'reversed', 'reversed_by' => (int) $idRev, 'reverse_reason' => pSQL(Tools::substr($reason, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_journal='.(int) $id);
         PulseCoreService::audit('pulseaccounts', 'journal_reverse', array('no' => $j['journal_no'], 'reason' => $reason, 'reversal' => $idRev), 'pulse_acc_journal', (int) $id);
         return $idRev;
     }

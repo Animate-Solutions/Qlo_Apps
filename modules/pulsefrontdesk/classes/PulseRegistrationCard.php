@@ -15,11 +15,11 @@ class PulseRegistrationCard
     {
         if (strpos($signatureDataUrl, 'data:image/png;base64,') !== 0 || strlen($signatureDataUrl) > 400000) { throw new PrestaShopException('Invalid signature'); }
         $b = PulseFdService::booking($idBooking);
-        Db::getInstance()->insert('pulse_registration_card', array('id_htl_booking' => (int) $idBooking, 'id_customer' => (int) $b['id_customer'], 'terms_version' => pSQL(self::termsVersion()), 'terms_accepted' => 1, 'signature' => pSQL($signatureDataUrl, true), 'signed_name' => pSQL($signedName), 'ip' => pSQL(Tools::getRemoteAddr()), 'channel' => pSQL($channel), 'snapshot' => pSQL(json_encode(self::snapshot($idBooking)), true), 'date_add' => date('Y-m-d H:i:s')));
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_registration_card', array('id_htl_booking' => (int) $idBooking, 'id_customer' => (int) $b['id_customer'], 'terms_version' => pSQL(self::termsVersion()), 'terms_accepted' => 1, 'signature' => pSQL($signatureDataUrl, true), 'signed_name' => pSQL($signedName), 'ip' => pSQL(Tools::getRemoteAddr()), 'channel' => pSQL($channel), 'snapshot' => pSQL(json_encode(self::snapshot($idBooking)), true), 'date_add' => date('Y-m-d H:i:s')));
+        $id = (int) PulseDb::Insert_ID();
         PulseCoreService::audit('pulsefrontdesk', 'regcard_signed', array('channel' => $channel), 'htl_booking_detail', $idBooking);
         return $id;
     }
 
-    public static function forBooking($idBooking) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_registration_card` WHERE id_htl_booking='.(int) $idBooking.' ORDER BY date_add DESC'); }
+    public static function forBooking($idBooking) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_registration_card` WHERE id_htl_booking='.(int) $idBooking.' ORDER BY date_add DESC'); }
 }

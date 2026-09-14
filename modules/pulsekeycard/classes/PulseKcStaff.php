@@ -9,10 +9,10 @@ class PulseKcStaff
 
     public static function groups($activeOnly = true)
     {
-        return Db::getInstance()->executeS('SELECT g.*, (SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_kc_key` k WHERE k.id_pulse_kc_staff_group=g.id_pulse_kc_staff_group AND k.status="issued") active_cards
+        return PulseDb::executeS('SELECT g.*, (SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_kc_key` k WHERE k.id_pulse_kc_staff_group=g.id_pulse_kc_staff_group AND k.status="issued") active_cards
             FROM `'._DB_PREFIX_.self::T.'` g'.($activeOnly ? ' WHERE g.active=1' : '').' ORDER BY g.is_master DESC, g.department, g.name');
     }
-    public static function group($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_staff_group='.(int) $id); }
+    public static function group($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_staff_group='.(int) $id); }
 
     public static function saveGroup(array $d, $id = 0)
     {
@@ -22,8 +22,8 @@ class PulseKcStaff
             'days_mask' => (int) (isset($d['days_mask']) ? $d['days_mask'] : 127), 'card_days' => (int) (isset($d['card_days']) ? $d['card_days'] : PulseKcService::cfg('STAFF_CARD_DAYS', 90)) ?: 90,
             'override_deadbolt' => !empty($d['override_deadbolt']) ? 1 : 0, 'override_dnd' => !empty($d['override_dnd']) ? 1 : 0,
             'is_master' => !empty($d['is_master']) ? 1 : 0, 'active' => isset($d['active']) ? (int) $d['active'] : 1, 'date_upd' => date('Y-m-d H:i:s'));
-        if ($id) { Db::getInstance()->update(self::T, $row, 'id_pulse_kc_staff_group='.(int) $id); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert(self::T, $row, false, true, Db::INSERT_IGNORE); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update(self::T, $row, 'id_pulse_kc_staff_group='.(int) $id); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert(self::T, $row, false, true, Db::INSERT_IGNORE); $id = (int) PulseDb::Insert_ID(); }
         PulseCoreService::audit('pulsekeycard', 'staff_group_save', array('id' => $id, 'name' => $d['name'], 'all_rooms' => !empty($d['all_rooms'])), self::T, $id);
         return $id;
     }
@@ -58,7 +58,7 @@ class PulseKcStaff
     /** Cards held by a group, newest first. */
     public static function cards($idGroup = null, $status = 'issued,pending,failed')
     {
-        return Db::getInstance()->executeS('SELECT k.*, g.name group_name, g.department, g.shift_start, g.shift_end, CONCAT(e.firstname," ",e.lastname) holder
+        return PulseDb::executeS('SELECT k.*, g.name group_name, g.department, g.shift_start, g.shift_end, CONCAT(e.firstname," ",e.lastname) holder
             FROM `'._DB_PREFIX_.'pulse_kc_key` k
             LEFT JOIN `'._DB_PREFIX_.self::T.'` g ON g.id_pulse_kc_staff_group=k.id_pulse_kc_staff_group
             LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=k.id_employee_holder
@@ -73,7 +73,7 @@ class PulseKcStaff
     public static function reissueGroup($idGroup, $reason = 'Master card lost — department re-issue', $department = null)
     {
         $where = $department ? ' AND g.department="'.pSQL($department).'"' : ' AND k.id_pulse_kc_staff_group='.(int) $idGroup;
-        $cards = Db::getInstance()->executeS('SELECT k.id_pulse_kc_key, k.id_employee_holder, k.id_pulse_kc_staff_group, k.valid_to, k.card_serial
+        $cards = PulseDb::executeS('SELECT k.id_pulse_kc_key, k.id_employee_holder, k.id_pulse_kc_staff_group, k.valid_to, k.card_serial
             FROM `'._DB_PREFIX_.'pulse_kc_key` k INNER JOIN `'._DB_PREFIX_.self::T.'` g ON g.id_pulse_kc_staff_group=k.id_pulse_kc_staff_group
             WHERE k.type IN ("staff","master") AND k.status IN ("issued","pending","failed")'.$where);
         $out = array('cancelled' => 0, 'issued' => 0, 'failed' => array());
@@ -92,7 +92,7 @@ class PulseKcStaff
     /** Cards lapsing inside N days — the "chase the staff before their card dies" list. */
     public static function expiring($days = 14)
     {
-        return Db::getInstance()->executeS('SELECT k.id_pulse_kc_key, k.key_no, k.valid_to, g.name group_name, g.department, CONCAT(e.firstname," ",e.lastname) holder
+        return PulseDb::executeS('SELECT k.id_pulse_kc_key, k.key_no, k.valid_to, g.name group_name, g.department, CONCAT(e.firstname," ",e.lastname) holder
             FROM `'._DB_PREFIX_.'pulse_kc_key` k LEFT JOIN `'._DB_PREFIX_.self::T.'` g ON g.id_pulse_kc_staff_group=k.id_pulse_kc_staff_group
             LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=k.id_employee_holder
             WHERE k.type IN ("staff","master") AND k.status="issued" AND k.valid_to BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL '.(int) $days.' DAY) ORDER BY k.valid_to');

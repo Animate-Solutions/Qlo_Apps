@@ -27,7 +27,7 @@ class PulseComms
     {
         $v = array('hotel' => Configuration::get('PS_SHOP_NAME'), 'name' => '', 'room' => '', 'ref' => '', 'from' => '', 'to' => '', 'time' => '', 'folio' => '', 'title' => '', 'status' => '', 'room_type' => '', 'precheckin_url' => '', 'checkout_url' => '');
         if (!empty($extra['id_htl_booking'])) {
-            $b = PulseFdService::booking($extra['id_htl_booking']); $x = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_booking_ext` WHERE id_htl_booking='.(int) $extra['id_htl_booking']);
+            $b = PulseFdService::booking($extra['id_htl_booking']); $x = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_booking_ext` WHERE id_htl_booking='.(int) $extra['id_htl_booking']);
             if ($b) { $v['name'] = $b['guest']; $v['room'] = $b['room_num']; $v['ref'] = $b['order_ref']; $v['from'] = $b['date_from']; $v['to'] = $b['date_to']; $v['folio'] = $b['folio_no']; }
             $link = Context::getContext()->link;
             if ($x) { $v['precheckin_url'] = $link->getModuleLink('pulsefrontdesk', 'precheckin', array('t' => $x['precheckin_token'])); $v['checkout_url'] = $link->getModuleLink('pulsefrontdesk', 'selfcheckout', array('t' => $x['checkout_token'])); }
@@ -40,7 +40,7 @@ class PulseComms
     /** Send a template to a customer (email + SMS/WhatsApp if phone known). */
     public static function send($template, Customer $customer, array $extra = array())
     {
-        $phone = Db::getInstance()->getValue('SELECT phone FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.(int) $customer->id);
+        $phone = PulseDb::getValue('SELECT phone FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.(int) $customer->id);
         $extra['name'] = $customer->firstname; $extra['id_customer'] = $customer->id;
         return self::sendRaw($customer->email, $phone, $template, $extra);
     }
@@ -64,6 +64,6 @@ class PulseComms
 
     protected static function log($channel, $template, $to, $extra, $status, $ref, $error)
     {
-        Db::getInstance()->insert('pulse_comms_log', array('channel' => pSQL($channel), 'template' => pSQL($template), 'to_addr' => pSQL($to), 'id_htl_booking' => !empty($extra['id_htl_booking']) ? (int) $extra['id_htl_booking'] : null, 'id_customer' => !empty($extra['id_customer']) ? (int) $extra['id_customer'] : null, 'status' => pSQL($status), 'provider_ref' => pSQL($ref), 'error' => pSQL($error), 'date_add' => date('Y-m-d H:i:s'), 'date_sent' => $status === 'sent' ? date('Y-m-d H:i:s') : null));
+        PulseDb::insert('pulse_comms_log', array('channel' => pSQL($channel), 'template' => pSQL($template), 'to_addr' => pSQL($to), 'id_htl_booking' => !empty($extra['id_htl_booking']) ? (int) $extra['id_htl_booking'] : null, 'id_customer' => !empty($extra['id_customer']) ? (int) $extra['id_customer'] : null, 'status' => pSQL($status), 'provider_ref' => pSQL($ref), 'error' => pSQL($error), 'date_add' => date('Y-m-d H:i:s'), 'date_sent' => $status === 'sent' ? date('Y-m-d H:i:s') : null));
     }
 }

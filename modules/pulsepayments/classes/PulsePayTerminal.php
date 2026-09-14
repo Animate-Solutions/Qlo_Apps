@@ -8,8 +8,8 @@
  */
 class PulsePayTerminal
 {
-    public static function terminals($activeOnly = true) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_terminal`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY station, code'); }
-    public static function terminal($code) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_terminal` WHERE code="'.pSQL($code).'" OR id_pulse_pay_terminal='.(int) $code); }
+    public static function terminals($activeOnly = true) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_terminal`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY station, code'); }
+    public static function terminal($code) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_terminal` WHERE code="'.pSQL($code).'" OR id_pulse_pay_terminal='.(int) $code); }
 
     /** Push an amount to a terminal. Returns the request row including its reference for polling. */
     public static function request(array $d)
@@ -25,7 +25,7 @@ class PulsePayTerminal
             'id_pulse_pos_check' => isset($d['id_pulse_pos_check']) ? $d['id_pulse_pos_check'] : null,
             'description' => isset($d['description']) ? $d['description'] : 'Bank POS terminal charge', 'ref_prefix' => 'TRM',
         ));
-        Db::getInstance()->insert('pulse_pay_terminal_request', array(
+        PulseDb::insert('pulse_pay_terminal_request', array(
             'id_pulse_pay_terminal' => $t ? (int) $t['id_pulse_pay_terminal'] : null, 'id_pulse_pay_transaction' => (int) $tx['id_pulse_pay_transaction'],
             'reference' => pSQL($tx['reference']), 'amount' => $amount, 'station' => pSQL(isset($d['station']) ? $d['station'] : ($t ? $t['station'] : '')),
             'requested_by' => PulsePayService::emp(), 'source' => pSQL(isset($d['source']) ? $d['source'] : 'desk'),
@@ -33,7 +33,7 @@ class PulsePayTerminal
             'id_pulse_folio' => isset($d['id_pulse_folio']) ? (int) $d['id_pulse_folio'] : null, 'auto_settle' => (int) !empty($d['auto_settle']),
             'expires_at' => date('Y-m-d H:i:s', strtotime('+'.$mins.' minutes')), 'business_date' => pSQL(PulsePayService::bd()), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         ), true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         PulseCoreService::event('actionPulsePayTerminalRequest', array('id_request' => $id, 'reference' => $tx['reference'], 'amount' => $amount, 'terminal' => $t ? $t['code'] : null));
         return array('id_request' => $id, 'reference' => $tx['reference'], 'amount' => $amount, 'status' => 'queued', 'terminal' => $t ? $t['code'] : null, 'expires_at' => date('Y-m-d H:i:s', strtotime('+'.$mins.' minutes')));
     }
@@ -43,12 +43,12 @@ class PulsePayTerminal
     {
         $t = self::terminal($terminalCode);
         if (!$t) { throw new PrestaShopException('Unknown terminal '.$terminalCode); }
-        Db::getInstance()->update('pulse_pay_terminal', array('last_seen' => date('Y-m-d H:i:s')), 'id_pulse_pay_terminal='.(int) $t['id_pulse_pay_terminal']);
-        $r = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` WHERE status="queued" AND (id_pulse_pay_terminal='.(int) $t['id_pulse_pay_terminal'].' OR id_pulse_pay_terminal IS NULL) AND (expires_at IS NULL OR expires_at>NOW()) ORDER BY id_pulse_pay_terminal_request LIMIT 1');
+        PulseDb::update('pulse_pay_terminal', array('last_seen' => date('Y-m-d H:i:s')), 'id_pulse_pay_terminal='.(int) $t['id_pulse_pay_terminal']);
+        $r = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` WHERE status="queued" AND (id_pulse_pay_terminal='.(int) $t['id_pulse_pay_terminal'].' OR id_pulse_pay_terminal IS NULL) AND (expires_at IS NULL OR expires_at>NOW()) ORDER BY id_pulse_pay_terminal_request');
         if (!$r) { return null; }
         // the status="queued" in the WHERE is the claim itself: two devices polling at once, only one gets the job
-        Db::getInstance()->update('pulse_pay_terminal_request', array('status' => 'claimed', 'id_pulse_pay_terminal' => (int) $t['id_pulse_pay_terminal'], 'claimed_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_terminal_request='.(int) $r['id_pulse_pay_terminal_request'].' AND status="queued"');
-        if (!Db::getInstance()->Affected_Rows()) { return null; }
+        PulseDb::update('pulse_pay_terminal_request', array('status' => 'claimed', 'id_pulse_pay_terminal' => (int) $t['id_pulse_pay_terminal'], 'claimed_at' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_terminal_request='.(int) $r['id_pulse_pay_terminal_request'].' AND status="queued"');
+        if (!PulseDb::Affected_Rows()) { return null; }
         return array('id_request' => (int) $r['id_pulse_pay_terminal_request'], 'reference' => $r['reference'], 'amount' => (float) $r['amount'], 'currency' => PulsePayService::currency());
     }
 
@@ -58,19 +58,19 @@ class PulsePayTerminal
      */
     public static function result($reference, array $d)
     {
-        $r = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` WHERE reference="'.pSQL($reference).'"');
+        $r = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` WHERE reference="'.pSQL($reference).'"');
         if (!$r) { throw new PrestaShopException('Unknown terminal request '.$reference); }
         if (in_array($r['status'], array('approved', 'declined', 'cancelled'))) { return self::poll($reference); }
         $approved = !empty($d['approved']);
         $rrn = preg_replace('/[^A-Za-z0-9-]/', '', isset($d['rrn']) ? $d['rrn'] : '');
         if ($approved && $rrn === '') { throw new PrestaShopException('An approved terminal charge needs the RRN from the slip'); }
-        Db::getInstance()->update('pulse_pay_terminal_request', array(
+        PulseDb::update('pulse_pay_terminal_request', array(
             'status' => $approved ? 'approved' : 'declined', 'answered_at' => date('Y-m-d H:i:s'), 'rrn' => pSQL($rrn),
             'auth_code' => pSQL(preg_replace('/[^A-Za-z0-9]/', '', isset($d['auth_code']) ? $d['auth_code'] : '')), 'card_last4' => pSQL(Tools::substr(preg_replace('/[^0-9]/', '', isset($d['card_last4']) ? $d['card_last4'] : ''), -4)),
             'card_brand' => pSQL(Tools::substr(isset($d['card_brand']) ? $d['card_brand'] : '', 0, 24)), 'response_message' => pSQL(Tools::substr(isset($d['message']) ? $d['message'] : ($approved ? 'Approved' : 'Declined'), 0, 128)), 'date_upd' => date('Y-m-d H:i:s'),
         ), 'id_pulse_pay_terminal_request='.(int) $r['id_pulse_pay_terminal_request'].' AND status IN ("queued","claimed","expired")');
         // the guarded UPDATE is the answer lock: a second result racing this one changes nothing and just reads the outcome back
-        if (!Db::getInstance()->Affected_Rows()) { return self::poll($reference); }
+        if (!PulseDb::Affected_Rows()) { return self::poll($reference); }
         $tx = PulsePayService::tx($reference);
         if ($tx) {
             $a = PulsePayService::adapter('manual');
@@ -86,22 +86,22 @@ class PulsePayTerminal
     /** What the requester polls for. */
     public static function poll($reference)
     {
-        $r = Db::getInstance()->getRow('SELECT r.*, t.code terminal_code, t.label terminal_label FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` r LEFT JOIN `'._DB_PREFIX_.'pulse_pay_terminal` t ON t.id_pulse_pay_terminal=r.id_pulse_pay_terminal WHERE r.reference="'.pSQL($reference).'"');
+        $r = PulseDb::getRow('SELECT r.*, t.code terminal_code, t.label terminal_label FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` r LEFT JOIN `'._DB_PREFIX_.'pulse_pay_terminal` t ON t.id_pulse_pay_terminal=r.id_pulse_pay_terminal WHERE r.reference="'.pSQL($reference).'"');
         if (!$r) { return array('ok' => false, 'error' => 'Unknown terminal request'); }
-        if ($r['status'] === 'queued' && $r['expires_at'] && strtotime($r['expires_at']) < time()) { Db::getInstance()->update('pulse_pay_terminal_request', array('status' => 'expired', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_terminal_request='.(int) $r['id_pulse_pay_terminal_request']); $r['status'] = 'expired'; }
+        if ($r['status'] === 'queued' && $r['expires_at'] && strtotime($r['expires_at']) < time()) { PulseDb::update('pulse_pay_terminal_request', array('status' => 'expired', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_terminal_request='.(int) $r['id_pulse_pay_terminal_request']); $r['status'] = 'expired'; }
         return array('ok' => true, 'reference' => $r['reference'], 'status' => $r['status'], 'amount' => (float) $r['amount'], 'rrn' => $r['rrn'], 'auth_code' => $r['auth_code'],
             'card_last4' => $r['card_last4'], 'card_brand' => $r['card_brand'], 'message' => $r['response_message'], 'terminal' => $r['terminal_code'], 'settled' => (int) $r['auto_settle'] && $r['status'] === 'approved');
     }
 
-    public static function cancel($reference, $reason = '') { Db::getInstance()->update('pulse_pay_terminal_request', array('status' => 'cancelled', 'response_message' => pSQL(Tools::substr($reason, 0, 128)), 'date_upd' => date('Y-m-d H:i:s')), 'reference="'.pSQL($reference).'" AND status IN ("queued","claimed")'); PulsePayService::voidTx($reference, $reason ?: 'Terminal request cancelled'); return true; }
+    public static function cancel($reference, $reason = '') { PulseDb::update('pulse_pay_terminal_request', array('status' => 'cancelled', 'response_message' => pSQL(Tools::substr($reason, 0, 128)), 'date_upd' => date('Y-m-d H:i:s')), 'reference="'.pSQL($reference).'" AND status IN ("queued","claimed")'); PulsePayService::voidTx($reference, $reason ?: 'Terminal request cancelled'); return true; }
 
-    public static function queue($date = null) { $d = $date ? $date : PulsePayService::bd(); return Db::getInstance()->executeS('SELECT r.*, t.code terminal_code, t.label terminal_label FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` r LEFT JOIN `'._DB_PREFIX_.'pulse_pay_terminal` t ON t.id_pulse_pay_terminal=r.id_pulse_pay_terminal WHERE r.business_date="'.pSQL($d).'" ORDER BY r.id_pulse_pay_terminal_request DESC LIMIT 100'); }
+    public static function queue($date = null) { $d = $date ? $date : PulsePayService::bd(); return PulseDb::executeS('SELECT r.*, t.code terminal_code, t.label terminal_label FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` r LEFT JOIN `'._DB_PREFIX_.'pulse_pay_terminal` t ON t.id_pulse_pay_terminal=r.id_pulse_pay_terminal WHERE r.business_date="'.pSQL($d).'" ORDER BY r.id_pulse_pay_terminal_request DESC LIMIT 100'); }
 
     /** Stop pretending a request that nobody answered is still live. */
     public static function expireStale()
     {
-        $rows = Db::getInstance()->executeS('SELECT reference FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` WHERE status IN ("queued","claimed") AND expires_at IS NOT NULL AND expires_at<NOW()');
-        foreach ($rows as $r) { Db::getInstance()->update('pulse_pay_terminal_request', array('status' => 'expired', 'date_upd' => date('Y-m-d H:i:s')), 'reference="'.pSQL($r['reference']).'"'); Db::getInstance()->update('pulse_pay_transaction', array('state' => 'expired', 'date_upd' => date('Y-m-d H:i:s')), 'reference="'.pSQL($r['reference']).'" AND state="awaiting_confirmation"'); }
+        $rows = PulseDb::executeS('SELECT reference FROM `'._DB_PREFIX_.'pulse_pay_terminal_request` WHERE status IN ("queued","claimed") AND expires_at IS NOT NULL AND expires_at<NOW()');
+        foreach ($rows as $r) { PulseDb::update('pulse_pay_terminal_request', array('status' => 'expired', 'date_upd' => date('Y-m-d H:i:s')), 'reference="'.pSQL($r['reference']).'"'); PulseDb::update('pulse_pay_transaction', array('state' => 'expired', 'date_upd' => date('Y-m-d H:i:s')), 'reference="'.pSQL($r['reference']).'" AND state="awaiting_confirmation"'); }
         return count($rows);
     }
 
@@ -109,7 +109,7 @@ class PulsePayTerminal
     {
         $id = (int) (isset($d['id']) ? $d['id'] : 0);
         $row = array('code' => pSQL(Tools::strtoupper(preg_replace('/[^A-Za-z0-9_]/', '', $d['code']))), 'label' => pSQL($d['label']), 'bank' => pSQL(isset($d['bank']) ? $d['bank'] : ''), 'terminal_id' => pSQL(isset($d['terminal_id']) ? $d['terminal_id'] : ''), 'merchant_id' => pSQL(isset($d['merchant_id']) ? $d['merchant_id'] : ''), 'station' => pSQL(isset($d['station']) ? $d['station'] : ''), 'mode' => pSQL(isset($d['mode']) && $d['mode'] === 'claim' ? 'claim' : 'manual'), 'active' => (int) !empty($d['active']));
-        if ($id) { Db::getInstance()->update('pulse_pay_terminal', $row, 'id_pulse_pay_terminal='.$id); } else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_pay_terminal', $row, true, true, Db::INSERT_IGNORE); }
+        if ($id) { PulseDb::update('pulse_pay_terminal', $row, 'id_pulse_pay_terminal='.$id); } else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert('pulse_pay_terminal', $row, true, true, Db::INSERT_IGNORE); }
         return true;
     }
 }

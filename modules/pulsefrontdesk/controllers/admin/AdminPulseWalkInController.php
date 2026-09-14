@@ -7,10 +7,10 @@ class AdminPulseWalkInController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
-        $types = Db::getInstance()->executeS('SELECT rt.id_product, pl.name, rt.adults, rt.children, bl.hotel_name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) $this->context->language->id.' AND pl.id_shop='.(int) $this->context->shop->id.' LEFT JOIN `'._DB_PREFIX_.'htl_branch_info_lang` bl ON bl.id=rt.id_hotel AND bl.id_lang='.(int) $this->context->language->id.' ORDER BY bl.hotel_name, pl.name');
+        $types = PulseDb::executeS('SELECT rt.id_product, pl.name, rt.adults, rt.children, bl.hotel_name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) $this->context->language->id.' AND pl.id_shop='.(int) $this->context->shop->id.' LEFT JOIN `'._DB_PREFIX_.'htl_branch_info_lang` bl ON bl.id=rt.id_hotel AND bl.id_lang='.(int) $this->context->language->id.' ORDER BY bl.hotel_name, pl.name');
         $pms = array(); foreach (PaymentModule::getInstalledPaymentModules() as $m) { $pms[] = $m['name']; }
         $this->context->smarty->assign(array('types' => $types, 'business_date' => PulseCoreService::businessDate(), 'payment_codes' => PulseChargeCode::all(1), 'ajax_url' => $this->context->link->getAdminLink('AdminPulseWalkIn'), 'arrivals_url' => $this->context->link->getAdminLink('AdminPulseArrivals'),
-            'companies' => Db::getInstance()->executeS('SELECT id_pulse_company, name, discount_pct FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'), 'walkin_module' => Configuration::get('PULSE_FD_WALKIN_PAYMENT_MODULE'), 'payment_modules' => $pms, 'prefill' => array('id_product' => (int) Tools::getValue('id_product'), 'from' => Tools::getValue('from'), 'to' => Tools::getValue('to'), 'id_room' => (int) Tools::getValue('id_room'))));
+            'companies' => PulseDb::executeS('SELECT id_pulse_company, name, discount_pct FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name'), 'walkin_module' => Configuration::get('PULSE_FD_WALKIN_PAYMENT_MODULE'), 'payment_modules' => $pms, 'prefill' => array('id_product' => (int) Tools::getValue('id_product'), 'from' => Tools::getValue('from'), 'to' => Tools::getValue('to'), 'id_room' => (int) Tools::getValue('id_room'))));
         $this->setTemplate('walkin.tpl');
     }
 
@@ -19,7 +19,7 @@ class AdminPulseWalkInController extends ModuleAdminController
     public function ajaxProcessQuote()
     {
         $from = Tools::getValue('from'); $to = Tools::getValue('to'); $out = array();
-        foreach (Db::getInstance()->executeS('SELECT rt.id_product, pl.name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) $this->context->language->id.' AND pl.id_shop='.(int) $this->context->shop->id) as $t) {
+        foreach (PulseDb::executeS('SELECT rt.id_product, pl.name FROM `'._DB_PREFIX_.'htl_room_type` rt INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=rt.id_product AND pl.id_lang='.(int) $this->context->language->id.' AND pl.id_shop='.(int) $this->context->shop->id) as $t) {
             $av = PulseReservation::availability($t['id_product'], $from, $to); $q = PulseReservation::quote($t['id_product'], $from, $to);
             $rooms = PulseRoom::availableRooms($t['id_product'], $from, $to);
             $out[] = array_merge($t, $av, $q, array('rooms' => $rooms));
@@ -30,7 +30,7 @@ class AdminPulseWalkInController extends ModuleAdminController
     public function ajaxProcessCustomerLookup()
     {
         $q = pSQL(Tools::getValue('q'));
-        $this->json(array('ok' => true, 'customers' => Db::getInstance()->executeS('SELECT c.id_customer, c.firstname, c.lastname, c.email, gp.phone, gp.vip_level, gp.blacklisted, gp.stays FROM `'._DB_PREFIX_.'customer` c LEFT JOIN `'._DB_PREFIX_.'pulse_guest_profile` gp ON gp.id_customer=c.id_customer WHERE c.deleted=0 AND (c.email LIKE "%'.$q.'%" OR c.lastname LIKE "%'.$q.'%" OR gp.phone LIKE "%'.$q.'%") LIMIT 10')));
+        $this->json(array('ok' => true, 'customers' => PulseDb::executeS('SELECT c.id_customer, c.firstname, c.lastname, c.email, gp.phone, gp.vip_level, gp.blacklisted, gp.stays FROM `'._DB_PREFIX_.'customer` c LEFT JOIN `'._DB_PREFIX_.'pulse_guest_profile` gp ON gp.id_customer=c.id_customer WHERE c.deleted=0 AND (c.email LIKE "%'.$q.'%" OR c.lastname LIKE "%'.$q.'%" OR gp.phone LIKE "%'.$q.'%") LIMIT 10')));
     }
 
     public function ajaxProcessCreate()

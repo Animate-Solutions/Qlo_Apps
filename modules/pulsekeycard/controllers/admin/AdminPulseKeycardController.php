@@ -99,7 +99,7 @@ class AdminPulseKeycardController extends ModuleAdminController
             $res = PulseKcEncoder::adapter($e)->readCard($e['encoder_ref']);
             PulseKcEncoder::markSeen((int) $e['id_pulse_kc_encoder'], true);
             if (!empty($res['card_serial'])) {
-                $res['key'] = Db::getInstance()->getRow('SELECT k.key_no, k.type, k.status, k.guest_name, k.room_nums, k.valid_to, k.id_htl_booking FROM `'._DB_PREFIX_.'pulse_kc_key` k WHERE k.card_serial="'.pSQL($res['card_serial']).'" ORDER BY k.id_pulse_kc_key DESC');
+                $res['key'] = PulseDb::getRow('SELECT k.key_no, k.type, k.status, k.guest_name, k.room_nums, k.valid_to, k.id_htl_booking FROM `'._DB_PREFIX_.'pulse_kc_key` k WHERE k.card_serial="'.pSQL($res['card_serial']).'" ORDER BY k.id_pulse_kc_key DESC');
             }
             $this->json(array('ok' => true, 'card' => $res));
         } catch (PulseKcEncoderException $e) { $this->json(array('ok' => false, 'error' => $e->userMessage())); }

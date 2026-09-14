@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_encoder` (
   `test_mode` TINYINT(1) NOT NULL DEFAULT 0, `timeout_sec` SMALLINT NOT NULL DEFAULT 8,
   `status` ENUM('unknown','online','offline','disabled') NOT NULL DEFAULT 'unknown', `last_seen` DATETIME DEFAULT NULL, `last_error` VARCHAR(255), `keys_encoded` INT UNSIGNED NOT NULL DEFAULT 0,
   `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_kc_encoder`), UNIQUE KEY `name` (`name`), KEY `status` (`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_kc_encoder`), UNIQUE KEY `name` (`id_hotel`,`name`), KEY `status` (`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_door` (
@@ -16,7 +17,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_door` (
   `lock_id` VARCHAR(64) COMMENT 'vendor lock address used for audit pulls', `id_room` INT UNSIGNED DEFAULT NULL, `floor` VARCHAR(8), `zone` VARCHAR(32),
   `is_default` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'added to every guest key', `battery_pct` SMALLINT DEFAULT NULL, `battery_checked_at` DATETIME DEFAULT NULL, `battery_ticket_at` DATETIME DEFAULT NULL,
   `last_audit_at` DATETIME DEFAULT NULL, `id_pulse_kc_encoder` INT UNSIGNED DEFAULT NULL, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_kc_door`), UNIQUE KEY `code` (`code`), KEY `room` (`id_room`), KEY `type` (`type`,`active`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_kc_door`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `room` (`id_room`), KEY `type` (`type`,`active`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_staff_group` (
@@ -25,7 +27,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_staff_group` (
   `shift_start` TIME NOT NULL DEFAULT '00:00:00', `shift_end` TIME NOT NULL DEFAULT '23:59:00', `days_mask` TINYINT UNSIGNED NOT NULL DEFAULT 127 COMMENT 'bit 1=Mon .. 64=Sun',
   `card_days` SMALLINT NOT NULL DEFAULT 90 COMMENT 'card expiry in days', `override_deadbolt` TINYINT(1) NOT NULL DEFAULT 0, `override_dnd` TINYINT(1) NOT NULL DEFAULT 0,
   `is_master` TINYINT(1) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_kc_staff_group`), UNIQUE KEY `name` (`name`), KEY `dept` (`department`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_kc_staff_group`), UNIQUE KEY `name` (`id_hotel`,`name`), KEY `dept` (`department`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_key` (
@@ -42,8 +45,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_key` (
   `status` ENUM('pending','issued','cancelled','expired','failed','lost') NOT NULL DEFAULT 'pending', `id_parent_key` BIGINT UNSIGNED DEFAULT NULL,
   `issued_by` INT UNSIGNED, `issued_at` DATETIME, `cancelled_by` INT UNSIGNED, `cancelled_at` DATETIME, `cancel_reason` VARCHAR(128), `last_error` VARCHAR(255), `note` VARCHAR(255),
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_kc_key`), UNIQUE KEY `key_no` (`key_no`), KEY `booking` (`id_htl_booking`), KEY `room` (`id_room`,`status`),
-  KEY `st` (`status`,`valid_to`), KEY `serial` (`card_serial`), KEY `holder` (`id_employee_holder`), KEY `bdate` (`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_kc_key`), UNIQUE KEY `key_no` (`id_hotel`,`key_no`), KEY `booking` (`id_htl_booking`), KEY `room` (`id_room`,`status`),
+  KEY `st` (`status`,`valid_to`), KEY `serial` (`card_serial`), KEY `holder` (`id_employee_holder`), KEY `bdate` (`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_mobile_key` (
@@ -54,7 +58,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_mobile_key` (
   `valid_from` DATETIME NOT NULL, `valid_to` DATETIME NOT NULL, `refresh_count` INT UNSIGNED NOT NULL DEFAULT 0, `last_refresh_at` DATETIME DEFAULT NULL, `last_ip` VARCHAR(45),
   `delivered_via` VARCHAR(32), `delivered_at` DATETIME DEFAULT NULL, `status` ENUM('issued','active','revoked','expired') NOT NULL DEFAULT 'issued',
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_kc_mobile_key`), UNIQUE KEY `token` (`token`), KEY `k` (`id_pulse_kc_key`), KEY `booking` (`id_htl_booking`), KEY `st` (`status`,`valid_to`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_kc_mobile_key`), UNIQUE KEY `token` (`id_hotel`,`token`), KEY `k` (`id_pulse_kc_key`), KEY `booking` (`id_htl_booking`), KEY `st` (`status`,`valid_to`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_lock_audit` (
@@ -64,7 +69,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_lock_audit` (
   `result` ENUM('granted','denied','error','info') NOT NULL DEFAULT 'granted', `battery_pct` SMALLINT DEFAULT NULL,
   `source` ENUM('lock','encoder','gateway','mobile','manual') NOT NULL DEFAULT 'lock', `opened_at` DATETIME NOT NULL, `business_date` DATE NOT NULL,
   `raw` VARCHAR(255), `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_kc_lock_audit`), UNIQUE KEY `dedupe` (`lock_id`,`opened_at`,`card_serial`,`event`), KEY `room` (`id_room`,`opened_at`), KEY `bdate` (`business_date`), KEY `k` (`id_pulse_kc_key`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_kc_lock_audit`), UNIQUE KEY `dedupe` (`id_hotel`,`lock_id`,`opened_at`,`card_serial`,`event`), KEY `room` (`id_room`,`opened_at`), KEY `bdate` (`business_date`), KEY `k` (`id_pulse_kc_key`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_job` (
@@ -72,7 +78,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_kc_job` (
   `id_pulse_kc_key` BIGINT UNSIGNED DEFAULT NULL, `id_pulse_kc_encoder` INT UNSIGNED DEFAULT NULL, `id_pulse_kc_door` INT UNSIGNED DEFAULT NULL,
   `payload_enc` TEXT, `attempts` SMALLINT NOT NULL DEFAULT 0, `last_error` VARCHAR(255), `next_try_at` DATETIME NOT NULL,
   `status` ENUM('queued','running','done','failed') NOT NULL DEFAULT 'queued', `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_kc_job`), KEY `q` (`status`,`next_try_at`), KEY `k` (`id_pulse_kc_key`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_kc_job`), KEY `q` (`status`,`next_try_at`), KEY `k` (`id_pulse_kc_key`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_kc_encoder` (`name`,`adapter`,`location`,`protocol`,`host`,`port`,`endpoint`,`encoder_ref`,`local_only`,`test_mode`,`timeout_sec`,`status`,`active`,`date_add`,`date_upd`) VALUES

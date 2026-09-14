@@ -7,6 +7,8 @@ class AdminPulseAccApController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
+        // filters the template always reads, so a first visit with no query string renders clean
+        $this->context->smarty->assign(array('status' => Tools::getValue('status', ''), 'q' => Tools::getValue('q', ''), 'id_supplier' => (int) Tools::getValue('id_supplier')));
         $self = self::$currentIndex.'&token='.$this->token;
         if ($id = (int) Tools::getValue('id_bill')) {
             $this->context->smarty->assign(array('bill' => PulseAccAp::billFull($id), 'self_url' => $self, 'currency' => $this->context->currency->sign, 'banks' => PulseAccService::bankAccounts()));

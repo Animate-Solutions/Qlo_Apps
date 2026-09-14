@@ -13,7 +13,7 @@ class AdminPulseGuestPortalChannelsController extends ModuleAdminController
             'vods' => PulseGpEntertainment::allVod(), 'vod' => (int) Tools::getValue('id_vod') ? PulseGpEntertainment::vodItem((int) Tools::getValue('id_vod')) : null,
             'radio' => PulseGpEntertainment::radio(), 'apps' => PulseGpEntertainment::apps(),
             'plays' => PulseGpEntertainment::plays($from, $to), 'from' => $from, 'to' => $to,
-            'revenue' => Db::getInstance()->getRow('SELECT COUNT(*) n, ROUND(COALESCE(SUM(price),0),2) total FROM `'._DB_PREFIX_.'pulse_gp_vod_play` WHERE status="charged" AND business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'),
+            'revenue' => PulseDb::getRow('SELECT COUNT(*) n, ROUND(COALESCE(SUM(price),0),2) total FROM `'._DB_PREFIX_.'pulse_gp_vod_play` WHERE status="charged" AND business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'),
             'adult_pin_set' => PulseGpService::cfg('ADULT_PIN_HASH', '') ? 1 : 0, 'upload_base' => __PS_BASE_URI__, 'vod_code' => PulseGpService::cfg('VOD_CHARGE_CODE', 'VOD'),
             'self_url' => self::$currentIndex.'&token='.$this->token,
         ));
@@ -29,7 +29,7 @@ class AdminPulseGuestPortalChannelsController extends ModuleAdminController
                     'source' => Tools::getValue('source'), 'adult' => Tools::getValue('adult', 0), 'hd' => Tools::getValue('hd', 0), 'sort' => Tools::getValue('sort'), 'active' => Tools::getValue('active', 0));
                 if ($logo) { $d['logo'] = $logo; }
                 $id = PulseGpEntertainment::saveChannel((int) Tools::getValue('id_channel'), $d);
-                if ($logo) { Db::getInstance()->update('pulse_gp_channel', array('logo' => pSQL($logo)), 'id_pulse_gp_channel='.(int) $id); }
+                if ($logo) { PulseDb::update('pulse_gp_channel', array('logo' => pSQL($logo)), 'id_pulse_gp_channel='.(int) $id); }
                 $this->confirmations[] = $this->l('Channel saved');
             }
             if (Tools::isSubmit('deleteChannel')) { PulseGpEntertainment::deleteChannel((int) Tools::getValue('id_channel')); $this->confirmations[] = $this->l('Channel removed'); }

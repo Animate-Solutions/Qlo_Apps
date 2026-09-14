@@ -12,9 +12,9 @@ class PulsePayWebhook
         if (!$a) { return array(404, 'Unknown gateway'); }
         $v = $a->webhookVerify($rawBody, self::lowerKeys($headers));
         $eventId = !empty($v['event_id']) ? $v['event_id'] : Tools::substr(hash('sha256', $rawBody), 0, 64);
-        $stored = Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_pay_event` (gateway, event_id, event_type, reference, signature_ok, payload, remote_ip, date_add) VALUES ("'.pSQL($gateway).'","'.pSQL($eventId).'","'.pSQL(isset($v['event_type']) ? $v['event_type'] : '').'","'.pSQL(isset($v['reference']) ? $v['reference'] : '').'",'.(int) !empty($v['ok']).',"'.pSQL(PulsePayAdapter::redact($rawBody), true).'","'.pSQL((string) $remoteIp).'","'.date('Y-m-d H:i:s').'")');
-        $isNew = $stored && Db::getInstance()->Affected_Rows() > 0;
-        $idEvent = (int) Db::getInstance()->Insert_ID();
+        $stored = PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_pay_event` (gateway, event_id, event_type, reference, signature_ok, payload, remote_ip, date_add) VALUES ("'.pSQL($gateway).'","'.pSQL($eventId).'","'.pSQL(isset($v['event_type']) ? $v['event_type'] : '').'","'.pSQL(isset($v['reference']) ? $v['reference'] : '').'",'.(int) !empty($v['ok']).',"'.pSQL(PulsePayAdapter::redact($rawBody), true).'","'.pSQL((string) $remoteIp).'","'.date('Y-m-d H:i:s').'")');
+        $isNew = $stored && PulseDb::Affected_Rows() > 0;
+        $idEvent = (int) PulseDb::Insert_ID();
         if (!$isNew) { return array(200, 'Duplicate event ignored'); }
         if (empty($v['ok'])) { self::finish($idEvent, 0, 'Signature check failed: '.(isset($v['error']) ? $v['error'] : '')); return array(401, 'Invalid signature'); }
         $ref = isset($v['reference']) ? $v['reference'] : null;
@@ -32,7 +32,7 @@ class PulsePayWebhook
         $tx = PulsePayService::applyResult($tx, $res);
         if (in_array($tx['state'], array('captured', 'settled')) && !in_array($was, array('captured', 'settled'))) {
             PulsePayService::postToLedger($tx, 'capture', (float) $tx['amount_captured']);
-            if ($tx['id_pulse_pay_link'] && ($l = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE id_pulse_pay_link='.(int) $tx['id_pulse_pay_link']))) { PulsePayLink::credit($l, (float) $tx['amount_captured'], $tx); }
+            if ($tx['id_pulse_pay_link'] && ($l = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_link` WHERE id_pulse_pay_link='.(int) $tx['id_pulse_pay_link']))) { PulsePayLink::credit($l, (float) $tx['amount_captured'], $tx); }
         }
         self::finish($idEvent, 1, 'Applied: '.$tx['state']);
         return array(200, 'OK');
@@ -42,11 +42,11 @@ class PulsePayWebhook
     {
         $amount = isset($v['data']['amount']) ? round(((float) $v['data']['amount']) / ($tx['gateway'] === 'paystack' ? 100 : 1), 2) : (float) $tx['amount_captured'];
         $refunded = round((float) $tx['amount_refunded'] + $amount, 2);
-        Db::getInstance()->update('pulse_pay_transaction', array('amount_refunded' => $refunded, 'state' => pSQL($refunded + 0.009 >= (float) $tx['amount_captured'] ? 'refunded' : 'partially_refunded'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
-        Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_pay_refund` (id_pulse_pay_transaction, reference, gateway, gateway_ref, amount, reason, status, business_date, date_add, date_upd) VALUES ('.(int) $tx['id_pulse_pay_transaction'].',"'.pSQL($tx['reference'].'-WHR').'","'.pSQL($tx['gateway']).'","'.pSQL((string) $tx['gateway_ref']).'",'.$amount.',"Refund notified by gateway","done","'.pSQL(PulsePayService::bd()).'","'.date('Y-m-d H:i:s').'","'.date('Y-m-d H:i:s').'")');
+        PulseDb::update('pulse_pay_transaction', array('amount_refunded' => $refunded, 'state' => pSQL($refunded + 0.009 >= (float) $tx['amount_captured'] ? 'refunded' : 'partially_refunded'), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']);
+        PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_pay_refund` (id_pulse_pay_transaction, reference, gateway, gateway_ref, amount, reason, status, business_date, date_add, date_upd) VALUES ('.(int) $tx['id_pulse_pay_transaction'].',"'.pSQL($tx['reference'].'-WHR').'","'.pSQL($tx['gateway']).'","'.pSQL((string) $tx['gateway_ref']).'",'.$amount.',"Refund notified by gateway","done","'.pSQL(PulsePayService::bd()).'","'.date('Y-m-d H:i:s').'","'.date('Y-m-d H:i:s').'")');
     }
 
-    protected static function finish($idEvent, $handled, $result) { Db::getInstance()->update('pulse_pay_event', array('handled' => (int) $handled, 'result' => pSQL(Tools::substr($result, 0, 255))), 'id_pulse_pay_event='.(int) $idEvent); }
+    protected static function finish($idEvent, $handled, $result) { PulseDb::update('pulse_pay_event', array('handled' => (int) $handled, 'result' => pSQL(Tools::substr($result, 0, 255))), 'id_pulse_pay_event='.(int) $idEvent); }
 
     /** PHP hands headers back in every possible case; normalise once. */
     public static function lowerKeys(array $h) { $o = array(); foreach ($h as $k => $v) { $o[Tools::strtolower(str_replace('_', '-', $k))] = $v; } return $o; }
@@ -60,5 +60,5 @@ class PulsePayWebhook
         return self::lowerKeys(is_array($h) ? $h : array());
     }
 
-    public static function recent($limit = 100) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_event` ORDER BY id_pulse_pay_event DESC LIMIT '.(int) $limit); }
+    public static function recent($limit = 100) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pay_event` ORDER BY id_pulse_pay_event DESC LIMIT '.(int) $limit); }
 }

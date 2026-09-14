@@ -2,7 +2,7 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Staff portal — {$hr_hotel|escape:'html':'UTF-8'}</title>
 <link rel="stylesheet" href="{$hr_css}">
-<script>window.HR_BOOT={$hr_boot nofilter};</script></head>
+<script>{literal}window.HR_BOOT={$hr_boot nofilter};{/literal}</script></head>
 <body class="hr-ess">
 <div id="hr-app">
   <div class="hr-screen hr-center" id="hr-boot">

@@ -11,7 +11,7 @@ require_once dirname(__FILE__).'/../classes/autoload.php';
 if (php_sapi_name() !== 'cli') { $t = Tools::getValue('token'); if ($t !== Configuration::get('PULSE_PAY_CRON_TOKEN')) { die('Invalid token'); } }
 Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1);
 
-$D = Db::getInstance();
+$D = PulseDb::handle();
 $bd = PulsePayService::bd();
 $made = array('gateways' => 0, 'transactions' => 0, 'preauth' => 0, 'links' => 0, 'terminal' => 0, 'csv' => 0);
 
@@ -45,9 +45,9 @@ $idCustomer = $guest ? (int) $guest['id_customer'] : null;
 function seedTx($ref, array $d, array $after = array())
 {
     global $made;
-    if (Db::getInstance()->getValue('SELECT id_pulse_pay_transaction FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE reference="'.pSQL($ref).'"')) { return null; }
+    if (PulseDb::getValue('SELECT id_pulse_pay_transaction FROM `'._DB_PREFIX_.'pulse_pay_transaction` WHERE reference="'.pSQL($ref).'"')) { return null; }
     $tx = PulsePayService::createTx(array_merge($d, array('reference' => $ref, 'idempotency_key' => 'seed-'.$ref)));
-    if ($after) { Db::getInstance()->update('pulse_pay_transaction', $after, 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']); }
+    if ($after) { PulseDb::update('pulse_pay_transaction', $after, 'id_pulse_pay_transaction='.(int) $tx['id_pulse_pay_transaction']); }
     $made['transactions']++;
     return $tx;
 }

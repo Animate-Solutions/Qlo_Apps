@@ -5,14 +5,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_profile_ext` (
   `nps_last` TINYINT DEFAULT NULL, `nps_band` ENUM('promoter','passive','detractor','unknown') NOT NULL DEFAULT 'unknown', `nps_date` DATE DEFAULT NULL,
   `gss_avg` DECIMAL(6,3) NOT NULL DEFAULT 0, `reviews_written` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `forgotten` TINYINT(1) NOT NULL DEFAULT 0, `date_forgotten` DATETIME DEFAULT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_customer`), KEY `sob` (`source_of_business`), KEY `band` (`nps_band`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_customer`), KEY `sob` (`source_of_business`), KEY `band` (`nps_band`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_preference_option` (
   `id_pulse_crm_preference_option` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `category` ENUM('room_position','floor','pillow','bed','allergy','newspaper','transport','dietary','amenity','housekeeping','other') NOT NULL,
   `code` VARCHAR(32) NOT NULL, `label` VARCHAR(96) NOT NULL, `sort` SMALLINT NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_crm_preference_option`), UNIQUE KEY `cc` (`category`,`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_preference_option`), UNIQUE KEY `cc` (`id_hotel`,`category`,`code`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_preference` (
@@ -22,7 +24,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_preference` (
   `is_service_note` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'allergies and the like: shown on arrivals and kitchen dockets',
   `source` VARCHAR(32) NOT NULL DEFAULT 'desk', `id_employee` INT UNSIGNED DEFAULT NULL, `active` TINYINT(1) NOT NULL DEFAULT 1,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_preference`), KEY `cust` (`id_customer`,`category`), KEY `note` (`is_service_note`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_preference`), KEY `cust` (`id_customer`,`category`), KEY `note` (`is_service_note`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_occasion` (
@@ -31,14 +34,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_occasion` (
   `occasion_date` DATE NOT NULL, `recurring` TINYINT(1) NOT NULL DEFAULT 1, `remind_days` SMALLINT NOT NULL DEFAULT 7,
   `note` VARCHAR(255) DEFAULT NULL, `last_reminded` DATE DEFAULT NULL, `active` TINYINT(1) NOT NULL DEFAULT 1,
   `source` VARCHAR(32) NOT NULL DEFAULT 'desk', `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_occasion`), KEY `cust` (`id_customer`), KEY `d` (`type`,`occasion_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_occasion`), KEY `cust` (`id_customer`), KEY `d` (`type`,`occasion_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_relationship` (
   `id_pulse_crm_relationship` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_customer` INT UNSIGNED NOT NULL, `id_related_customer` INT UNSIGNED NOT NULL,
   `type` ENUM('travels_with','spouse','partner','child','colleague','assistant_of','reports_to','same_company','other') NOT NULL DEFAULT 'travels_with',
   `note` VARCHAR(255) DEFAULT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_relationship`), UNIQUE KEY `pair` (`id_customer`,`id_related_customer`,`type`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_relationship`), UNIQUE KEY `pair` (`id_hotel`,`id_customer`,`id_related_customer`,`type`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_consent` (
@@ -48,17 +53,22 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_consent` (
   `source` VARCHAR(48) NOT NULL DEFAULT 'desk' COMMENT 'registration_card, portal, campaign_unsub, import, desk, api',
   `evidence` VARCHAR(255) DEFAULT NULL, `unsub_reason` VARCHAR(255) DEFAULT NULL, `ip` VARCHAR(45) DEFAULT NULL,
   `date_consent` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_consent`), UNIQUE KEY `cc` (`id_customer`,`channel`), KEY `st` (`channel`,`state`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_consent`), UNIQUE KEY `cc` (`id_hotel`,`id_customer`,`channel`), KEY `st` (`channel`,`state`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_tag` (
   `id_pulse_crm_tag` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` VARCHAR(32) NOT NULL, `name` VARCHAR(64) NOT NULL, `colour` VARCHAR(16) NOT NULL DEFAULT 'default',
-  PRIMARY KEY (`id_pulse_crm_tag`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_tag`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_customer_tag` (
   `id_customer` INT UNSIGNED NOT NULL, `id_pulse_crm_tag` INT UNSIGNED NOT NULL, `source` VARCHAR(32) NOT NULL DEFAULT 'desk', `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_customer`,`id_pulse_crm_tag`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_customer`,`id_pulse_crm_tag`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_segment` (
@@ -66,12 +76,15 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_segment` (
   `rules_json` TEXT COMMENT 'JSON {match:all|any, rules:[{field,op,value}]}', `is_system` TINYINT(1) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
   `member_count` INT UNSIGNED NOT NULL DEFAULT 0, `last_refresh` DATETIME DEFAULT NULL, `refresh_ms` INT UNSIGNED NOT NULL DEFAULT 0, `last_error` VARCHAR(255) DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_segment`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_segment`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_segment_member` (
   `id_pulse_crm_segment` INT UNSIGNED NOT NULL, `id_customer` INT UNSIGNED NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_segment`,`id_customer`), KEY `cust` (`id_customer`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_pulse_crm_segment`,`id_customer`), KEY `cust` (`id_customer`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_campaign` (
@@ -84,7 +97,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_campaign` (
   `count_queued` INT UNSIGNED NOT NULL DEFAULT 0, `count_sent` INT UNSIGNED NOT NULL DEFAULT 0, `count_failed` INT UNSIGNED NOT NULL DEFAULT 0,
   `count_opened` INT UNSIGNED NOT NULL DEFAULT 0, `count_clicked` INT UNSIGNED NOT NULL DEFAULT 0, `count_unsub` INT UNSIGNED NOT NULL DEFAULT 0, `count_skipped` INT UNSIGNED NOT NULL DEFAULT 0,
   `last_run_at` DATETIME DEFAULT NULL, `id_employee` INT UNSIGNED DEFAULT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_campaign`), KEY `st` (`status`,`send_at`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_campaign`), KEY `st` (`status`,`send_at`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_campaign_recipient` (
@@ -93,7 +108,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_campaign_recipient` (
   `status` ENUM('queued','sent','failed','opened','clicked','unsubscribed','skipped') NOT NULL DEFAULT 'queued',
   `skip_reason` VARCHAR(64) DEFAULT NULL, `error` VARCHAR(255) DEFAULT NULL, `open_count` SMALLINT UNSIGNED NOT NULL DEFAULT 0, `click_count` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `date_queued` DATETIME NOT NULL, `date_sent` DATETIME DEFAULT NULL, `date_opened` DATETIME DEFAULT NULL, `date_clicked` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_crm_campaign_recipient`), UNIQUE KEY `tok` (`token`), UNIQUE KEY `cc` (`id_pulse_crm_campaign`,`id_customer`), KEY `st` (`id_pulse_crm_campaign`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_campaign_recipient`), UNIQUE KEY `tok` (`id_hotel`,`token`), UNIQUE KEY `cc` (`id_hotel`,`id_pulse_crm_campaign`,`id_customer`), KEY `st` (`id_pulse_crm_campaign`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_journey` (
@@ -102,7 +118,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_journey` (
   `active` TINYINT(1) NOT NULL DEFAULT 1, `quiet_from` VARCHAR(5) NOT NULL DEFAULT '21:00', `quiet_to` VARCHAR(5) NOT NULL DEFAULT '08:00',
   `suppress_days` SMALLINT UNSIGNED NOT NULL DEFAULT 1 COMMENT 'no two automated sends to one guest inside this many days',
   `count_started` INT UNSIGNED NOT NULL DEFAULT 0, `count_done` INT UNSIGNED NOT NULL DEFAULT 0, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_journey`), UNIQUE KEY `code` (`code`), KEY `trg` (`trigger_event`,`active`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_journey`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `trg` (`trigger_event`,`active`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_journey_step` (
@@ -111,7 +128,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_journey_step` (
   `action` ENUM('send_template','create_ticket','open_case','add_tag','add_points','notify_manager','stop') NOT NULL DEFAULT 'send_template',
   `channel` ENUM('email','sms','whatsapp','auto') NOT NULL DEFAULT 'auto', `template_code` VARCHAR(48) DEFAULT NULL,
   `subject` VARCHAR(190) DEFAULT NULL, `body` TEXT, `action_json` TEXT, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_crm_journey_step`), KEY `j` (`id_pulse_crm_journey`,`sort`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_journey_step`), KEY `j` (`id_pulse_crm_journey`,`sort`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_journey_run` (
@@ -120,20 +138,24 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_journey_run` (
   `step_index` SMALLINT NOT NULL DEFAULT 0, `status` ENUM('active','done','cancelled','failed') NOT NULL DEFAULT 'active',
   `next_run_at` DATETIME NOT NULL, `context_json` TEXT, `last_error` VARCHAR(255) DEFAULT NULL,
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_journey_run`), KEY `due` (`status`,`next_run_at`), KEY `jc` (`id_pulse_crm_journey`,`id_customer`,`id_htl_booking`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_journey_run`), KEY `due` (`status`,`next_run_at`), KEY `jc` (`id_pulse_crm_journey`,`id_customer`,`id_htl_booking`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_journey_log` (
   `id_pulse_crm_journey_log` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_crm_journey_run` BIGINT UNSIGNED NOT NULL, `id_pulse_crm_journey_step` INT UNSIGNED DEFAULT NULL,
   `action` VARCHAR(32) NOT NULL, `result` ENUM('done','skipped','failed') NOT NULL DEFAULT 'done', `message` VARCHAR(255) DEFAULT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_journey_log`), KEY `r` (`id_pulse_crm_journey_run`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_journey_log`), KEY `r` (`id_pulse_crm_journey_run`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_send_log` (
   `id_pulse_crm_send_log` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_customer` INT UNSIGNED NOT NULL,
   `channel` ENUM('email','sms','whatsapp') NOT NULL DEFAULT 'email', `kind` ENUM('campaign','journey','survey','occasion','transactional') NOT NULL DEFAULT 'campaign',
   `reference` VARCHAR(64) DEFAULT NULL, `send_date` DATE NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_send_log`), KEY `sup` (`id_customer`,`send_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_send_log`), KEY `sup` (`id_customer`,`send_date`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_loyalty_program` (
@@ -142,7 +164,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_loyalty_program` (
   `min_redeem_points` INT UNSIGNED NOT NULL DEFAULT 1000, `expiry_months` SMALLINT UNSIGNED NOT NULL DEFAULT 24,
   `qualify_window_months` SMALLINT UNSIGNED NOT NULL DEFAULT 12, `enrol_bonus` INT UNSIGNED NOT NULL DEFAULT 0,
   `terms` TEXT, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_loyalty_program`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_loyalty_program`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_tier` (
@@ -150,7 +174,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_tier` (
   `code` VARCHAR(16) NOT NULL, `name` VARCHAR(64) NOT NULL, `sort` SMALLINT NOT NULL DEFAULT 0,
   `min_nights` SMALLINT UNSIGNED NOT NULL DEFAULT 0, `min_stays` SMALLINT UNSIGNED NOT NULL DEFAULT 0, `min_spend` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `earn_multiplier` DECIMAL(6,3) NOT NULL DEFAULT 1, `benefits` TEXT, `colour` VARCHAR(16) NOT NULL DEFAULT 'default',
-  PRIMARY KEY (`id_pulse_crm_tier`), UNIQUE KEY `pc` (`id_pulse_crm_loyalty_program`,`code`), KEY `s` (`sort`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_tier`), UNIQUE KEY `pc` (`id_hotel`,`id_pulse_crm_loyalty_program`,`code`), KEY `s` (`sort`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_member` (
@@ -160,7 +185,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_member` (
   `qualifying_nights` SMALLINT UNSIGNED NOT NULL DEFAULT 0, `qualifying_stays` SMALLINT UNSIGNED NOT NULL DEFAULT 0, `qualifying_spend` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `tier_since` DATE DEFAULT NULL, `tier_review_date` DATE DEFAULT NULL, `join_date` DATE NOT NULL, `enrol_source` VARCHAR(32) NOT NULL DEFAULT 'desk',
   `status` ENUM('active','suspended','closed') NOT NULL DEFAULT 'active', `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_member`), UNIQUE KEY `no` (`member_no`), UNIQUE KEY `cp` (`id_customer`,`id_pulse_crm_loyalty_program`), KEY `t` (`id_pulse_crm_tier`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_member`), UNIQUE KEY `no` (`id_hotel`,`member_no`), UNIQUE KEY `cp` (`id_hotel`,`id_customer`,`id_pulse_crm_loyalty_program`), KEY `t` (`id_pulse_crm_tier`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_points_txn` (
@@ -171,7 +197,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_points_txn` (
   `id_htl_booking` INT UNSIGNED DEFAULT NULL, `id_pulse_folio_line` BIGINT UNSIGNED DEFAULT NULL, `department` VARCHAR(24) DEFAULT NULL,
   `amount_basis` DECIMAL(20,6) NOT NULL DEFAULT 0, `expires_on` DATE DEFAULT NULL, `id_employee` INT UNSIGNED DEFAULT NULL,
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_points_txn`), KEY `m` (`id_pulse_crm_member`,`date_add`), KEY `exp` (`type`,`expires_on`,`points_remaining`), KEY `line` (`id_pulse_folio_line`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_points_txn`), KEY `m` (`id_pulse_crm_member`,`date_add`), KEY `exp` (`type`,`expires_on`,`points_remaining`), KEY `line` (`id_pulse_folio_line`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_survey` (
@@ -179,14 +206,17 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_survey` (
   `touchpoint` ENUM('in_stay','post_stay','fnb','event','spa','generic') NOT NULL DEFAULT 'post_stay',
   `intro` TEXT, `thanks` TEXT, `low_score_threshold` TINYINT UNSIGNED NOT NULL DEFAULT 6 COMMENT 'NPS at or below this opens a recovery case',
   `expiry_days` SMALLINT UNSIGNED NOT NULL DEFAULT 30, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_survey`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_survey`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_survey_question` (
   `id_pulse_crm_survey_question` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_crm_survey` INT UNSIGNED NOT NULL, `sort` SMALLINT NOT NULL DEFAULT 0,
   `code` VARCHAR(32) NOT NULL, `type` ENUM('nps','scale5','single','multi','text','bool') NOT NULL DEFAULT 'scale5', `label` VARCHAR(255) NOT NULL,
   `options_json` TEXT, `department` VARCHAR(24) DEFAULT NULL, `required` TINYINT(1) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_crm_survey_question`), UNIQUE KEY `sc` (`id_pulse_crm_survey`,`code`), KEY `s` (`id_pulse_crm_survey`,`sort`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_survey_question`), UNIQUE KEY `sc` (`id_hotel`,`id_pulse_crm_survey`,`code`), KEY `s` (`id_pulse_crm_survey`,`sort`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_survey_response` (
@@ -199,13 +229,15 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_survey_response` (
   `comment` TEXT, `language` VARCHAR(8) NOT NULL DEFAULT 'en', `channel` VARCHAR(16) NOT NULL DEFAULT 'email',
   `expires_on` DATE DEFAULT NULL, `sent_at` DATETIME DEFAULT NULL, `completed_at` DATETIME DEFAULT NULL, `ip` VARCHAR(45) DEFAULT NULL,
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_survey_response`), UNIQUE KEY `tok` (`token`), KEY `s` (`id_pulse_crm_survey`,`status`), KEY `bd` (`business_date`), KEY `cust` (`id_customer`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_survey_response`), UNIQUE KEY `tok` (`id_hotel`,`token`), KEY `s` (`id_pulse_crm_survey`,`status`), KEY `bd` (`business_date`), KEY `cust` (`id_customer`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_survey_answer` (
   `id_pulse_crm_survey_answer` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_crm_survey_response` BIGINT UNSIGNED NOT NULL, `id_pulse_crm_survey_question` INT UNSIGNED NOT NULL,
   `code` VARCHAR(32) NOT NULL, `department` VARCHAR(24) DEFAULT NULL, `value_num` DECIMAL(10,3) DEFAULT NULL, `value_text` TEXT, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_survey_answer`), KEY `r` (`id_pulse_crm_survey_response`), KEY `dept` (`department`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_survey_answer`), KEY `r` (`id_pulse_crm_survey_response`), KEY `dept` (`department`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_case` (
@@ -221,7 +253,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_case` (
   `owner` INT UNSIGNED DEFAULT NULL, `sla_due` DATETIME DEFAULT NULL,
   `status` ENUM('open','investigating','recovering','closed','escalated') NOT NULL DEFAULT 'open', `closing_note` TEXT,
   `opened_at` DATETIME NOT NULL, `closed_at` DATETIME DEFAULT NULL, `business_date` DATE NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_case`), UNIQUE KEY `no` (`case_no`), KEY `st` (`status`,`department`), KEY `bd` (`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_case`), UNIQUE KEY `no` (`id_hotel`,`case_no`), KEY `st` (`status`,`department`), KEY `bd` (`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_review` (
@@ -235,7 +268,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_review` (
   `responded` TINYINT(1) NOT NULL DEFAULT 0, `response_text` TEXT, `responded_at` DATETIME DEFAULT NULL, `responded_by` INT UNSIGNED DEFAULT NULL,
   `id_customer` INT UNSIGNED DEFAULT NULL, `id_htl_booking` INT UNSIGNED DEFAULT NULL, `imported_at` DATETIME DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_review`), UNIQUE KEY `ext` (`source`,`external_id`), KEY `d` (`review_date`), KEY `resp` (`responded`,`sentiment`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_review`), UNIQUE KEY `ext` (`id_hotel`,`source`,`external_id`), KEY `d` (`review_date`), KEY `resp` (`responded`,`sentiment`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_account` (
@@ -244,14 +278,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_account` (
   `account_manager` INT UNSIGNED DEFAULT NULL, `status` ENUM('prospect','active','dormant','lost') NOT NULL DEFAULT 'prospect',
   `potential_nights` INT UNSIGNED NOT NULL DEFAULT 0, `potential_value` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `next_review` DATE DEFAULT NULL, `notes` TEXT, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_account`), KEY `co` (`id_pulse_company`), KEY `st` (`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_account`), KEY `co` (`id_pulse_company`), KEY `st` (`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_account_rate` (
   `id_pulse_crm_account_rate` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_crm_account` INT UNSIGNED NOT NULL,
   `id_product` INT UNSIGNED DEFAULT NULL, `room_type_name` VARCHAR(128) DEFAULT NULL, `rate_tax_excl` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `includes_breakfast` TINYINT(1) NOT NULL DEFAULT 0, `valid_from` DATE NOT NULL, `valid_to` DATE NOT NULL, `note` VARCHAR(190) DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_crm_account_rate`), KEY `a` (`id_pulse_crm_account`,`valid_from`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_account_rate`), KEY `a` (`id_pulse_crm_account`,`valid_from`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_contact` (
@@ -259,7 +295,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_contact` (
   `name` VARCHAR(128) NOT NULL, `title` VARCHAR(96) DEFAULT NULL, `email` VARCHAR(190) DEFAULT NULL, `phone` VARCHAR(32) DEFAULT NULL,
   `decision_role` ENUM('decision_maker','influencer','booker','finance','other') NOT NULL DEFAULT 'booker', `is_primary` TINYINT(1) NOT NULL DEFAULT 0,
   `notes` VARCHAR(255) DEFAULT NULL, `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_contact`), KEY `a` (`id_pulse_crm_account`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_contact`), KEY `a` (`id_pulse_crm_account`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_activity` (
@@ -268,7 +306,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_activity` (
   `subject` VARCHAR(190) NOT NULL, `notes` TEXT, `outcome` VARCHAR(190) DEFAULT NULL,
   `activity_date` DATETIME NOT NULL, `follow_up_at` DATETIME DEFAULT NULL, `follow_up_done` TINYINT(1) NOT NULL DEFAULT 0,
   `id_employee` INT UNSIGNED DEFAULT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_activity`), KEY `a` (`id_pulse_crm_account`,`activity_date`), KEY `fu` (`follow_up_done`,`follow_up_at`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_activity`), KEY `a` (`id_pulse_crm_account`,`activity_date`), KEY `fu` (`follow_up_done`,`follow_up_at`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_opportunity` (
@@ -277,7 +316,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_crm_opportunity` (
   `expected_nights` INT UNSIGNED NOT NULL DEFAULT 0, `expected_value` DECIMAL(20,6) NOT NULL DEFAULT 0, `probability` TINYINT UNSIGNED NOT NULL DEFAULT 20,
   `close_date` DATE DEFAULT NULL, `owner` INT UNSIGNED DEFAULT NULL, `lost_reason` VARCHAR(190) DEFAULT NULL, `notes` TEXT,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_crm_opportunity`), KEY `a` (`id_pulse_crm_account`,`stage`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_crm_opportunity`), KEY `a` (`id_pulse_crm_account`,`stage`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES ('LOYR','Loyalty Redemption','adjustment',0,0,0);

@@ -7,17 +7,17 @@
  */
 class PulseCrmSurvey
 {
-    public static function all($activeOnly = false) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY touchpoint, name'); }
-    public static function byCode($code) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey` WHERE code="'.pSQL($code).'" AND active=1'); }
+    public static function all($activeOnly = false) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey`'.($activeOnly ? ' WHERE active=1' : '').' ORDER BY touchpoint, name'); }
+    public static function byCode($code) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey` WHERE code="'.pSQL($code).'" AND active=1'); }
     public static function get($id)
     {
-        $s = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey` WHERE id_pulse_crm_survey='.(int) $id);
+        $s = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey` WHERE id_pulse_crm_survey='.(int) $id);
         if ($s) { $s['questions'] = self::questions($id); }
         return $s;
     }
     public static function questions($idSurvey)
     {
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey_question` WHERE id_pulse_crm_survey='.(int) $idSurvey.' AND active=1 ORDER BY sort');
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey_question` WHERE id_pulse_crm_survey='.(int) $idSurvey.' AND active=1 ORDER BY sort');
         foreach ($rows as &$r) { $r['options'] = $r['options_json'] ? json_decode($r['options_json'], true) : array(); if (!is_array($r['options'])) { $r['options'] = array(); } }
         return $rows;
     }
@@ -27,10 +27,10 @@ class PulseCrmSurvey
         $row = array('name' => pSQL($d['name']), 'touchpoint' => pSQL($d['touchpoint']), 'intro' => pSQL(isset($d['intro']) ? $d['intro'] : '', true),
             'thanks' => pSQL(isset($d['thanks']) ? $d['thanks'] : '', true), 'low_score_threshold' => (int) $d['low_score_threshold'],
             'expiry_days' => (int) (isset($d['expiry_days']) ? $d['expiry_days'] : 30), 'active' => isset($d['active']) ? (int) $d['active'] : 1, 'date_upd' => date('Y-m-d H:i:s'));
-        if ($id) { Db::getInstance()->update('pulse_crm_survey', $row, 'id_pulse_crm_survey='.(int) $id); return (int) $id; }
+        if ($id) { PulseDb::update('pulse_crm_survey', $row, 'id_pulse_crm_survey='.(int) $id); return (int) $id; }
         $row['code'] = pSQL(Tools::substr(Tools::str2url(isset($d['code']) && $d['code'] ? $d['code'] : $d['name']), 0, 30)); $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert('pulse_crm_survey', $row);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_crm_survey', $row);
+        return (int) PulseDb::Insert_ID();
     }
 
     public static function saveQuestion(array $d, $id = 0)
@@ -39,12 +39,12 @@ class PulseCrmSurvey
         $row = array('id_pulse_crm_survey' => (int) $d['id_pulse_crm_survey'], 'sort' => (int) $d['sort'], 'type' => pSQL($d['type']), 'label' => pSQL($d['label']),
             'options_json' => pSQL($opts ? json_encode($opts) : '', true), 'department' => pSQL(isset($d['department']) ? $d['department'] : ''),
             'required' => !empty($d['required']) ? 1 : 0, 'active' => isset($d['active']) ? (int) $d['active'] : 1);
-        if ($id) { Db::getInstance()->update('pulse_crm_survey_question', $row, 'id_pulse_crm_survey_question='.(int) $id); return (int) $id; }
+        if ($id) { PulseDb::update('pulse_crm_survey_question', $row, 'id_pulse_crm_survey_question='.(int) $id); return (int) $id; }
         $row['code'] = pSQL(Tools::substr(Tools::str2url(isset($d['code']) && $d['code'] ? $d['code'] : $d['label']), 0, 30));
-        Db::getInstance()->insert('pulse_crm_survey_question', $row);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_crm_survey_question', $row);
+        return (int) PulseDb::Insert_ID();
     }
-    public static function removeQuestion($id) { return Db::getInstance()->update('pulse_crm_survey_question', array('active' => 0), 'id_pulse_crm_survey_question='.(int) $id); }
+    public static function removeQuestion($id) { return PulseDb::update('pulse_crm_survey_question', array('active' => 0), 'id_pulse_crm_survey_question='.(int) $id); }
 
     /* ---------- invitations ---------- */
 
@@ -52,17 +52,17 @@ class PulseCrmSurvey
     public static function invite($idSurvey, $idCustomer, $idBooking = null, $channel = 'email')
     {
         $s = self::get($idSurvey); if (!$s) { throw new PrestaShopException('No such survey'); }
-        $open = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey_response` WHERE id_pulse_crm_survey='.(int) $idSurvey.' AND id_customer='.(int) $idCustomer
+        $open = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey_response` WHERE id_pulse_crm_survey='.(int) $idSurvey.' AND id_customer='.(int) $idCustomer
             .($idBooking ? ' AND id_htl_booking='.(int) $idBooking : '').' AND status IN ("pending","partial") AND (expires_on IS NULL OR expires_on>=CURDATE())');
         if ($open) { return $open; }
         $room = null;
-        if ($idBooking && PulseCrmService::tableExists('htl_booking_detail')) { $room = (int) Db::getInstance()->getValue('SELECT id_room FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $idBooking); }
-        Db::getInstance()->insert('pulse_crm_survey_response', array('id_pulse_crm_survey' => (int) $idSurvey, 'token' => PulseCrmService::token(16),
+        if ($idBooking && PulseCrmService::tableExists('htl_booking_detail')) { $room = (int) PulseDb::getValue('SELECT id_room FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $idBooking); }
+        PulseDb::insert('pulse_crm_survey_response', array('id_pulse_crm_survey' => (int) $idSurvey, 'token' => PulseCrmService::token(16),
             'id_customer' => (int) $idCustomer, 'id_htl_booking' => $idBooking ? (int) $idBooking : null, 'id_room' => $room ? $room : null,
             'status' => 'pending', 'channel' => pSQL($channel), 'expires_on' => date('Y-m-d', strtotime('+'.(int) $s['expiry_days'].' day')),
             'sent_at' => date('Y-m-d H:i:s'), 'business_date' => PulseCrmService::bd(), 'date_add' => date('Y-m-d H:i:s')));
-        $id = (int) Db::getInstance()->Insert_ID();
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey_response` WHERE id_pulse_crm_survey_response='.$id);
+        $id = (int) PulseDb::Insert_ID();
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey_response` WHERE id_pulse_crm_survey_response='.$id);
     }
 
     public static function url($token) { return PulseCrmService::link('survey', array('t' => $token)); }
@@ -85,7 +85,7 @@ class PulseCrmSurvey
 
     public static function byToken($token)
     {
-        $r = Db::getInstance()->getRow('SELECT r.*, s.name survey_name, s.intro, s.thanks, s.code survey_code, s.low_score_threshold FROM `'._DB_PREFIX_.'pulse_crm_survey_response` r
+        $r = PulseDb::getRow('SELECT r.*, s.name survey_name, s.intro, s.thanks, s.code survey_code, s.low_score_threshold FROM `'._DB_PREFIX_.'pulse_crm_survey_response` r
             INNER JOIN `'._DB_PREFIX_.'pulse_crm_survey` s ON s.id_pulse_crm_survey=r.id_pulse_crm_survey WHERE r.token="'.pSQL($token).'"');
         if ($r) { $r['questions'] = self::questions((int) $r['id_pulse_crm_survey']); }
         return $r;
@@ -101,8 +101,8 @@ class PulseCrmSurvey
         $r = self::byToken($token);
         if (!$r) { throw new PrestaShopException('That survey link is not valid'); }
         if ($r['status'] === 'completed') { throw new PrestaShopException('This survey has already been submitted — thank you'); }
-        if ($r['expires_on'] && $r['expires_on'] < date('Y-m-d')) { Db::getInstance()->update('pulse_crm_survey_response', array('status' => 'expired'), 'id_pulse_crm_survey_response='.(int) $r['id_pulse_crm_survey_response']); throw new PrestaShopException('That survey link has expired'); }
-        $db = Db::getInstance(); $now = date('Y-m-d H:i:s'); $idResp = (int) $r['id_pulse_crm_survey_response'];
+        if ($r['expires_on'] && $r['expires_on'] < date('Y-m-d')) { PulseDb::update('pulse_crm_survey_response', array('status' => 'expired'), 'id_pulse_crm_survey_response='.(int) $r['id_pulse_crm_survey_response']); throw new PrestaShopException('That survey link has expired'); }
+        $db = PulseDb::handle(); $now = date('Y-m-d H:i:s'); $idResp = (int) $r['id_pulse_crm_survey_response'];
         $db->execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_survey_answer` WHERE id_pulse_crm_survey_response='.$idResp);
         $nps = null; $scales = array(); $deptScores = array(); $comments = array(); $missing = array();
         foreach ($r['questions'] as $q) {
@@ -140,7 +140,7 @@ class PulseCrmSurvey
     protected static function stampProfile($idCustomer, $nps, $band, $gss)
     {
         PulseCrmProfile::touch($idCustomer);
-        Db::getInstance()->update('pulse_crm_profile_ext', array('nps_last' => $nps === null ? null : (int) $nps, 'nps_band' => pSQL($band),
+        PulseDb::update('pulse_crm_profile_ext', array('nps_last' => $nps === null ? null : (int) $nps, 'nps_band' => pSQL($band),
             'nps_date' => date('Y-m-d'), 'gss_avg' => $gss === null ? 0 : (float) $gss, 'date_upd' => date('Y-m-d H:i:s')), 'id_customer='.(int) $idCustomer);
         if ($band === 'detractor') { PulseCrmProfile::tag($idCustomer, 'detractor', 'survey'); PulseCrmProfile::untag($idCustomer, 'promoter'); }
         if ($band === 'promoter') { PulseCrmProfile::tag($idCustomer, 'promoter', 'survey'); PulseCrmProfile::untag($idCustomer, 'detractor'); }
@@ -151,7 +151,7 @@ class PulseCrmSurvey
     {
         $inHouse = false;
         if ($resp['id_htl_booking'] && PulseCrmService::tableExists('htl_booking_detail') && class_exists('HotelBookingDetail')) {
-            $inHouse = (int) Db::getInstance()->getValue('SELECT id_status FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $resp['id_htl_booking']) === (int) HotelBookingDetail::STATUS_CHECKED_IN;
+            $inHouse = (int) PulseDb::getValue('SELECT id_status FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $resp['id_htl_booking']) === (int) HotelBookingDetail::STATUS_CHECKED_IN;
         }
         $dept = $department ? $department : 'frontdesk';
         $title = 'Low score on '.$survey['survey_name'].($resp['nps'] !== null ? ' (NPS '.(int) $resp['nps'].')' : '');
@@ -191,7 +191,7 @@ class PulseCrmSurvey
 
     public static function responses($from, $to, $idSurvey = 0, $band = null, $limit = 300)
     {
-        return Db::getInstance()->executeS('SELECT r.*, s.name survey_name, CONCAT(c.firstname," ",c.lastname) guest, ro.room_num
+        return PulseDb::executeS('SELECT r.*, s.name survey_name, CONCAT(c.firstname," ",c.lastname) guest, ro.room_num
             FROM `'._DB_PREFIX_.'pulse_crm_survey_response` r INNER JOIN `'._DB_PREFIX_.'pulse_crm_survey` s ON s.id_pulse_crm_survey=r.id_pulse_crm_survey
             LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=r.id_customer LEFT JOIN `'._DB_PREFIX_.'htl_room_information` ro ON ro.id=r.id_room
             WHERE r.status="completed" AND r.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'
@@ -202,7 +202,7 @@ class PulseCrmSurvey
     /** Mean score by department across the window — the table that tells you where to spend money. */
     public static function departmentScores($from, $to)
     {
-        return Db::getInstance()->executeS('SELECT a.department, COUNT(*) answers, ROUND(AVG(a.value_num),2) avg_score, ROUND(AVG(a.value_num)/5*100,1) pct,
+        return PulseDb::executeS('SELECT a.department, COUNT(*) answers, ROUND(AVG(a.value_num),2) avg_score, ROUND(AVG(a.value_num)/5*100,1) pct,
                 SUM(a.value_num<=2) poor FROM `'._DB_PREFIX_.'pulse_crm_survey_answer` a
             INNER JOIN `'._DB_PREFIX_.'pulse_crm_survey_response` r ON r.id_pulse_crm_survey_response=a.id_pulse_crm_survey_response
             WHERE a.value_num IS NOT NULL AND a.department<>"" AND r.status="completed" AND r.business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"
@@ -212,7 +212,7 @@ class PulseCrmSurvey
     /** Response rate: how many invites came back completed. */
     public static function responseRate($from, $to)
     {
-        $r = Db::getInstance()->getRow('SELECT COUNT(*) invited, SUM(status="completed") completed FROM `'._DB_PREFIX_.'pulse_crm_survey_response` WHERE business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');
+        $r = PulseDb::getRow('SELECT COUNT(*) invited, SUM(status="completed") completed FROM `'._DB_PREFIX_.'pulse_crm_survey_response` WHERE business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');
         return array('invited' => (int) $r['invited'], 'completed' => (int) $r['completed'], 'pct' => (int) $r['invited'] ? round($r['completed'] / $r['invited'] * 100, 1) : 0);
     }
 }

@@ -1,5 +1,3 @@
-{extends file='page.tpl'}
-{block name='page_content'}
 <div class="pulse-guest pulse-pay-page" style="max-width:620px;margin:0 auto">
 {if isset($invalid)}
   <h2>Link not valid</h2><p>This payment link has expired or was cancelled. Please contact reception and we will send you a fresh one.</p>
@@ -64,4 +62,4 @@
   <p class="help-block">Payments are processed by our bank's gateway. We never see or store your card number.</p>
 {/if}
 </div>
-{/block}
+

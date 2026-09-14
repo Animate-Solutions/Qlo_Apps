@@ -39,7 +39,8 @@ class PulseLaundry extends Module
     protected function runSql($f)
     {
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/'.$f.'.sql'));
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (strpos($q, '--') !== 0 && !Db::getInstance()->execute($q)) { return false; } }
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (!Db::getInstance()->execute($q)) { return false; } }
         return true;
     }
 
@@ -51,12 +52,12 @@ class PulseLaundry extends Module
     public function hookActionPulseBeforeCheckOut($p)
     {
         if (empty($p['booking']['id'])) { return; }
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_laundry_order FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE id_htl_booking='.(int) $p['booking']['id'].' AND type="guest" AND posted_line IS NULL AND complimentary=0 AND total_tax_incl>0 AND status<>"cancelled"') as $o) { PulseLaundryService::postToFolio($o['id_pulse_laundry_order']); }
+        foreach (PulseDb::executeS('SELECT id_pulse_laundry_order FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE id_htl_booking='.(int) $p['booking']['id'].' AND type="guest" AND posted_line IS NULL AND complimentary=0 AND total_tax_incl>0 AND status<>"cancelled"') as $o) { PulseLaundryService::postToFolio($o['id_pulse_laundry_order']); }
     }
     public function hookActionPulseCheckOut($p)
     {
         if (empty($p['booking']['id']) || !empty($p['room_move'])) { return; }
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_laundry_order, order_no, status, posted_line FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE id_htl_booking='.(int) $p['booking']['id'].' AND status NOT IN ("delivered","cancelled")') as $o) {
+        foreach (PulseDb::executeS('SELECT id_pulse_laundry_order, order_no, status, posted_line FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE id_htl_booking='.(int) $p['booking']['id'].' AND status NOT IN ("delivered","cancelled")') as $o) {
             if (class_exists('PulseTrace')) { PulseTrace::add('alert', 'Guest checked out with laundry '.$o['order_no'].' still '.$o['status'], date('Y-m-d H:i:s'), (int) $p['booking']['id'], (int) $p['id_room'], null, 'laundry'); }
         }
     }

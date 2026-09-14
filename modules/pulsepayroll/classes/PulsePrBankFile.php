@@ -21,10 +21,10 @@ class PulsePrBankFile
 
     public static function files($idRun = null, $limit = 100)
     {
-        return Db::getInstance()->executeS('SELECT f.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_pr_bank_file` f LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=f.id_employee WHERE 1'.($idRun ? ' AND f.id_pulse_pr_run='.(int) $idRun : '').' ORDER BY f.id_pulse_pr_bank_file DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT f.*, CONCAT(e.firstname," ",e.lastname) who FROM `'._DB_PREFIX_.'pulse_pr_bank_file` f LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=f.id_employee WHERE 1'.($idRun ? ' AND f.id_pulse_pr_run='.(int) $idRun : '').' ORDER BY f.id_pulse_pr_bank_file DESC LIMIT '.(int) $limit);
     }
 
-    public static function file($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_bank_file` WHERE id_pulse_pr_bank_file='.(int) $id); }
+    public static function file($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_bank_file` WHERE id_pulse_pr_bank_file='.(int) $id); }
 
     /**
      * The payment rows for an approved run: everyone paid by bank with a positive net. Staff paid in cash
@@ -32,19 +32,19 @@ class PulsePrBankFile
      */
     public static function rowsForRun($idRun)
     {
-        return Db::getInstance()->executeS('SELECT p.staff_no, p.employee_name, p.department, p.net_pay, p.bank_name, p.bank_code, p.account_no, p.pay_method, e.account_name, e.email, e.phone
+        return PulseDb::executeS('SELECT p.staff_no, p.employee_name, p.department, p.net_pay, p.bank_name, p.bank_code, p.account_no, p.pay_method, e.account_name, e.email, e.phone
             FROM `'._DB_PREFIX_.'pulse_pr_payslip` p LEFT JOIN `'._DB_PREFIX_.'pulse_pr_employee` e ON e.id_pulse_pr_employee=p.id_pulse_pr_employee
             WHERE p.id_pulse_pr_run='.(int) $idRun.' AND p.pay_method="bank" AND p.net_pay>0 ORDER BY p.bank_name, p.employee_name');
     }
 
     public static function cashRowsForRun($idRun)
     {
-        return Db::getInstance()->executeS('SELECT staff_no, employee_name, department, net_pay, pay_method FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' AND pay_method<>"bank" AND net_pay>0 ORDER BY department, employee_name');
+        return PulseDb::executeS('SELECT staff_no, employee_name, department, net_pay, pay_method FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' AND pay_method<>"bank" AND net_pay>0 ORDER BY department, employee_name');
     }
 
     public static function rowsForBatch($idBatch)
     {
-        return Db::getInstance()->executeS('SELECT staff_no, name employee_name, department, net net_pay, bank_code, account_no, "" bank_name, "bank" pay_method, name account_name, "" email, phone FROM `'._DB_PREFIX_.'pulse_pr_casual_line` WHERE id_pulse_pr_casual_batch='.(int) $idBatch.' AND net>0 AND COALESCE(account_no,"")<>"" ORDER BY name');
+        return PulseDb::executeS('SELECT staff_no, name employee_name, department, net net_pay, bank_code, account_no, "" bank_name, "bank" pay_method, name account_name, "" email, phone FROM `'._DB_PREFIX_.'pulse_pr_casual_line` WHERE id_pulse_pr_casual_batch='.(int) $idBatch.' AND net>0 AND COALESCE(account_no,"")<>"" ORDER BY name');
     }
 
     /**
@@ -99,7 +99,7 @@ class PulsePrBankFile
             if ($check !== true) { throw new PrestaShopException('The payment file for '.$g['bank_name'].' does not prove: '.$check.'. Nothing has been written.'); }
             $no = PulsePrService::nextNo('BF', 5);
             $filename = 'pulse-'.Tools::str2url($meta['label'].'-'.$g['bank_name']).'-'.date('Ymd').'.csv';
-            Db::getInstance()->insert('pulse_pr_bank_file', array(
+            PulseDb::insert('pulse_pr_bank_file', array(
                 'id_pulse_pr_run' => isset($meta['id_pulse_pr_run']) ? (int) $meta['id_pulse_pr_run'] : null,
                 'id_pulse_pr_casual_batch' => isset($meta['id_pulse_pr_casual_batch']) ? (int) $meta['id_pulse_pr_casual_batch'] : null,
                 'file_no' => pSQL($no), 'bank_name' => pSQL(Tools::substr($g['bank_name'], 0, 96)), 'bank_code' => pSQL($g['bank_code']),
@@ -107,7 +107,7 @@ class PulsePrBankFile
                 'checksum' => pSQL(sha1($body)), 'body' => pSQL($body, true), 'value_date' => pSQL($meta['value_date']), 'status' => 'generated',
                 'id_employee' => PulsePrService::emp(), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
             ), true);
-            $ids[] = (int) Db::getInstance()->Insert_ID();
+            $ids[] = (int) PulseDb::Insert_ID();
         }
         PulsePrService::log(isset($meta['id_pulse_pr_run']) ? (int) $meta['id_pulse_pr_run'] : null, 'bank_file_generate', 'bank_file', array('files' => count($ids), 'template' => $template, 'split' => $split), $ids ? $ids[0] : null);
         return $ids;
@@ -185,7 +185,7 @@ class PulsePrBankFile
     public static function setStatus($id, $status)
     {
         if (!in_array($status, array('generated', 'downloaded', 'sent', 'acknowledged', 'void'))) { throw new PrestaShopException('Unknown file status'); }
-        Db::getInstance()->update('pulse_pr_bank_file', array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_bank_file='.(int) $id);
+        PulseDb::update('pulse_pr_bank_file', array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_pr_bank_file='.(int) $id);
         PulsePrService::log(null, 'bank_file_'.$status, 'bank_file', null, (int) $id);
         return true;
     }
@@ -193,9 +193,9 @@ class PulsePrBankFile
     /** Summary for the run screen: what goes to each bank, what goes out in cash, and the grand total. */
     public static function summaryForRun($idRun)
     {
-        $byBank = Db::getInstance()->executeS('SELECT COALESCE(NULLIF(bank_name,""),"(no bank on file)") bank_name, bank_code, COUNT(*) n, ROUND(SUM(net_pay),2) total FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' AND pay_method="bank" AND net_pay>0 GROUP BY bank_name, bank_code ORDER BY total DESC');
-        $cash = Db::getInstance()->getRow('SELECT COUNT(*) n, ROUND(COALESCE(SUM(net_pay),0),2) total FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' AND pay_method<>"bank" AND net_pay>0');
-        $total = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(net_pay),0) FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun), 2);
+        $byBank = PulseDb::executeS('SELECT COALESCE(NULLIF(bank_name,""),"(no bank on file)") bank_name, bank_code, COUNT(*) n, ROUND(SUM(net_pay),2) total FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' AND pay_method="bank" AND net_pay>0 GROUP BY bank_name, bank_code ORDER BY total DESC');
+        $cash = PulseDb::getRow('SELECT COUNT(*) n, ROUND(COALESCE(SUM(net_pay),0),2) total FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' AND pay_method<>"bank" AND net_pay>0');
+        $total = round((float) PulseDb::getValue('SELECT COALESCE(SUM(net_pay),0) FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun), 2);
         return array('by_bank' => $byBank, 'cash' => $cash, 'total' => $total, 'files' => self::files($idRun));
     }
 }

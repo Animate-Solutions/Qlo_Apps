@@ -1,6 +1,9 @@
 <?php
 /** Pulse License — perpetual, subscription and trial licensing for the Pulse suite. @author Animate Solutions Limited */
 if (!defined('_PS_VERSION_')) { exit; }
+/* The licence service asks the scoping layer to stand aside for its install-wide counts. */
+foreach (array('pulsecore/classes/PulseHotelScope.php', 'pulsecore/classes/PulseDb.php',
+               'pulsecore/classes/PulseDbHandle.php') as $__s) { if (file_exists(_PS_MODULE_DIR_.$__s)) { require_once _PS_MODULE_DIR_.$__s; } }
 require_once dirname(__FILE__).'/classes/PulseLicenseService.php';
 
 class PulseLicense extends Module
@@ -19,6 +22,7 @@ class PulseLicense extends Module
     {
         if (!parent::install() || !$this->registerHook('displayBackOfficeHeader') || !$this->registerHook('actionAdminControllerSetMedia') || !$this->registerHook('displayBackOfficeTop')) { return false; }
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/install.sql'));
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
         if (!Db::getInstance()->execute($sql)) { return false; }
         $t = new Tab(); $t->class_name = 'AdminPulseLicense'; $t->module = $this->name; $t->id_parent = (int) Tab::getIdFromClassName('AdminPulseCore'); $t->position = 99;
         foreach (Language::getLanguages(true) as $l) { $t->name[$l['id_lang']] = 'License'; }

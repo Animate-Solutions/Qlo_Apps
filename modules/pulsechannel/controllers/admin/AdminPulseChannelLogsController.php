@@ -24,7 +24,7 @@ class AdminPulseChannelLogsController extends ModuleAdminController
         try {
             if (Tools::isSubmit('pruneLogs')) { $n = PulseChService::pruneLogs(); $this->confirmations[] = sprintf($this->l('%d old log row(s) removed.'), $n); }
             if (Tools::isSubmit('requeue')) { PulseChAri::requeue((int) Tools::getValue('id_queue')); $this->confirmations[] = $this->l('Batch re-queued.'); }
-            if (Tools::isSubmit('cancelQueue')) { Db::getInstance()->update('pulse_ch_queue', array('status' => 'cancelled', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) Tools::getValue('id_queue')); $this->confirmations[] = $this->l('Batch cancelled.'); }
+            if (Tools::isSubmit('cancelQueue')) { PulseDb::update('pulse_ch_queue', array('status' => 'cancelled', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_ch_queue='.(int) Tools::getValue('id_queue')); $this->confirmations[] = $this->l('Batch cancelled.'); }
         } catch (Exception $e) { $this->errors[] = $e->getMessage(); }
         return parent::postProcess();
     }

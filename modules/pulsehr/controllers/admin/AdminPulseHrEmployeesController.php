@@ -24,7 +24,7 @@ class AdminPulseHrEmployeesController extends ModuleAdminController
                 'live_warnings' => PulseHrPerformance::liveWarnings($id), 'year' => $year,
                 'departments' => PulseHrService::departments(), 'sections' => PulseHrService::sections(), 'grades' => PulseHrService::grades(), 'positions' => PulseHrService::positions(),
                 'managers' => PulseHrEmployee::search(array('limit' => 400)), 'leave_types' => PulseHrLeave::types(),
-                'bo_users' => Db::getInstance()->executeS('SELECT id_employee, firstname, lastname, email FROM `'._DB_PREFIX_.'employee` WHERE active=1 ORDER BY lastname'),
+                'bo_users' => PulseDb::executeS('SELECT id_employee, firstname, lastname, email FROM `'._DB_PREFIX_.'employee` WHERE active=1 ORDER BY lastname'),
                 'kc' => PulseHrService::kc(), 'pos' => PulseHrService::pos(), 'pr' => PulseHrService::pr(),
                 'self_url' => $self, 'lifecycle_url' => $this->context->link->getAdminLink('AdminPulseHrLifecycle'),
             ));

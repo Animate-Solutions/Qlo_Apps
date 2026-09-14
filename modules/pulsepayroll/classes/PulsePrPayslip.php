@@ -15,7 +15,7 @@ class PulsePrPayslip
 {
     public static function get($id)
     {
-        $p = Db::getInstance()->getRow('SELECT p.*, r.run_no, r.run_type, r.pay_date, r.status run_status, r.currency, r.country FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.id_pulse_pr_payslip='.(int) $id);
+        $p = PulseDb::getRow('SELECT p.*, r.run_no, r.run_type, r.pay_date, r.status run_status, r.currency, r.country FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.id_pulse_pr_payslip='.(int) $id);
         if ($p) { $p['lines'] = self::lines((int) $id); }
         return $p;
     }
@@ -23,7 +23,7 @@ class PulsePrPayslip
     public static function byToken($token)
     {
         if (!preg_match('/^[a-f0-9]{48}$/', (string) $token)) { return null; }
-        $p = Db::getInstance()->getRow('SELECT p.*, r.run_no, r.run_type, r.pay_date, r.status run_status, r.currency, r.country FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.token="'.pSQL($token).'"');
+        $p = PulseDb::getRow('SELECT p.*, r.run_no, r.run_type, r.pay_date, r.status run_status, r.currency, r.country FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run WHERE p.token="'.pSQL($token).'"');
         if (!$p) { return null; }
         $days = (int) PulsePrService::cfg('PAYSLIP_TOKEN_DAYS', 90);
         if ($days > 0 && strtotime($p['date_add']) < strtotime('-'.$days.' day')) { return null; }
@@ -33,13 +33,13 @@ class PulsePrPayslip
 
     public static function lines($id)
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_payslip_line` WHERE id_pulse_pr_payslip='.(int) $id.' ORDER BY sequence, element_code');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_payslip_line` WHERE id_pulse_pr_payslip='.(int) $id.' ORDER BY sequence, element_code');
     }
 
     /** Every payslip an employee can see: only from runs that have actually been approved. */
     public static function forEmployee($idEmployee, $limit = 24)
     {
-        return Db::getInstance()->executeS('SELECT p.id_pulse_pr_payslip, p.period, p.gross, p.total_deductions, p.net_pay, p.token, p.date_add, r.run_no, r.pay_date, r.status run_status
+        return PulseDb::executeS('SELECT p.id_pulse_pr_payslip, p.period, p.gross, p.total_deductions, p.net_pay, p.token, p.date_add, r.run_no, r.pay_date, r.status run_status
             FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run
             WHERE p.id_pulse_pr_employee='.(int) $idEmployee.' AND r.status IN ("approved","paid","posted") ORDER BY p.period DESC LIMIT '.(int) $limit);
     }
@@ -47,7 +47,7 @@ class PulsePrPayslip
     /** Year-to-date, per element, for the payslip's YTD column and the employee YTD report. */
     public static function ytdLines($idEmployee, $year)
     {
-        return Db::getInstance()->executeS('SELECT l.element_code, l.element_name, l.type, ROUND(SUM(l.amount),2) amount
+        return PulseDb::executeS('SELECT l.element_code, l.element_name, l.type, ROUND(SUM(l.amount),2) amount
             FROM `'._DB_PREFIX_.'pulse_pr_payslip_line` l INNER JOIN `'._DB_PREFIX_.'pulse_pr_payslip` p ON p.id_pulse_pr_payslip=l.id_pulse_pr_payslip INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run
             WHERE p.id_pulse_pr_employee='.(int) $idEmployee.' AND p.period LIKE "'.pSQL((string) (int) $year).'-%" AND r.status IN ("approved","paid","posted")
             GROUP BY l.element_code, l.element_name, l.type ORDER BY l.type, l.element_code');
@@ -55,7 +55,7 @@ class PulsePrPayslip
 
     public static function ytdSummary($idEmployee, $year)
     {
-        $r = Db::getInstance()->getRow('SELECT COUNT(*) periods, ROUND(SUM(p.gross),2) gross, ROUND(SUM(p.taxable_gross),2) taxable, ROUND(SUM(p.paye),2) paye, ROUND(SUM(p.pension_ee),2) pension_ee, ROUND(SUM(p.pension_er),2) pension_er, ROUND(SUM(p.nhf),2) nhf, ROUND(SUM(p.total_deductions),2) deductions, ROUND(SUM(p.net_pay),2) net
+        $r = PulseDb::getRow('SELECT COUNT(*) periods, ROUND(SUM(p.gross),2) gross, ROUND(SUM(p.taxable_gross),2) taxable, ROUND(SUM(p.paye),2) paye, ROUND(SUM(p.pension_ee),2) pension_ee, ROUND(SUM(p.pension_er),2) pension_er, ROUND(SUM(p.nhf),2) nhf, ROUND(SUM(p.total_deductions),2) deductions, ROUND(SUM(p.net_pay),2) net
             FROM `'._DB_PREFIX_.'pulse_pr_payslip` p INNER JOIN `'._DB_PREFIX_.'pulse_pr_run` r ON r.id_pulse_pr_run=p.id_pulse_pr_run
             WHERE p.id_pulse_pr_employee='.(int) $idEmployee.' AND p.period LIKE "'.pSQL((string) (int) $year).'-%" AND r.status IN ("approved","paid","posted")');
         return $r ? $r : array('periods' => 0, 'gross' => 0, 'taxable' => 0, 'paye' => 0, 'pension_ee' => 0, 'pension_er' => 0, 'nhf' => 0, 'deductions' => 0, 'net' => 0);
@@ -90,7 +90,7 @@ class PulsePrPayslip
     /** Stamp a view so the employee (and an auditor) can see when a payslip was actually opened. */
     public static function stampViewed($id)
     {
-        Db::getInstance()->update('pulse_pr_payslip', array('viewed_at' => date('Y-m-d H:i:s')), 'id_pulse_pr_payslip='.(int) $id);
+        PulseDb::update('pulse_pr_payslip', array('viewed_at' => date('Y-m-d H:i:s')), 'id_pulse_pr_payslip='.(int) $id);
         return true;
     }
 
@@ -126,7 +126,7 @@ class PulsePrPayslip
                 $emp['email'], trim($emp['firstname'].' '.$emp['lastname']), null, null, null, null, dirname(__FILE__).'/../mails/');
         }
         if ($sent) {
-            Db::getInstance()->update('pulse_pr_payslip', array('emailed_at' => date('Y-m-d H:i:s')), 'id_pulse_pr_payslip='.(int) $id);
+            PulseDb::update('pulse_pr_payslip', array('emailed_at' => date('Y-m-d H:i:s')), 'id_pulse_pr_payslip='.(int) $id);
             self::logComms($emp, $p, 'sent');
         } else {
             self::logComms($emp, $p, 'failed');
@@ -145,7 +145,7 @@ class PulsePrPayslip
     protected static function logComms(array $emp, array $p, $status)
     {
         if (!PulsePrService::tableExists('pulse_comms_log')) { return false; }
-        return Db::getInstance()->insert('pulse_comms_log', array(
+        return PulseDb::insert('pulse_comms_log', array(
             'channel' => 'email', 'template' => 'payslip', 'to_addr' => pSQL($emp['email']), 'status' => pSQL($status),
             'error' => $status === 'failed' ? 'Mail::Send failed' : null, 'date_add' => date('Y-m-d H:i:s'),
             'date_sent' => $status === 'sent' ? date('Y-m-d H:i:s') : null,
@@ -159,7 +159,7 @@ class PulsePrPayslip
         if (!$run) { throw new PrestaShopException('Unknown run'); }
         if (!in_array($run['status'], array('approved', 'paid', 'posted'))) { throw new PrestaShopException('Run '.$run['run_no'].' is '.$run['status'].' — payslips only go out from an approved run'); }
         $sent = 0; $failed = 0;
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_pr_payslip FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' AND emailed_at IS NULL LIMIT '.(int) $limit) as $r) {
+        foreach (PulseDb::executeS('SELECT id_pulse_pr_payslip FROM `'._DB_PREFIX_.'pulse_pr_payslip` WHERE id_pulse_pr_run='.(int) $idRun.' AND emailed_at IS NULL LIMIT '.(int) $limit) as $r) {
             try { if (self::email((int) $r['id_pulse_pr_payslip'])) { $sent++; } else { $failed++; } } catch (Exception $e) { $failed++; }
         }
         PulsePrService::log($idRun, 'payslip_email_run', 'run', array('sent' => $sent, 'failed' => $failed), $idRun);
@@ -172,7 +172,7 @@ class PulsePrPayslip
         $p = self::get($id);
         if (!$p) { throw new PrestaShopException('Unknown payslip'); }
         $token = PulsePrRun::payslipToken((int) $p['id_pulse_pr_run'], (int) $p['id_pulse_pr_employee']);
-        Db::getInstance()->update('pulse_pr_payslip', array('token' => pSQL($token), 'emailed_at' => null, 'viewed_at' => null), 'id_pulse_pr_payslip='.(int) $id, 0, true);
+        PulseDb::update('pulse_pr_payslip', array('token' => pSQL($token), 'emailed_at' => null, 'viewed_at' => null), 'id_pulse_pr_payslip='.(int) $id, 0, true);
         PulsePrService::log((int) $p['id_pulse_pr_run'], 'payslip_reissue', 'payslip', null, (int) $id);
         return $token;
     }

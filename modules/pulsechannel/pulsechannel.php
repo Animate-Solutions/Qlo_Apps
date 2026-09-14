@@ -42,7 +42,8 @@ class PulseChannel extends Module
     protected function runSql($f)
     {
         $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/'.$f.'.sql'));
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (strpos($q, '--') !== 0 && !Db::getInstance()->execute($q)) { return false; } }
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (!Db::getInstance()->execute($q)) { return false; } }
         return true;
     }
 
@@ -56,7 +57,7 @@ class PulseChannel extends Module
     public function hookActionValidateOrder($p)
     {
         if (empty($p['order']) || !Validate::isLoadedObject($p['order'])) { return; }
-        foreach (Db::getInstance()->executeS('SELECT DISTINCT id_product, MIN(date_from) f, MAX(date_to) t FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order='.(int) $p['order']->id.' GROUP BY id_product') as $r) {
+        foreach (PulseDb::executeS('SELECT DISTINCT id_product, MIN(date_from) f, MAX(date_to) t FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order='.(int) $p['order']->id.' GROUP BY id_product') as $r) {
             PulseChAri::markDirty((int) $r['id_product'], $r['f'], $r['t'], 'order');
         }
     }
@@ -68,8 +69,8 @@ class PulseChannel extends Module
     public function hookActionPulseRoomStatusChange($p)
     {
         if (empty($p['id_room']) || (!in_array(isset($p['to']) ? $p['to'] : '', array('out_of_order', 'out_of_service')) && !in_array(isset($p['from']) ? $p['from'] : '', array('out_of_order', 'out_of_service')))) { return; }
-        $idProduct = (int) Db::getInstance()->getValue('SELECT id_product FROM `'._DB_PREFIX_.'htl_room_information` WHERE id='.(int) $p['id_room']);
-        $until = Db::getInstance()->getValue('SELECT ooo_until FROM `'._DB_PREFIX_.'pulse_room_status` WHERE id_room='.(int) $p['id_room']);
+        $idProduct = (int) PulseDb::getValue('SELECT id_product FROM `'._DB_PREFIX_.'htl_room_information` WHERE id='.(int) $p['id_room']);
+        $until = PulseDb::getValue('SELECT ooo_until FROM `'._DB_PREFIX_.'pulse_room_status` WHERE id_room='.(int) $p['id_room']);
         if ($idProduct) { PulseChAri::markDirty($idProduct, PulseChService::businessDate(), $until ? $until : date('Y-m-d', strtotime(PulseChService::businessDate().' +'.(int) PulseChService::windowDays().' day')), 'ooo'); }
     }
     /** After the night audit rolls the date, recompute the whole window: the first day drops off and a new far day appears. */

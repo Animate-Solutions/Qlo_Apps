@@ -44,7 +44,7 @@ class PulseTaPunch
         $serial = isset($p['device_serial']) && $p['device_serial'] !== '' ? $p['device_serial'] : (is_array($dev) ? (string) $dev['serial'] : '');
         $idDevice = is_array($dev) ? (int) $dev['id_pulse_ta_device'] : (int) $dev;
         $hash = self::hash($serial, $ref, $at);
-        if (Db::getInstance()->getValue('SELECT id_pulse_ta_punch FROM `'._DB_PREFIX_.self::T.'` WHERE dedupe_hash="'.pSQL($hash).'"')) { return 0; }
+        if (PulseDb::getValue('SELECT id_pulse_ta_punch FROM `'._DB_PREFIX_.self::T.'` WHERE dedupe_hash="'.pSQL($hash).'"')) { return 0; }
         $staff = PulseTaEnrolment::resolve($idDevice, $ref);
         $row = array(
             'id_pulse_ta_device' => $idDevice ?: null, 'device_serial' => pSQL(Tools::substr($serial, 0, 64)),
@@ -64,8 +64,8 @@ class PulseTaPunch
             'id_employee_entered' => !empty($p['id_employee_entered']) ? (int) $p['id_employee_entered'] : null,
             'date_add' => date('Y-m-d H:i:s'),
         );
-        if (!Db::getInstance()->insert(self::T, PulseTaService::nulls($row), false, true, Db::INSERT_IGNORE)) { return 0; }
-        $id = (int) Db::getInstance()->Insert_ID();
+        if (!PulseDb::insert(self::T, PulseTaService::nulls($row), false, true, Db::INSERT_IGNORE)) { return 0; }
+        $id = (int) PulseDb::Insert_ID();
         if (!$id) { return 0; }
         if ($future) {
             PulseTaExceptionQueue::raise($staff ? (int) $staff : null, date('Y-m-d', $ts), 'future_punch', 'warn',
@@ -118,7 +118,7 @@ class PulseTaPunch
     protected static function warnIfLocked($dev, array $ids)
     {
         if (!$ids) { return 0; }
-        $r = Db::getInstance()->getRow('SELECT COUNT(*) n, MIN(p.business_date) f, MAX(p.business_date) t
+        $r = PulseDb::getRow('SELECT COUNT(*) n, MIN(p.business_date) f, MAX(p.business_date) t
             FROM `'._DB_PREFIX_.self::T.'` p INNER JOIN `'._DB_PREFIX_.'pulse_ta_timesheet` ts ON ts.id_pulse_ta_staff=p.id_pulse_ta_staff
                 AND ts.business_date IN (p.business_date, DATE_SUB(p.business_date, INTERVAL 1 DAY))
             WHERE ts.locked=1 AND p.id_pulse_ta_punch IN ('.implode(',', array_map('intval', $ids)).')');
@@ -145,8 +145,8 @@ class PulseTaPunch
             'raw' => isset($extra['raw']) ? $extra['raw'] : ($source.' entry'), 'id_employee_entered' => PulseTaService::emp()), $extra);
         // A manual punch bypasses the device mapping, so the staff link is set directly.
         $hash = self::hash($serial, $s['staff_no'], $p['punched_at']);
-        if (Db::getInstance()->getValue('SELECT id_pulse_ta_punch FROM `'._DB_PREFIX_.self::T.'` WHERE dedupe_hash="'.pSQL($hash).'"')) { return 0; }
-        Db::getInstance()->insert(self::T, PulseTaService::nulls(array(
+        if (PulseDb::getValue('SELECT id_pulse_ta_punch FROM `'._DB_PREFIX_.self::T.'` WHERE dedupe_hash="'.pSQL($hash).'"')) { return 0; }
+        PulseDb::insert(self::T, PulseTaService::nulls(array(
             'id_pulse_ta_device' => isset($extra['id_pulse_ta_device']) ? (int) $extra['id_pulse_ta_device'] : null,
             'device_serial' => pSQL($serial), 'employee_ref' => pSQL(Tools::substr((string) $s['staff_no'], 0, 32)), 'id_pulse_ta_staff' => (int) $idStaff,
             'punched_at' => pSQL($p['punched_at']), 'device_time' => pSQL($p['punched_at']),
@@ -160,7 +160,7 @@ class PulseTaPunch
             'raw' => pSQL(self::safeRaw($p['raw']), true), 'dedupe_hash' => pSQL($hash),
             'id_employee_entered' => PulseTaService::emp() ?: null, 'date_add' => date('Y-m-d H:i:s'),
         )));
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         PulseTaService::audit('punch_manual', array('id_staff' => (int) $idStaff, 'at' => $p['punched_at'], 'direction' => $direction, 'source' => $source), self::T, $id);
         PulseCoreService::event('actionPulseTaPunch', array('id_staff' => (int) $idStaff, 'count' => 1, 'source' => $source, 'dates' => array(date('Y-m-d', strtotime($p['punched_at'])))));
         return $id;
@@ -175,17 +175,17 @@ class PulseTaPunch
         // $since bounds the back-fill. A reader PIN is routinely recycled when somebody leaves, and without a
         // bound the new holder would inherit the leaver's punches — a payroll error, in the one place this
         // table is ever written after insert.
-        $n = Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET id_pulse_ta_staff='.(int) $idStaff
+        $n = PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` SET id_pulse_ta_staff='.(int) $idStaff
             .' WHERE id_pulse_ta_staff IS NULL AND employee_ref="'.pSQL($ref).'" AND id_pulse_ta_device='.(int) $idDevice
             .($since && strtotime($since) ? ' AND punched_at>="'.pSQL(date('Y-m-d H:i:s', strtotime($since))).'"' : ''));
-        $rows = (int) Db::getInstance()->Affected_Rows();
+        $rows = (int) PulseDb::Affected_Rows();
         if ($rows) { PulseTaService::audit('punch_attach_staff', array('id_device' => (int) $idDevice, 'ref' => $ref, 'id_staff' => (int) $idStaff, 'rows' => $rows, 'since' => $since), self::T, (int) $idStaff); }
         return $n ? $rows : 0;
     }
 
     public static function get($id)
     {
-        return Db::getInstance()->getRow('SELECT p.*, d.name device_name, CONCAT(s.firstname," ",s.lastname) staff_name, s.staff_no, s.department
+        return PulseDb::getRow('SELECT p.*, d.name device_name, CONCAT(s.firstname," ",s.lastname) staff_name, s.staff_no, s.department
             FROM `'._DB_PREFIX_.self::T.'` p LEFT JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=p.id_pulse_ta_device
             LEFT JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=p.id_pulse_ta_staff WHERE p.id_pulse_ta_punch='.(int) $id);
     }
@@ -202,7 +202,7 @@ class PulseTaPunch
         if (!empty($f['source'])) { $w .= ' AND p.source="'.pSQL($f['source']).'"'; }
         if (!empty($f['unmatched'])) { $w .= ' AND p.id_pulse_ta_staff IS NULL'; }
         if (!empty($f['q'])) { $q = pSQL($f['q']); $w .= ' AND (p.employee_ref LIKE "%'.$q.'%" OR s.staff_no LIKE "%'.$q.'%" OR s.firstname LIKE "%'.$q.'%" OR s.lastname LIKE "%'.$q.'%")'; }
-        return Db::getInstance()->executeS('SELECT p.*, d.name device_name, CONCAT(s.firstname," ",s.lastname) staff_name, s.staff_no, s.department
+        return PulseDb::executeS('SELECT p.*, d.name device_name, CONCAT(s.firstname," ",s.lastname) staff_name, s.staff_no, s.department
             FROM `'._DB_PREFIX_.self::T.'` p LEFT JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=p.id_pulse_ta_device
             LEFT JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=p.id_pulse_ta_staff'.$w
             .' ORDER BY p.punched_at DESC, p.id_pulse_ta_punch DESC LIMIT '.max(1, min(2000, (int) $limit)));
@@ -211,7 +211,7 @@ class PulseTaPunch
     /** Every punch for one person inside a window, oldest first — what the engine pairs. */
     public static function forStaffWindow($idStaff, $from, $to)
     {
-        return Db::getInstance()->executeS('SELECT p.*, d.direction_mode FROM `'._DB_PREFIX_.self::T.'` p
+        return PulseDb::executeS('SELECT p.*, d.direction_mode FROM `'._DB_PREFIX_.self::T.'` p
             LEFT JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=p.id_pulse_ta_device
             WHERE p.id_pulse_ta_staff='.(int) $idStaff.' AND p.punched_at>="'.pSQL($from).'" AND p.punched_at<="'.pSQL($to).'"
             ORDER BY p.punched_at, p.id_pulse_ta_punch');
@@ -220,7 +220,7 @@ class PulseTaPunch
     /** Device references nobody has claimed — the Enrolment screen's "unknown people are clocking" list. */
     public static function unmatched($days = 30)
     {
-        return Db::getInstance()->executeS('SELECT p.employee_ref, p.id_pulse_ta_device, d.name device_name, COUNT(*) punches,
+        return PulseDb::executeS('SELECT p.employee_ref, p.id_pulse_ta_device, d.name device_name, COUNT(*) punches,
                 MIN(p.punched_at) first_at, MAX(p.punched_at) last_at
             FROM `'._DB_PREFIX_.self::T.'` p LEFT JOIN `'._DB_PREFIX_.'pulse_ta_device` d ON d.id_pulse_ta_device=p.id_pulse_ta_device
             WHERE p.id_pulse_ta_staff IS NULL AND p.punched_at>=DATE_SUB(NOW(), INTERVAL '.max(1, (int) $days).' DAY)
@@ -238,7 +238,7 @@ class PulseTaPunch
         $s = PulseTaService::staff($idStaff);
         if (!$s || (empty($s['id_employee']) && empty($s['id_pos_staff']))) { return array(); }
         $idEmp = (int) (!empty($s['id_pos_staff']) ? $s['id_pos_staff'] : $s['id_employee']);
-        return Db::getInstance()->executeS('SELECT id_pulse_pos_clock, id_employee, clock_in, clock_out, business_date
+        return PulseDb::executeS('SELECT id_pulse_pos_clock, id_employee, clock_in, clock_out, business_date
             FROM `'._DB_PREFIX_.'pulse_pos_clock` WHERE id_employee='.$idEmp.'
             AND ((clock_in BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'") OR (clock_out BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'")) ORDER BY clock_in');
     }
@@ -248,9 +248,9 @@ class PulseTaPunch
     {
         $days = (int) PulseTaService::cfg('PUNCH_RETENTION', 0);
         if ($days <= 0) { return 0; }
-        Db::getInstance()->execute('DELETE p FROM `'._DB_PREFIX_.self::T.'` p
+        PulseDb::execute('DELETE p FROM `'._DB_PREFIX_.self::T.'` p
             LEFT JOIN `'._DB_PREFIX_.'pulse_ta_timesheet_punch` tp ON tp.id_pulse_ta_punch=p.id_pulse_ta_punch
             WHERE p.punched_at<DATE_SUB(NOW(), INTERVAL '.$days.' DAY) AND tp.id_pulse_ta_punch IS NULL');
-        return (int) Db::getInstance()->Affected_Rows();
+        return (int) PulseDb::Affected_Rows();
     }
 }

@@ -23,8 +23,8 @@ class PulseHrContract
             LEFT JOIN `'._DB_PREFIX_.'pulse_hr_employee` m ON m.id_pulse_hr_employee=c.id_manager ';
     }
 
-    public static function get($id) { return Db::getInstance()->getRow(self::select().' WHERE c.id_pulse_hr_contract='.(int) $id); }
-    public static function history($idEmployee) { return Db::getInstance()->executeS(self::select().' WHERE c.id_pulse_hr_employee='.(int) $idEmployee.' ORDER BY c.effective_from DESC, c.id_pulse_hr_contract DESC'); }
+    public static function get($id) { return PulseDb::getRow(self::select().' WHERE c.id_pulse_hr_contract='.(int) $id); }
+    public static function history($idEmployee) { return PulseDb::executeS(self::select().' WHERE c.id_pulse_hr_employee='.(int) $idEmployee.' ORDER BY c.effective_from DESC, c.id_pulse_hr_contract DESC'); }
 
     /**
      * THE accessor: the contract in force on $date. A promotion dated the 15th does not rewrite the terms that
@@ -33,7 +33,7 @@ class PulseHrContract
     public static function onDate($idEmployee, $date = null)
     {
         $d = pSQL($date ? date('Y-m-d', strtotime($date)) : PulseHrService::bd());
-        return Db::getInstance()->getRow(self::select().' WHERE c.id_pulse_hr_employee='.(int) $idEmployee.' AND c.status<>"draft"
+        return PulseDb::getRow(self::select().' WHERE c.id_pulse_hr_employee='.(int) $idEmployee.' AND c.status<>"draft"
             AND c.effective_from<="'.$d.'" AND (c.effective_to IS NULL OR c.effective_to>="'.$d.'") ORDER BY c.effective_from DESC, c.id_pulse_hr_contract DESC');
     }
 
@@ -45,7 +45,7 @@ class PulseHrContract
     public static function forPeriod($idEmployee, $from, $to)
     {
         $f = pSQL(date('Y-m-d', strtotime($from))); $t = pSQL(date('Y-m-d', strtotime($to)));
-        $rows = Db::getInstance()->executeS(self::select().' WHERE c.id_pulse_hr_employee='.(int) $idEmployee.' AND c.status<>"draft"
+        $rows = PulseDb::executeS(self::select().' WHERE c.id_pulse_hr_employee='.(int) $idEmployee.' AND c.status<>"draft"
             AND c.effective_from<="'.$t.'" AND (c.effective_to IS NULL OR c.effective_to>="'.$f.'") ORDER BY c.effective_from');
         $out = array();
         foreach ($rows as $r) {
@@ -105,20 +105,20 @@ class PulseHrContract
         if (in_array($row['type'], array('fixed_term', 'contract', 'intern')) && !$row['end_date']) { throw new PrestaShopException('A '.str_replace('_', ' ', $row['type']).' contract needs an end date'); }
         if ($row['probation_months'] > 0) { $row['probation_end'] = pSQL(date('Y-m-d', strtotime(($row['start_date'] ? $row['start_date'] : $from).' +'.$row['probation_months'].' month'))); }
         if ($row['id_pulse_hr_grade'] && $row['pay_basis'] === 'monthly' && $row['pay_rate'] > 0) {
-            $g = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_grade` WHERE id_pulse_hr_grade='.(int) $row['id_pulse_hr_grade']);
+            $g = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_grade` WHERE id_pulse_hr_grade='.(int) $row['id_pulse_hr_grade']);
             if ($g && (float) $g['salary_max'] > 0 && ($row['pay_rate'] < (float) $g['salary_min'] || $row['pay_rate'] > (float) $g['salary_max'])) {
                 PulseCoreService::audit('pulsehr', 'contract_out_of_band', array('grade' => $g['code'], 'rate' => $row['pay_rate'], 'band' => array($g['salary_min'], $g['salary_max'])), self::T, 0);
             }
         }
-        $same = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.$idEmployee.' AND effective_from="'.pSQL($from).'"');
+        $same = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.$idEmployee.' AND effective_from="'.pSQL($from).'"');
         if ($same) {
             $row['contract_no'] = $same['contract_no'];
-            Db::getInstance()->update(self::T, $row, 'id_pulse_hr_contract='.(int) $same['id_pulse_hr_contract'], 0, true);
+            PulseDb::update(self::T, $row, 'id_pulse_hr_contract='.(int) $same['id_pulse_hr_contract'], 0, true);
             $id = (int) $same['id_pulse_hr_contract'];
         } else {
             $row['contract_no'] = PulseHrService::nextNo('C'); $row['date_add'] = date('Y-m-d H:i:s');
-            Db::getInstance()->insert(self::T, $row, true);
-            $id = (int) Db::getInstance()->Insert_ID();
+            PulseDb::insert(self::T, $row, true);
+            $id = (int) PulseDb::Insert_ID();
         }
         self::reseal($idEmployee);
         PulseHrEmployee::syncFromContract($idEmployee);
@@ -133,7 +133,7 @@ class PulseHrContract
      */
     public static function reseal($idEmployee)
     {
-        $rows = Db::getInstance()->executeS('SELECT id_pulse_hr_contract, effective_from, effective_to, status FROM `'._DB_PREFIX_.self::T.'`
+        $rows = PulseDb::executeS('SELECT id_pulse_hr_contract, effective_from, effective_to, status FROM `'._DB_PREFIX_.self::T.'`
             WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND status<>"draft" ORDER BY effective_from, id_pulse_hr_contract');
         $n = count($rows);
         foreach ($rows as $i => $r) {
@@ -142,7 +142,7 @@ class PulseHrContract
             $status = $isLast ? ($r['status'] === 'ended' ? 'ended' : 'active') : 'superseded';
             if ($isLast && $r['effective_to']) { $to = $r['effective_to']; $status = 'ended'; }
             if ($r['effective_to'] === $to && $r['status'] === $status) { continue; }
-            Db::getInstance()->update(self::T, array('effective_to' => $to ? pSQL($to) : null, 'status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_contract='.(int) $r['id_pulse_hr_contract'], 0, true);
+            PulseDb::update(self::T, array('effective_to' => $to ? pSQL($to) : null, 'status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_hr_contract='.(int) $r['id_pulse_hr_contract'], 0, true);
         }
         return true;
     }
@@ -151,7 +151,7 @@ class PulseHrContract
     public static function endAll($idEmployee, $date, $reason = 'exit')
     {
         $d = pSQL(date('Y-m-d', strtotime($date)));
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T.'` SET effective_to="'.$d.'", status="ended", note=CONCAT(COALESCE(note,""), " · closed on '.$d.' ('.pSQL($reason).')"), date_upd=NOW()
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T.'` SET effective_to="'.$d.'", status="ended", note=CONCAT(COALESCE(note,""), " · closed on '.$d.' ('.pSQL($reason).')"), date_upd=NOW()
             WHERE id_pulse_hr_employee='.(int) $idEmployee.' AND (effective_to IS NULL OR effective_to>"'.$d.'") AND status<>"draft"');
         return true;
     }
@@ -164,10 +164,10 @@ class PulseHrContract
     {
         $c = self::get($id);
         if (!$c) { throw new PrestaShopException('Contract version not found'); }
-        $latest = (int) Db::getInstance()->getValue('SELECT id_pulse_hr_contract FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.(int) $c['id_pulse_hr_employee'].' ORDER BY effective_from DESC, id_pulse_hr_contract DESC');
+        $latest = (int) PulseDb::getValue('SELECT id_pulse_hr_contract FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.(int) $c['id_pulse_hr_employee'].' ORDER BY effective_from DESC, id_pulse_hr_contract DESC');
         if ($latest !== (int) $id) { throw new PrestaShopException('Only the most recent contract version can be removed — an earlier one is what a past payroll was calculated on'); }
-        if ((int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.(int) $c['id_pulse_hr_employee']) < 2) { throw new PrestaShopException('An employee must keep at least one contract version'); }
-        Db::getInstance()->delete(self::T, 'id_pulse_hr_contract='.(int) $id);
+        if ((int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_hr_employee='.(int) $c['id_pulse_hr_employee']) < 2) { throw new PrestaShopException('An employee must keep at least one contract version'); }
+        PulseDb::delete(self::T, 'id_pulse_hr_contract='.(int) $id);
         self::reseal((int) $c['id_pulse_hr_employee']);
         PulseHrEmployee::syncFromContract((int) $c['id_pulse_hr_employee']);
         PulseCoreService::audit('pulsehr', 'contract_version_removed', array('contract_no' => $c['contract_no'], 'effective_from' => $c['effective_from']), self::T, (int) $id);
@@ -177,7 +177,7 @@ class PulseHrContract
     /** Fixed-term contracts running out — the list HR has to act on before somebody works without one. */
     public static function expiring($days = 30)
     {
-        return Db::getInstance()->executeS(self::select().' WHERE c.status="active" AND c.end_date IS NOT NULL
+        return PulseDb::executeS(self::select().' WHERE c.status="active" AND c.end_date IS NOT NULL
             AND c.end_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND DATE_ADD(CURDATE(), INTERVAL '.(int) $days.' DAY) AND e.status<>"exited" ORDER BY c.end_date');
     }
 
@@ -185,7 +185,7 @@ class PulseHrContract
     public static function activeOn($date, $dept = null)
     {
         $d = pSQL(date('Y-m-d', strtotime($date)));
-        return Db::getInstance()->executeS(self::select().' WHERE c.status<>"draft" AND c.effective_from<="'.$d.'" AND (c.effective_to IS NULL OR c.effective_to>="'.$d.'")'
+        return PulseDb::executeS(self::select().' WHERE c.status<>"draft" AND c.effective_from<="'.$d.'" AND (c.effective_to IS NULL OR c.effective_to>="'.$d.'")'
             .($dept ? ' AND d.code="'.pSQL($dept).'"' : '').' ORDER BY d.sort, e.lastname');
     }
 }

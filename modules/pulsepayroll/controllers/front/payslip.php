@@ -24,7 +24,10 @@ class PulsePayrollPayslipModuleFrontController extends ModuleFrontController
         header('X-Robots-Tag: noindex, nofollow', true);
         header('Cache-Control: no-store, no-cache, must-revalidate, private');
         $token = (string) Tools::getValue('t');
-        $this->slip = PulsePrPayslip::byToken($token);
+        // The property comes out of the token before the payslip is read, so the lookup below runs in the
+        // hotel that issued the link. A token nobody's payroll owns gets the same expired-link message a
+        // stale one does, which is all an outsider should ever learn from this page.
+        $this->slip = PulsePrService::enterHotelFromToken($token) ? PulsePrPayslip::byToken($token) : null;
         $assign = array('token' => $token, 'hotel' => Configuration::get('PS_SHOP_NAME'), 'css' => $this->module->getPathUri().'views/css/payslip.css', 'error' => '', 'doc' => null, 'unlocked' => false);
         if (!$this->slip) {
             $assign['error'] = 'This payslip link is not valid, or it has expired. Ask the payroll office to send you a new one.';

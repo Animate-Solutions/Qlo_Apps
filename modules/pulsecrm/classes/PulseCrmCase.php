@@ -18,7 +18,7 @@ class PulseCrmCase
         $src = isset($d['source']) && in_array($d['source'], self::SOURCES) ? $d['source'] : 'staff';
         $dept = isset($d['department']) && in_array($d['department'], self::DEPARTMENTS) ? $d['department'] : 'frontdesk';
         $no = PulseCrmService::nextNo('SR');
-        Db::getInstance()->insert('pulse_crm_case', array(
+        PulseDb::insert('pulse_crm_case', array(
             'case_no' => pSQL($no), 'source' => pSQL($src), 'severity' => pSQL($sev),
             'department' => pSQL($dept),
             'id_customer' => !empty($d['id_customer']) ? (int) $d['id_customer'] : null, 'id_htl_booking' => !empty($d['id_htl_booking']) ? (int) $d['id_htl_booking'] : null,
@@ -30,7 +30,7 @@ class PulseCrmCase
             'sla_due' => date('Y-m-d H:i:s', time() + self::$sla[isset(self::$sla[$sev]) ? $sev : 'medium'] * 60),
             'status' => 'open', 'opened_at' => date('Y-m-d H:i:s'), 'business_date' => PulseCrmService::bd(), 'date_upd' => date('Y-m-d H:i:s'),
         ));
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         if (!empty($d['id_customer'])) { PulseCrmProfile::tag((int) $d['id_customer'], 'detractor', 'case'); }
         PulseCoreService::audit('pulsecrm', 'case_open', array('case_no' => $no, 'source' => $src, 'severity' => $sev), 'pulse_crm_case', $id);
         PulseCoreService::event('actionPulseCrmCaseOpened', array('id_case' => $id, 'case_no' => $no, 'severity' => $sev, 'department' => $dept));
@@ -39,18 +39,18 @@ class PulseCrmCase
 
     public static function get($id)
     {
-        $c = Db::getInstance()->getRow('SELECT c.*, CONCAT(cu.firstname," ",cu.lastname) guest, cu.email, r.room_num, CONCAT(e.firstname," ",e.lastname) owner_name,
+        $c = PulseDb::getRow('SELECT c.*, CONCAT(cu.firstname," ",cu.lastname) guest, cu.email, r.room_num, CONCAT(e.firstname," ",e.lastname) owner_name,
                 (c.sla_due<NOW() AND c.status<>"closed") overdue FROM `'._DB_PREFIX_.'pulse_crm_case` c
             LEFT JOIN `'._DB_PREFIX_.'customer` cu ON cu.id_customer=c.id_customer
             LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=c.id_room
             LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=c.owner WHERE c.id_pulse_crm_case='.(int) $id);
-        if ($c && $c['id_pulse_crm_survey_response']) { $c['response'] = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey_response` WHERE id_pulse_crm_survey_response='.(int) $c['id_pulse_crm_survey_response']); }
+        if ($c && $c['id_pulse_crm_survey_response']) { $c['response'] = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_survey_response` WHERE id_pulse_crm_survey_response='.(int) $c['id_pulse_crm_survey_response']); }
         return $c;
     }
 
     public static function all($status = 'open,investigating,recovering,escalated', $department = null, $from = null, $to = null)
     {
-        return Db::getInstance()->executeS('SELECT c.*, CONCAT(cu.firstname," ",cu.lastname) guest, r.room_num, CONCAT(e.firstname," ",e.lastname) owner_name,
+        return PulseDb::executeS('SELECT c.*, CONCAT(cu.firstname," ",cu.lastname) guest, r.room_num, CONCAT(e.firstname," ",e.lastname) owner_name,
                 (c.sla_due<NOW() AND c.status<>"closed") overdue FROM `'._DB_PREFIX_.'pulse_crm_case` c
             LEFT JOIN `'._DB_PREFIX_.'customer` cu ON cu.id_customer=c.id_customer
             LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=c.id_room
@@ -76,7 +76,7 @@ class PulseCrmCase
             $u['closed_at'] = date('Y-m-d H:i:s');
             if ($c['id_customer']) { PulseCrmProfile::tag((int) $c['id_customer'], 'recovered', 'case'); }
         }
-        Db::getInstance()->update('pulse_crm_case', $u, 'id_pulse_crm_case='.(int) $id);
+        PulseDb::update('pulse_crm_case', $u, 'id_pulse_crm_case='.(int) $id);
         PulseCoreService::audit('pulsecrm', 'case_update', $u, 'pulse_crm_case', (int) $id);
         return true;
     }
@@ -96,7 +96,7 @@ class PulseCrmCase
         $f = PulseFolio::openForBooking((int) $c['id_htl_booking']);
         if (!$f) { throw new PrestaShopException('That stay has no open folio — raise a credit note instead'); }
         $line = $f->post($code, 'Service recovery '.$c['case_no'].' — '.$c['recovery_action'], 1, -1 * (float) $c['recovery_cost'], 0, false, null, 'crm', $c['case_no']);
-        Db::getInstance()->update('pulse_crm_case', array('recovery_posted_line' => (int) $line, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_case='.(int) $id);
+        PulseDb::update('pulse_crm_case', array('recovery_posted_line' => (int) $line, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_case='.(int) $id);
         return $line;
     }
 
@@ -108,14 +108,14 @@ class PulseCrmCase
         $vars = PulseCrmService::mergeVars((int) $c['id_customer'], array('id_htl_booking' => $c['id_htl_booking'], 'recovery_detail' => $detail));
         $vars['html'] = PulseCrmCampaign::htmlBody($detail);
         $r = PulseCrmComms::deliver((int) $c['id_customer'], 'email', 'crm_case_apology', $vars, array('kind' => 'transactional', 'transactional' => 1, 'ignore_quiet' => 1, 'reference' => $c['case_no']));
-        if ($r['ok']) { Db::getInstance()->update('pulse_crm_case', array('status' => $c['status'] === 'open' ? 'recovering' : $c['status'], 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_case='.(int) $id); }
+        if ($r['ok']) { PulseDb::update('pulse_crm_case', array('status' => $c['status'] === 'open' ? 'recovering' : $c['status'], 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_crm_case='.(int) $id); }
         return $r;
     }
 
     /** Cost of recovery by department — cases, average time to close, what was given away and what it cost. */
     public static function costReport($from, $to)
     {
-        return Db::getInstance()->executeS('SELECT department, COUNT(*) cases, SUM(status="closed") closed, SUM(status<>"closed") open,
+        return PulseDb::executeS('SELECT department, COUNT(*) cases, SUM(status="closed") closed, SUM(status<>"closed") open,
                 ROUND(SUM(recovery_cost),2) cost, ROUND(AVG(NULLIF(recovery_cost,0)),2) avg_cost,
                 ROUND(AVG(TIMESTAMPDIFF(HOUR, opened_at, COALESCE(closed_at,NOW()))),1) avg_hours,
                 SUM(recovery_action="comp") comps, SUM(recovery_action="discount") discounts, SUM(recovery_action="upgrade") upgrades, SUM(recovery_action="gift") gifts
@@ -125,10 +125,10 @@ class PulseCrmCase
     /** Root causes ranked — the second most useful report, and the one that survives a manager leaving. */
     public static function rootCauses($from, $to, $limit = 20)
     {
-        return Db::getInstance()->executeS('SELECT root_cause, COUNT(*) cases, ROUND(SUM(recovery_cost),2) cost FROM `'._DB_PREFIX_.'pulse_crm_case`
+        return PulseDb::executeS('SELECT root_cause, COUNT(*) cases, ROUND(SUM(recovery_cost),2) cost FROM `'._DB_PREFIX_.'pulse_crm_case`
             WHERE root_cause IS NOT NULL AND root_cause<>"" AND business_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'" GROUP BY root_cause ORDER BY cases DESC LIMIT '.(int) $limit);
     }
 
     /** Cases whose SLA has run out; the cron nudges the duty manager. */
-    public static function overdue() { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_case` WHERE status<>"closed" AND sla_due<NOW() ORDER BY sla_due'); }
+    public static function overdue() { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_case` WHERE status<>"closed" AND sla_due<NOW() ORDER BY sla_due'); }
 }

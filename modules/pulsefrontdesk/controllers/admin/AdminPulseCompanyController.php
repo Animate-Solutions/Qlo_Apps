@@ -7,6 +7,9 @@ class AdminPulseCompanyController extends ModuleAdminController
         $this->bootstrap = true; $this->table = 'pulse_company'; $this->className = 'PulseCompany'; $this->identifier = 'id_pulse_company';
         $this->addRowAction('edit'); $this->addRowAction('delete'); $this->allow_export = true;
         parent::__construct(); $this->meta_title = $this->l('Companies / City Ledger');
+        // AdminController builds and runs the list SQL itself, bypassing PulseDb, so the hotel
+        // predicate is added to the list here.
+        $this->_where = PulseHotelContext::sql('a');
         $this->fields_list = array(
             'id_pulse_company' => array('title' => 'ID'), 'name' => array('title' => $this->l('Name')), 'type' => array('title' => $this->l('Type')), 'contact_name' => array('title' => $this->l('Contact')), 'phone' => array('title' => $this->l('Phone')),
             'credit_limit' => array('title' => $this->l('Credit limit'), 'type' => 'price'), 'ledger_balance' => array('title' => $this->l('Ledger balance'), 'type' => 'price'), 'discount_pct' => array('title' => $this->l('Discount %')), 'active' => array('title' => $this->l('Active'), 'type' => 'bool', 'active' => 'status'),
@@ -36,7 +39,7 @@ class AdminPulseCompanyController extends ModuleAdminController
             $this->context->smarty->assign('content', $this->context->smarty->fetch($this->getTemplatePath().'pulse_company/ageing.tpl')); return;
         }
         parent::initContent();
-        $this->context->smarty->assign(array('self_url' => self::$currentIndex.'&token='.$this->token, 'companies' => Db::getInstance()->executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name')));
+        $this->context->smarty->assign(array('self_url' => self::$currentIndex.'&token='.$this->token, 'companies' => PulseDb::executeS('SELECT id_pulse_company, name FROM `'._DB_PREFIX_.'pulse_company` WHERE active=1 ORDER BY name')));
         $this->context->smarty->assign('content', $this->context->smarty->fetch($this->getTemplatePath().'pulse_company/tools.tpl').$this->content);
     }
 
@@ -45,7 +48,7 @@ class AdminPulseCompanyController extends ModuleAdminController
         $r = parent::postProcess();
         if (Tools::isSubmit('addRule')) { PulseRouting::add('company', (int) Tools::getValue('id_pulse_company'), Tools::getValue('department'), 'company'); $this->confirmations[] = $this->l('Routing rule added'); }
         if ((Tools::isSubmit('submitAddpulse_company') || Tools::isSubmit('submitAddpulse_companyAndStay')) && (float) Tools::getValue('receive_amount') > 0 && empty($this->errors)) {
-            $id = (int) Tools::getValue('id_pulse_company') ?: (int) Db::getInstance()->Insert_ID();
+            $id = (int) Tools::getValue('id_pulse_company') ?: (int) PulseDb::Insert_ID();
             if ($id) { $c = new PulseCompany($id); $c->receivePayment((float) Tools::getValue('receive_amount'), Tools::getValue('receive_method'), Tools::getValue('receive_ref')); $this->confirmations[] = $this->l('Ledger payment recorded'); }
         }
         return $r;

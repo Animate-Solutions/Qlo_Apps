@@ -16,7 +16,7 @@ if (php_sapi_name() !== 'cli') {
 }
 $ctx = Context::getContext();
 if (empty($ctx->employee) || !$ctx->employee->id) { $ctx->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1); }
-$db = Db::getInstance();
+$db = PulseDb::handle();
 $now = date('Y-m-d H:i:s');
 $bd = PulseGpService::bd();
 $summary = array();
@@ -194,7 +194,7 @@ $orders = 0; $requests = 0; $messages = 0;
 if (!$inHouse) { echo "Nobody is checked in — skipping orders, requests and messages (run the Front Desk seed first).\n"; }
 $menuItems = PulseGpService::pos() ? $db->executeS('SELECT id_pulse_pos_item id, name, price1 price FROM `'._DB_PREFIX_.'pulse_pos_item` WHERE active=1 AND available=1 ORDER BY id_pulse_pos_item LIMIT 12') : array();
 foreach ($inHouse as $ix => $b) {
-    $dev = $db->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_device` WHERE id_room='.(int) $b['id_room'].' AND status="active" LIMIT 1');
+    $dev = $db->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_device` WHERE id_room='.(int) $b['id_room'].' AND status="active"');
     if (!$dev) { continue; }
     $session = array('id_htl_booking' => (int) $b['id_htl_booking'], 'id_customer' => (int) $b['id_customer'], 'id_room' => (int) $b['id_room'], 'guest_name' => $b['guest'], 'locale' => 'en');
 

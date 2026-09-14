@@ -34,7 +34,7 @@ class AdminPulsePayReconController extends ModuleAdminController
             if (Tools::isSubmit('linkLine')) {
                 $tx = PulsePayService::tx(Tools::getValue('reference'));
                 if (!$tx) { throw new PrestaShopException($this->l('No transaction with that reference')); }
-                Db::getInstance()->update('pulse_pay_settlement_line', array('id_pulse_pay_transaction' => (int) $tx['id_pulse_pay_transaction'], 'match_state' => 'matched', 'note' => pSQL($this->l('Matched by hand'))), 'id_pulse_pay_settlement_line='.(int) Tools::getValue('id_line'));
+                PulseDb::update('pulse_pay_settlement_line', array('id_pulse_pay_transaction' => (int) $tx['id_pulse_pay_transaction'], 'match_state' => 'matched', 'note' => pSQL($this->l('Matched by hand'))), 'id_pulse_pay_settlement_line='.(int) Tools::getValue('id_line'));
                 $this->confirmations[] = $this->l('Line matched');
             }
         } catch (Exception $e) { $this->errors[] = $e->getMessage(); }

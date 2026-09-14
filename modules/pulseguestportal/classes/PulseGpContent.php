@@ -13,7 +13,7 @@ class PulseGpContent
     public static function directory($lang = 'en', $idProduct = null)
     {
         $lang = PulseGpService::lang($lang); $def = PulseGpService::defaultLang();
-        $rows = Db::getInstance()->executeS('SELECT p.*, COALESCE(l.title,d.title) title, COALESCE(l.summary,d.summary) summary, COALESCE(l.body,d.body) body, (l.title IS NULL) translated
+        $rows = PulseDb::executeS('SELECT p.*, COALESCE(l.title,d.title) title, COALESCE(l.summary,d.summary) summary, COALESCE(l.body,d.body) body, (l.title IS NULL) translated
             FROM `'._DB_PREFIX_.'pulse_gp_page` p
             LEFT JOIN `'._DB_PREFIX_.'pulse_gp_page_lang` l ON l.id_pulse_gp_page=p.id_pulse_gp_page AND l.lang="'.pSQL($lang).'"
             LEFT JOIN `'._DB_PREFIX_.'pulse_gp_page_lang` d ON d.id_pulse_gp_page=p.id_pulse_gp_page AND d.lang="'.pSQL($def).'"
@@ -34,8 +34,8 @@ class PulseGpContent
     public static function promos($placement = 'home', $lang = 'en', $idBooking = null)
     {
         $lang = PulseGpService::lang($lang); $def = PulseGpService::defaultLang(); $now = date('H:i:s'); $today = date('Y-m-d');
-        $idProduct = $idBooking ? (int) Db::getInstance()->getValue('SELECT id_product FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $idBooking) : 0;
-        $rows = Db::getInstance()->executeS('SELECT p.*, COALESCE(l.title,d.title) title, COALESCE(l.body,d.body) body, COALESCE(l.cta,d.cta) cta
+        $idProduct = $idBooking ? (int) PulseDb::getValue('SELECT id_product FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $idBooking) : 0;
+        $rows = PulseDb::executeS('SELECT p.*, COALESCE(l.title,d.title) title, COALESCE(l.body,d.body) body, COALESCE(l.cta,d.cta) cta
             FROM `'._DB_PREFIX_.'pulse_gp_promo` p
             LEFT JOIN `'._DB_PREFIX_.'pulse_gp_promo_lang` l ON l.id_pulse_gp_promo=p.id_pulse_gp_promo AND l.lang="'.pSQL($lang).'"
             LEFT JOIN `'._DB_PREFIX_.'pulse_gp_promo_lang` d ON d.id_pulse_gp_promo=p.id_pulse_gp_promo AND d.lang="'.pSQL($def).'"
@@ -75,8 +75,8 @@ class PulseGpContent
     }
 
     /* ---------- write (back office) ---------- */
-    public static function pages() { return Db::getInstance()->executeS('SELECT p.*, (SELECT GROUP_CONCAT(lang) FROM `'._DB_PREFIX_.'pulse_gp_page_lang` l WHERE l.id_pulse_gp_page=p.id_pulse_gp_page) langs, (SELECT title FROM `'._DB_PREFIX_.'pulse_gp_page_lang` l2 WHERE l2.id_pulse_gp_page=p.id_pulse_gp_page ORDER BY l2.lang="'.pSQL(PulseGpService::defaultLang()).'" DESC LIMIT 1) title FROM `'._DB_PREFIX_.'pulse_gp_page` p ORDER BY p.category, p.sort, p.id_pulse_gp_page'); }
-    public static function page($id) { $p = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_page` WHERE id_pulse_gp_page='.(int) $id); if ($p) { $p['lang'] = array(); foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_page_lang` WHERE id_pulse_gp_page='.(int) $id) as $l) { $p['lang'][$l['lang']] = $l; } $p['room_type_ids'] = $p['room_types'] ? array_map('intval', explode(',', $p['room_types'])) : array(); } return $p; }
+    public static function pages() { return PulseDb::executeS('SELECT p.*, (SELECT GROUP_CONCAT(lang) FROM `'._DB_PREFIX_.'pulse_gp_page_lang` l WHERE l.id_pulse_gp_page=p.id_pulse_gp_page) langs, (SELECT title FROM `'._DB_PREFIX_.'pulse_gp_page_lang` l2 WHERE l2.id_pulse_gp_page=p.id_pulse_gp_page ORDER BY l2.lang="'.pSQL(PulseGpService::defaultLang()).'" DESC LIMIT 1) title FROM `'._DB_PREFIX_.'pulse_gp_page` p ORDER BY p.category, p.sort, p.id_pulse_gp_page'); }
+    public static function page($id) { $p = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_page` WHERE id_pulse_gp_page='.(int) $id); if ($p) { $p['lang'] = array(); foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_page_lang` WHERE id_pulse_gp_page='.(int) $id) as $l) { $p['lang'][$l['lang']] = $l; } $p['room_type_ids'] = $p['room_types'] ? array_map('intval', explode(',', $p['room_types'])) : array(); } return $p; }
 
     public static function savePage($id, array $d, array $texts, $image = '')
     {
@@ -88,24 +88,24 @@ class PulseGpContent
             'sort' => (int) (isset($d['sort']) ? $d['sort'] : 0), 'active' => (int) (isset($d['active']) ? $d['active'] : 1), 'date_upd' => $now);
         if (!$row['code']) { throw new PrestaShopException('A page code is required (lowercase letters, digits and underscores)'); }
         if ($image) { $row['image'] = pSQL($image); }
-        if ($id) { Db::getInstance()->update('pulse_gp_page', $row, 'id_pulse_gp_page='.(int) $id); }
+        if ($id) { PulseDb::update('pulse_gp_page', $row, 'id_pulse_gp_page='.(int) $id); }
         else {
-            if (Db::getInstance()->getValue('SELECT id_pulse_gp_page FROM `'._DB_PREFIX_.'pulse_gp_page` WHERE code="'.$row['code'].'"')) { throw new PrestaShopException('A page with that code already exists'); }
-            $row['date_add'] = $now; Db::getInstance()->insert('pulse_gp_page', $row); $id = (int) Db::getInstance()->Insert_ID();
+            if (PulseDb::getValue('SELECT id_pulse_gp_page FROM `'._DB_PREFIX_.'pulse_gp_page` WHERE code="'.$row['code'].'"')) { throw new PrestaShopException('A page with that code already exists'); }
+            $row['date_add'] = $now; PulseDb::insert('pulse_gp_page', $row); $id = (int) PulseDb::Insert_ID();
         }
         foreach ($texts as $lang => $t) {
             $lang = PulseGpService::lang($lang);
-            if (trim((string) $t['title']) === '') { Db::getInstance()->delete('pulse_gp_page_lang', 'id_pulse_gp_page='.(int) $id.' AND lang="'.pSQL($lang).'"'); continue; }
-            Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_gp_page_lang` (id_pulse_gp_page,lang,title,summary,body) VALUES ('.(int) $id.',"'.pSQL($lang).'","'.pSQL($t['title']).'","'.pSQL(isset($t['summary']) ? $t['summary'] : '').'","'.pSQL(isset($t['body']) ? $t['body'] : '', true).'")
+            if (trim((string) $t['title']) === '') { PulseDb::delete('pulse_gp_page_lang', 'id_pulse_gp_page='.(int) $id.' AND lang="'.pSQL($lang).'"'); continue; }
+            PulseDb::execute('INSERT INTO `'._DB_PREFIX_.'pulse_gp_page_lang` (id_pulse_gp_page,lang,title,summary,body) VALUES ('.(int) $id.',"'.pSQL($lang).'","'.pSQL($t['title']).'","'.pSQL(isset($t['summary']) ? $t['summary'] : '').'","'.pSQL(isset($t['body']) ? $t['body'] : '', true).'")
                 ON DUPLICATE KEY UPDATE title=VALUES(title), summary=VALUES(summary), body=VALUES(body)');
         }
         PulseGpService::audit('page_save', array('code' => $row['code']), 'pulse_gp_page', $id);
         return $id;
     }
-    public static function deletePage($id) { Db::getInstance()->delete('pulse_gp_page_lang', 'id_pulse_gp_page='.(int) $id); Db::getInstance()->delete('pulse_gp_page', 'id_pulse_gp_page='.(int) $id); PulseGpService::audit('page_delete', null, 'pulse_gp_page', (int) $id); return true; }
+    public static function deletePage($id) { PulseDb::delete('pulse_gp_page_lang', 'id_pulse_gp_page='.(int) $id); PulseDb::delete('pulse_gp_page', 'id_pulse_gp_page='.(int) $id); PulseGpService::audit('page_delete', null, 'pulse_gp_page', (int) $id); return true; }
 
-    public static function allPromos() { return Db::getInstance()->executeS('SELECT p.*, (SELECT title FROM `'._DB_PREFIX_.'pulse_gp_promo_lang` l WHERE l.id_pulse_gp_promo=p.id_pulse_gp_promo ORDER BY lang="'.pSQL(PulseGpService::defaultLang()).'" DESC LIMIT 1) title FROM `'._DB_PREFIX_.'pulse_gp_promo` p ORDER BY p.placement, p.sort'); }
-    public static function promo($id) { $p = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_promo` WHERE id_pulse_gp_promo='.(int) $id); if ($p) { $p['lang'] = array(); foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_promo_lang` WHERE id_pulse_gp_promo='.(int) $id) as $l) { $p['lang'][$l['lang']] = $l; } $p['room_type_ids'] = $p['room_types'] ? array_map('intval', explode(',', $p['room_types'])) : array(); } return $p; }
+    public static function allPromos() { return PulseDb::executeS('SELECT p.*, (SELECT title FROM `'._DB_PREFIX_.'pulse_gp_promo_lang` l WHERE l.id_pulse_gp_promo=p.id_pulse_gp_promo ORDER BY lang="'.pSQL(PulseGpService::defaultLang()).'" DESC LIMIT 1) title FROM `'._DB_PREFIX_.'pulse_gp_promo` p ORDER BY p.placement, p.sort'); }
+    public static function promo($id) { $p = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_promo` WHERE id_pulse_gp_promo='.(int) $id); if ($p) { $p['lang'] = array(); foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_gp_promo_lang` WHERE id_pulse_gp_promo='.(int) $id) as $l) { $p['lang'][$l['lang']] = $l; } $p['room_type_ids'] = $p['room_types'] ? array_map('intval', explode(',', $p['room_types'])) : array(); } return $p; }
 
     public static function savePromo($id, array $d, array $texts, $image = '')
     {
@@ -118,23 +118,23 @@ class PulseGpContent
             'sort' => (int) (isset($d['sort']) ? $d['sort'] : 0), 'active' => (int) (isset($d['active']) ? $d['active'] : 1), 'date_upd' => $now);
         if (!$row['code']) { throw new PrestaShopException('A promotion code is required'); }
         if ($image) { $row['image'] = pSQL($image); }
-        if ($id) { Db::getInstance()->update('pulse_gp_promo', $row, 'id_pulse_gp_promo='.(int) $id); }
-        else { $row['date_add'] = $now; Db::getInstance()->insert('pulse_gp_promo', $row); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_gp_promo', $row, 'id_pulse_gp_promo='.(int) $id); }
+        else { $row['date_add'] = $now; PulseDb::insert('pulse_gp_promo', $row); $id = (int) PulseDb::Insert_ID(); }
         foreach ($texts as $lang => $t) {
             $lang = PulseGpService::lang($lang);
-            if (trim((string) $t['title']) === '') { Db::getInstance()->delete('pulse_gp_promo_lang', 'id_pulse_gp_promo='.(int) $id.' AND lang="'.pSQL($lang).'"'); continue; }
-            Db::getInstance()->execute('INSERT INTO `'._DB_PREFIX_.'pulse_gp_promo_lang` (id_pulse_gp_promo,lang,title,body,cta) VALUES ('.(int) $id.',"'.pSQL($lang).'","'.pSQL($t['title']).'","'.pSQL(isset($t['body']) ? $t['body'] : '').'","'.pSQL(isset($t['cta']) ? $t['cta'] : '').'")
+            if (trim((string) $t['title']) === '') { PulseDb::delete('pulse_gp_promo_lang', 'id_pulse_gp_promo='.(int) $id.' AND lang="'.pSQL($lang).'"'); continue; }
+            PulseDb::execute('INSERT INTO `'._DB_PREFIX_.'pulse_gp_promo_lang` (id_pulse_gp_promo,lang,title,body,cta) VALUES ('.(int) $id.',"'.pSQL($lang).'","'.pSQL($t['title']).'","'.pSQL(isset($t['body']) ? $t['body'] : '').'","'.pSQL(isset($t['cta']) ? $t['cta'] : '').'")
                 ON DUPLICATE KEY UPDATE title=VALUES(title), body=VALUES(body), cta=VALUES(cta)');
         }
         PulseGpService::audit('promo_save', array('code' => $row['code']), 'pulse_gp_promo', $id);
         return $id;
     }
-    public static function deletePromo($id) { Db::getInstance()->delete('pulse_gp_promo_lang', 'id_pulse_gp_promo='.(int) $id); Db::getInstance()->delete('pulse_gp_promo', 'id_pulse_gp_promo='.(int) $id); return true; }
+    public static function deletePromo($id) { PulseDb::delete('pulse_gp_promo_lang', 'id_pulse_gp_promo='.(int) $id); PulseDb::delete('pulse_gp_promo', 'id_pulse_gp_promo='.(int) $id); return true; }
 
     /** Room types, for targeting. */
     public static function roomTypes()
     {
         $id = (int) Context::getContext()->language->id;
-        return Db::getInstance()->executeS('SELECT p.id_product, pl.name FROM `'._DB_PREFIX_.'product` p INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=p.id_product AND pl.id_lang='.($id ? $id : 1).' WHERE p.active=1 ORDER BY pl.name');
+        return PulseDb::executeS('SELECT p.id_product, pl.name FROM `'._DB_PREFIX_.'product` p INNER JOIN `'._DB_PREFIX_.'product_lang` pl ON pl.id_product=p.id_product AND pl.id_lang='.($id ? $id : 1).' WHERE p.active=1 ORDER BY pl.name');
     }
 }

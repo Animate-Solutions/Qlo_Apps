@@ -20,8 +20,8 @@ class AdminPulseTaOvertimeController extends ModuleAdminController
         $this->context->smarty->assign(array(
             'week' => PulseTaRoster::week($from, $days, $dept), 'coverage' => PulseTaRoster::coverage($from, $days, $dept),
             'holidays' => PulseTaRoster::holidays($from, date('Y-m-d', strtotime($from.' +'.$days.' day'))),
-            'all_holidays' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_holiday` WHERE holiday_date>=DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY holiday_date LIMIT 80'),
-            'shifts' => PulseTaService::shifts(false), 'rules' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_ot_rule` ORDER BY sort, code'),
+            'all_holidays' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_holiday` WHERE holiday_date>=DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY holiday_date LIMIT 80'),
+            'shifts' => PulseTaService::shifts(false), 'rules' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_ot_rule` ORDER BY sort, code'),
             'overtime' => PulseTaTimesheet::overtime($repFrom, $repTo, $dept), 'departments' => PulseTaService::departments(),
             'week_from' => $from, 'days' => $days, 'department' => $dept, 'from' => $repFrom, 'to' => $repTo,
             'staff' => PulseTaService::staffList($dept), 'edit_shift' => (int) Tools::getValue('id_shift') ? PulseTaService::shift((int) Tools::getValue('id_shift')) : null,
@@ -48,8 +48,8 @@ class AdminPulseTaOvertimeController extends ModuleAdminController
                     'active' => (int) Tools::getValue('sactive', 1), 'sort' => (int) Tools::getValue('sort'), 'date_upd' => date('Y-m-d H:i:s'));
                 if ($d['code'] === '' || $d['name'] === '') { throw new PrestaShopException($this->l('A shift needs a code and a name')); }
                 if ($d['crosses_midnight'] && strtotime('2000-01-01 '.$d['end_time']) > strtotime('2000-01-01 '.$d['start_time'])) { $this->warnings[] = $this->l('This shift is flagged as crossing midnight but its end time is later in the day than its start — check it.'); }
-                if ($id = (int) Tools::getValue('id_shift_save')) { Db::getInstance()->update('pulse_ta_shift', $d, 'id_pulse_ta_shift='.$id); }
-                else { $d['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_ta_shift', $d); $id = (int) Db::getInstance()->Insert_ID(); }
+                if ($id = (int) Tools::getValue('id_shift_save')) { PulseDb::update('pulse_ta_shift', $d, 'id_pulse_ta_shift='.$id); }
+                else { $d['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert('pulse_ta_shift', $d); $id = (int) PulseDb::Insert_ID(); }
                 PulseTaService::audit('shift_save', array('id' => $id, 'code' => $d['code']), 'pulse_ta_shift', $id);
                 $this->confirmations[] = $this->l('Shift saved').' ('.$d['code'].')';
             }
@@ -61,7 +61,7 @@ class AdminPulseTaOvertimeController extends ModuleAdminController
                         if ($val === '' || !strtotime($date)) { continue; }
                         if ($val === 'REST') { PulseTaRoster::set((int) $idStaff, $date, null, 'rest'); }
                         elseif ($val === 'LEAVE') { PulseTaRoster::set((int) $idStaff, $date, null, 'leave'); }
-                        elseif ($val === 'CLEAR') { Db::getInstance()->delete('pulse_ta_roster', 'id_pulse_ta_staff='.(int) $idStaff.' AND roster_date="'.pSQL($date).'"'); }
+                        elseif ($val === 'CLEAR') { PulseDb::delete('pulse_ta_roster', 'id_pulse_ta_staff='.(int) $idStaff.' AND roster_date="'.pSQL($date).'"'); }
                         else { PulseTaRoster::set((int) $idStaff, $date, (int) $val, 'work'); }
                         $n++;
                     }
@@ -93,8 +93,8 @@ class AdminPulseTaOvertimeController extends ModuleAdminController
                     'sort' => (int) Tools::getValue('rsort'), 'active' => (int) Tools::getValue('ractive', 1));
                 if ($d['code'] === '') { throw new PrestaShopException($this->l('An overtime rule needs a code')); }
                 if ($d['multiplier'] <= 0) { throw new PrestaShopException($this->l('The multiplier must be greater than zero')); }
-                if ($id = (int) Tools::getValue('id_rule')) { Db::getInstance()->update('pulse_ta_ot_rule', PulseTaService::nulls($d), 'id_pulse_ta_ot_rule='.$id); }
-                else { Db::getInstance()->insert('pulse_ta_ot_rule', PulseTaService::nulls($d)); $id = (int) Db::getInstance()->Insert_ID(); }
+                if ($id = (int) Tools::getValue('id_rule')) { PulseDb::update('pulse_ta_ot_rule', PulseTaService::nulls($d), 'id_pulse_ta_ot_rule='.$id); }
+                else { PulseDb::insert('pulse_ta_ot_rule', PulseTaService::nulls($d)); $id = (int) PulseDb::Insert_ID(); }
                 PulseTaService::audit('ot_rule_save', $d, 'pulse_ta_ot_rule', $id);
                 $this->confirmations[] = $this->l('Overtime rule saved. Rebuild the affected days to apply it — an effective date change is a data edit, never a code release.');
             }
@@ -105,8 +105,8 @@ class AdminPulseTaOvertimeController extends ModuleAdminController
                     'multiplier' => round((float) Tools::getValue('hmultiplier', 2), 3), 'confirmed' => (int) Tools::getValue('confirmed'),
                     'note' => pSQL(Tools::substr((string) Tools::getValue('hnote'), 0, 160)), 'active' => (int) Tools::getValue('hactive', 1));
                 if (!strtotime($d['holiday_date'])) { throw new PrestaShopException($this->l('Choose a valid date')); }
-                if ($id = (int) Tools::getValue('id_holiday')) { Db::getInstance()->update('pulse_ta_holiday', $d, 'id_pulse_ta_holiday='.$id); }
-                else { Db::getInstance()->insert('pulse_ta_holiday', $d, false, true, Db::INSERT_IGNORE); $id = (int) Db::getInstance()->Insert_ID(); }
+                if ($id = (int) Tools::getValue('id_holiday')) { PulseDb::update('pulse_ta_holiday', $d, 'id_pulse_ta_holiday='.$id); }
+                else { PulseDb::insert('pulse_ta_holiday', $d, false, true, Db::INSERT_IGNORE); $id = (int) PulseDb::Insert_ID(); }
                 PulseTaService::audit('holiday_save', $d, 'pulse_ta_holiday', $id);
                 $this->confirmations[] = $this->l('Holiday saved.');
             }

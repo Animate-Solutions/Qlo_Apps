@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_channel` (
   `alerted_at` DATETIME DEFAULT NULL,
   `notes` TEXT,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ch_channel`), UNIQUE KEY `code` (`code`), KEY `en` (`enabled`,`sync_mode`)
+  PRIMARY KEY (`id_pulse_ch_channel`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `en` (`enabled`,`sync_mode`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_rate_plan` (
@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_rate_plan` (
   `min_los` TINYINT UNSIGNED NOT NULL DEFAULT 1, `max_los` TINYINT UNSIGNED NOT NULL DEFAULT 0,
   `release_days` TINYINT UNSIGNED NOT NULL DEFAULT 0,
   `active` TINYINT(1) NOT NULL DEFAULT 1, `sort` SMALLINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_pulse_ch_rate_plan`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ch_rate_plan`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_mapping` (
@@ -71,8 +73,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_mapping` (
   `min_los` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '0 = inherit',
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ch_mapping`), UNIQUE KEY `map` (`id_pulse_ch_channel`,`id_product`,`id_pulse_ch_rate_plan`),
-  KEY `chan_code` (`id_pulse_ch_channel`,`channel_room_code`,`channel_rate_code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ch_mapping`), UNIQUE KEY `map` (`id_hotel`,`id_pulse_ch_channel`,`id_product`,`id_pulse_ch_rate_plan`),
+  KEY `chan_code` (`id_pulse_ch_channel`,`channel_room_code`,`channel_rate_code`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_ari` (
@@ -100,8 +103,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_ari` (
   `pushed_hash` CHAR(32) DEFAULT NULL,
   `pushed_rate` DECIMAL(20,6) DEFAULT NULL, `pushed_available` SMALLINT DEFAULT NULL, `pushed_at` DATETIME DEFAULT NULL,
   `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ch_ari`), UNIQUE KEY `cell` (`id_pulse_ch_channel`,`id_product`,`id_pulse_ch_rate_plan`,`ari_date`),
-  KEY `d` (`ari_date`), KEY `dirty` (`id_pulse_ch_channel`,`ari_date`,`cell_hash`,`pushed_hash`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ch_ari`), UNIQUE KEY `cell` (`id_hotel`,`id_pulse_ch_channel`,`id_product`,`id_pulse_ch_rate_plan`,`ari_date`),
+  KEY `d` (`ari_date`), KEY `dirty` (`id_pulse_ch_channel`,`ari_date`,`cell_hash`,`pushed_hash`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_queue` (
@@ -119,7 +123,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_queue` (
   `last_error` VARCHAR(255) DEFAULT NULL,
   `business_date` DATE NOT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ch_queue`), KEY `drain` (`status`,`next_attempt_at`), KEY `chan` (`id_pulse_ch_channel`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ch_queue`), KEY `drain` (`status`,`next_attempt_at`), KEY `chan` (`id_pulse_ch_channel`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_reservation` (
@@ -153,8 +158,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_reservation` (
   `notes` VARCHAR(255) DEFAULT NULL,
   `business_date` DATE NOT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL, `delivered_at` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_ch_reservation`), UNIQUE KEY `ref` (`id_pulse_ch_channel`,`channel_ref`),
-  KEY `st` (`status`,`date_add`), KEY `bk` (`id_htl_booking`), KEY `bdate` (`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ch_reservation`), UNIQUE KEY `ref` (`id_hotel`,`id_pulse_ch_channel`,`channel_ref`),
+  KEY `st` (`status`,`date_add`), KEY `bk` (`id_htl_booking`), KEY `bdate` (`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_log` (
@@ -170,7 +176,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ch_log` (
   `error` VARCHAR(255) DEFAULT NULL,
   `business_date` DATE NOT NULL,
   `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ch_log`), KEY `chan` (`id_pulse_ch_channel`,`date_add`), KEY `st` (`status`,`date_add`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ch_log`), KEY `chan` (`id_pulse_ch_channel`,`date_add`), KEY `st` (`status`,`date_add`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_ch_rate_plan` (`id_pulse_ch_rate_plan`,`code`,`name`,`meal_plan`,`derive_from`,`adjust_type`,`adjust_value`,`refundable`,`min_los`,`sort`) VALUES

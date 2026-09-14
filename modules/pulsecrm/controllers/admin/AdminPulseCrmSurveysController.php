@@ -23,10 +23,10 @@ class AdminPulseCrmSurveysController extends ModuleAdminController
 
     protected function responseDetail($id)
     {
-        $r = Db::getInstance()->getRow('SELECT r.*, s.name survey_name, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_crm_survey_response` r
+        $r = PulseDb::getRow('SELECT r.*, s.name survey_name, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_crm_survey_response` r
             INNER JOIN `'._DB_PREFIX_.'pulse_crm_survey` s ON s.id_pulse_crm_survey=r.id_pulse_crm_survey
             LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=r.id_customer WHERE r.id_pulse_crm_survey_response='.(int) $id);
-        if ($r) { $r['answers'] = Db::getInstance()->executeS('SELECT a.*, q.label, q.type FROM `'._DB_PREFIX_.'pulse_crm_survey_answer` a INNER JOIN `'._DB_PREFIX_.'pulse_crm_survey_question` q ON q.id_pulse_crm_survey_question=a.id_pulse_crm_survey_question WHERE a.id_pulse_crm_survey_response='.(int) $id.' ORDER BY q.sort'); }
+        if ($r) { $r['answers'] = PulseDb::executeS('SELECT a.*, q.label, q.type FROM `'._DB_PREFIX_.'pulse_crm_survey_answer` a INNER JOIN `'._DB_PREFIX_.'pulse_crm_survey_question` q ON q.id_pulse_crm_survey_question=a.id_pulse_crm_survey_question WHERE a.id_pulse_crm_survey_response='.(int) $id.' ORDER BY q.sort'); }
         return $r;
     }
 
@@ -47,7 +47,7 @@ class AdminPulseCrmSurveysController extends ModuleAdminController
             }
             if (Tools::isSubmit('delQuestion')) { PulseCrmSurvey::removeQuestion((int) Tools::getValue('id_question')); $this->confirmations[] = $this->l('Question removed'); }
             if (Tools::isSubmit('sendInvite')) {
-                $idc = (int) Db::getInstance()->getValue('SELECT id_customer FROM `'._DB_PREFIX_.'customer` WHERE email="'.pSQL(Tools::getValue('invite_email')).'" AND deleted=0');
+                $idc = (int) PulseDb::getValue('SELECT id_customer FROM `'._DB_PREFIX_.'customer` WHERE email="'.pSQL(Tools::getValue('invite_email')).'" AND deleted=0');
                 if (!$idc) { throw new PrestaShopException($this->l('No guest with that email')); }
                 $r = PulseCrmSurvey::inviteAndSend((int) Tools::getValue('id_survey_a'), $idc, null, Tools::getValue('invite_channel', 'email'));
                 $this->confirmations[] = $r['ok'] ? $this->l('Invitation sent') : $this->l('Not sent: ').$r['reason'].' — '.$this->l('the link is ').PulseCrmSurvey::url($r['token']);

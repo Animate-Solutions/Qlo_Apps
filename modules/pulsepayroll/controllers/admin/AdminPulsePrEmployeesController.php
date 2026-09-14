@@ -14,14 +14,14 @@ class AdminPulsePrEmployeesController extends ModuleAdminController
             if (!$e) { $this->errors[] = $this->l('Unknown employee'); return $this->setTemplate('list.tpl'); }
             $this->context->smarty->assign(array(
                 'e' => $e, 'structure' => PulsePrService::structure($id, PulsePrService::periodTo($period), $e['grade']),
-                'structure_rows' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_employee_element` WHERE id_pulse_pr_employee='.$id.' ORDER BY effective_from DESC, element_code'),
-                'declarations' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_declaration` WHERE id_pulse_pr_employee='.$id.' ORDER BY date_from DESC'),
+                'structure_rows' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_employee_element` WHERE id_pulse_pr_employee='.$id.' ORDER BY effective_from DESC, element_code'),
+                'declarations' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_declaration` WHERE id_pulse_pr_employee='.$id.' ORDER BY date_from DESC'),
                 'elements' => PulsePrService::elements(), 'banks' => PulsePrService::banks(),
                 'payslips' => PulsePrPayslip::forEmployee($id, 24), 'ytd' => PulsePrPayslip::ytdSummary($id, (int) date('Y')),
                 'loans' => PulsePrLoan::loans(array('id_pulse_pr_employee' => $id)), 'balances' => PulsePrLoan::balanceFor($id),
                 'tronc' => PulsePrTronc::statement($id), 'arrears' => PulsePrLoan::arrears($id),
                 'timesheet' => PulsePrService::timesheet($id, $period, $e['id_hr_employee']),
-                'opening' => Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_opening` WHERE id_pulse_pr_employee='.$id.' ORDER BY tax_year DESC'),
+                'opening' => PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_pr_opening` WHERE id_pulse_pr_employee='.$id.' ORDER BY tax_year DESC'),
                 'countries' => PulsePrService::countries(), 'period' => $period, 'self_url' => $self, 'hr' => PulsePrService::hr(), 'ta' => PulsePrService::ta(),
                 'link_payroll' => $this->context->link->getAdminLink('AdminPulsePrPayroll'),
             ));
@@ -62,8 +62,8 @@ class AdminPulsePrEmployeesController extends ModuleAdminController
         $id = (int) Tools::getValue('id_employee_pr');
         $year = (int) Tools::getValue('tax_year', date('Y'));
         if (!$id || !$year) { throw new PrestaShopException('Pick the employee and the tax year'); }
-        Db::getInstance()->delete('pulse_pr_opening', 'id_pulse_pr_employee='.$id.' AND tax_year='.$year);
-        Db::getInstance()->insert('pulse_pr_opening', array(
+        PulseDb::delete('pulse_pr_opening', 'id_pulse_pr_employee='.$id.' AND tax_year='.$year);
+        PulseDb::insert('pulse_pr_opening', array(
             'id_pulse_pr_employee' => $id, 'tax_year' => $year, 'periods' => (int) Tools::getValue('o_periods'),
             'gross' => (float) Tools::getValue('o_gross'), 'taxable' => (float) Tools::getValue('o_taxable'), 'paye' => (float) Tools::getValue('o_paye'),
             'pension_ee' => (float) Tools::getValue('o_pension_ee'), 'pension_er' => (float) Tools::getValue('o_pension_er'), 'nhf' => (float) Tools::getValue('o_nhf'),

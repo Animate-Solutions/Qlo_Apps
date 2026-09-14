@@ -79,7 +79,7 @@ abstract class PulsePayAdapter implements PulsePayGatewayInterface
 
     protected function log($operation, $reference, $url, $method, $request, $response, $http, $attempt, $ms, $ok, $error)
     {
-        Db::getInstance()->insert('pulse_pay_log', array(
+        PulseDb::insert('pulse_pay_log', array(
             'gateway' => pSQL($this->code), 'operation' => pSQL($operation), 'reference' => pSQL($reference), 'url' => pSQL(self::redact($url)), 'method' => pSQL($method),
             'request' => pSQL(self::redact($request), true), 'response' => pSQL(self::redact($response), true), 'http_code' => (int) $http, 'attempt' => (int) $attempt,
             'duration_ms' => (int) $ms, 'ok' => (int) $ok, 'error' => pSQL(Tools::substr((string) $error, 0, 255)), 'date_add' => date('Y-m-d H:i:s'),

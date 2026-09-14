@@ -15,7 +15,7 @@ class PulseTaRoster
 
     public static function get($idStaff, $date)
     {
-        return Db::getInstance()->getRow('SELECT r.*, s.code shift_code, s.name shift_name, s.start_time, s.end_time, s.crosses_midnight, s.is_night,
+        return PulseDb::getRow('SELECT r.*, s.code shift_code, s.name shift_name, s.start_time, s.end_time, s.crosses_midnight, s.is_night,
                 s.break_minutes, s.break_paid, s.break_punched, s.grace_in_min, s.grace_out_min, s.window_before_min, s.window_after_min,
                 s.min_shift_min, s.max_shift_min, s.is_split, s.split2_start, s.split2_end, s.paid_minutes, s.colour
             FROM `'._DB_PREFIX_.self::T.'` r LEFT JOIN `'._DB_PREFIX_.'pulse_ta_shift` s ON s.id_pulse_ta_shift=r.id_pulse_ta_shift
@@ -29,11 +29,11 @@ class PulseTaRoster
             'day_type' => pSQL(in_array($dayType, array('work', 'rest', 'leave', 'holiday', 'training', 'off_site'), true) ? $dayType : 'work'),
             'source' => pSQL(in_array($source, array('local', 'hr', 'auto'), true) ? $source : 'local'),
             'note' => pSQL(Tools::substr((string) $note, 0, 128)), 'published' => $published ? 1 : 0, 'date_upd' => date('Y-m-d H:i:s'));
-        $ex = Db::getInstance()->getValue('SELECT id_pulse_ta_roster FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_staff='.(int) $idStaff.' AND roster_date="'.pSQL($date).'"');
-        if ($ex) { Db::getInstance()->update(self::T, PulseTaService::nulls($row), 'id_pulse_ta_roster='.(int) $ex); return (int) $ex; }
+        $ex = PulseDb::getValue('SELECT id_pulse_ta_roster FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_ta_staff='.(int) $idStaff.' AND roster_date="'.pSQL($date).'"');
+        if ($ex) { PulseDb::update(self::T, PulseTaService::nulls($row), 'id_pulse_ta_roster='.(int) $ex); return (int) $ex; }
         $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert(self::T, PulseTaService::nulls($row), false, true, Db::INSERT_IGNORE);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert(self::T, PulseTaService::nulls($row), false, true, Db::INSERT_IGNORE);
+        return (int) PulseDb::Insert_ID();
     }
 
     /** The week grid: one row per staff member, one column per date. */
@@ -42,7 +42,7 @@ class PulseTaRoster
         $dates = array();
         for ($i = 0; $i < max(1, (int) $days); $i++) { $dates[] = date('Y-m-d', strtotime($from.' +'.$i.' day')); }
         $staff = PulseTaService::staffList($department);
-        $rows = Db::getInstance()->executeS('SELECT r.id_pulse_ta_staff, r.roster_date, r.day_type, r.published, r.note, s.code, s.colour, s.start_time, s.end_time, s.crosses_midnight, s.is_night
+        $rows = PulseDb::executeS('SELECT r.id_pulse_ta_staff, r.roster_date, r.day_type, r.published, r.note, s.code, s.colour, s.start_time, s.end_time, s.crosses_midnight, s.is_night
             FROM `'._DB_PREFIX_.self::T.'` r LEFT JOIN `'._DB_PREFIX_.'pulse_ta_shift` s ON s.id_pulse_ta_shift=r.id_pulse_ta_shift
             WHERE r.roster_date BETWEEN "'.pSQL($dates[0]).'" AND "'.pSQL(end($dates)).'"');
         $map = array();
@@ -61,7 +61,7 @@ class PulseTaRoster
     public static function coverage($from, $days = 7, $department = '')
     {
         $to = date('Y-m-d', strtotime($from.' +'.(max(1, (int) $days) - 1).' day'));
-        return Db::getInstance()->executeS('SELECT r.roster_date, sh.code, sh.name, sh.is_night, s.department, COUNT(*) heads
+        return PulseDb::executeS('SELECT r.roster_date, sh.code, sh.name, sh.is_night, s.department, COUNT(*) heads
             FROM `'._DB_PREFIX_.self::T.'` r
             INNER JOIN `'._DB_PREFIX_.'pulse_ta_staff` s ON s.id_pulse_ta_staff=r.id_pulse_ta_staff AND s.status="active"
             LEFT JOIN `'._DB_PREFIX_.'pulse_ta_shift` sh ON sh.id_pulse_ta_shift=r.id_pulse_ta_shift
@@ -100,7 +100,7 @@ class PulseTaRoster
     public static function importFromHr($from, $to)
     {
         if (!PulseTaService::hr() || !PulseTaService::tableExists('pulse_hr_roster')) { return 0; }
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_roster` WHERE roster_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_hr_roster` WHERE roster_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');
         $shiftByCode = array();
         foreach (PulseTaService::shifts(false) as $s) { $shiftByCode[Tools::strtoupper($s['code'])] = (int) $s['id_pulse_ta_shift']; }
         $n = 0;
@@ -123,7 +123,7 @@ class PulseTaRoster
     /** Public holidays in a range, keyed by date. */
     public static function holidays($from, $to)
     {
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_holiday` WHERE active=1 AND holiday_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_holiday` WHERE active=1 AND holiday_date BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"');
         $out = array();
         foreach ((array) $rows as $r) { $out[$r['holiday_date']] = $r; }
         return $out;
@@ -131,6 +131,6 @@ class PulseTaRoster
 
     public static function isHoliday($date)
     {
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_holiday` WHERE active=1 AND holiday_date="'.pSQL($date).'" ORDER BY multiplier DESC LIMIT 1');
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_ta_holiday` WHERE active=1 AND holiday_date="'.pSQL($date).'" ORDER BY multiplier DESC');
     }
 }

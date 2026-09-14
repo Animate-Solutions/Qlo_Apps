@@ -10,14 +10,16 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_account` (
   `cashflow` ENUM('none','cash','operating','investing','financing') NOT NULL DEFAULT 'operating',
   `is_contra` TINYINT(1) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `sort` SMALLINT NOT NULL DEFAULT 0, `note` VARCHAR(255),
   `date_add` DATETIME NOT NULL DEFAULT '2024-01-01 00:00:00', `date_upd` DATETIME NOT NULL DEFAULT '2024-01-01 00:00:00',
-  PRIMARY KEY (`id_pulse_acc_account`), UNIQUE KEY `code` (`code`), KEY `type` (`type`,`code`), KEY `parent` (`id_parent`), KEY `dept` (`usali_dept`), KEY `ctrl` (`control_of`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_account`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `type` (`type`,`code`), KEY `parent` (`id_parent`), KEY `dept` (`usali_dept`), KEY `ctrl` (`control_of`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_period` (
   `id_pulse_acc_period` INT UNSIGNED NOT NULL AUTO_INCREMENT, `code` CHAR(7) NOT NULL COMMENT 'YYYY-MM', `year` SMALLINT NOT NULL, `month` TINYINT NOT NULL,
   `date_from` DATE NOT NULL, `date_to` DATE NOT NULL, `status` ENUM('open','closed','locked') NOT NULL DEFAULT 'open',
   `is_year_end` TINYINT(1) NOT NULL DEFAULT 0, `closing_journal` INT UNSIGNED DEFAULT NULL, `closed_by` INT UNSIGNED, `date_closed` DATETIME DEFAULT NULL, `note` VARCHAR(255), `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_period`), UNIQUE KEY `code` (`code`), KEY `st` (`status`,`date_from`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_period`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `st` (`status`,`date_from`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_journal` (
@@ -30,8 +32,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_journal` (
   `total_debit` DECIMAL(20,6) NOT NULL DEFAULT 0, `total_credit` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `reverses` INT UNSIGNED DEFAULT NULL, `reversed_by` INT UNSIGNED DEFAULT NULL, `reverse_reason` VARCHAR(255),
   `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL, `date_posted` DATETIME DEFAULT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_journal`), UNIQUE KEY `no` (`journal_no`), UNIQUE KEY `src` (`source`,`source_ref`),
-  KEY `bd` (`business_date`,`status`), KEY `per` (`period`,`status`), KEY `st` (`status`,`id_pulse_acc_journal`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_journal`), UNIQUE KEY `no` (`id_hotel`,`journal_no`), UNIQUE KEY `src` (`id_hotel`,`source`,`source_ref`),
+  KEY `bd` (`business_date`,`status`), KEY `per` (`period`,`status`), KEY `st` (`status`,`id_pulse_acc_journal`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_journal_line` (
@@ -42,9 +45,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_journal_line` (
   `entity` VARCHAR(32) DEFAULT NULL COMMENT 'source document table for drill-down', `id_entity` BIGINT UNSIGNED DEFAULT NULL,
   `id_pulse_company` INT UNSIGNED DEFAULT NULL, `id_supplier` INT UNSIGNED DEFAULT NULL, `tax_code` VARCHAR(16) DEFAULT NULL,
   `business_date` DATE NOT NULL, `period` CHAR(7) NOT NULL, `posted` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'denormalised journal status so report sums never join',
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
   PRIMARY KEY (`id_pulse_acc_journal_line`), KEY `j` (`id_pulse_acc_journal`),
   KEY `acct_date` (`id_pulse_acc_account`,`business_date`,`posted`), KEY `per_acct` (`period`,`id_pulse_acc_account`,`posted`),
-  KEY `dept` (`usali_dept`,`period`,`posted`), KEY `ent` (`entity`,`id_entity`), KEY `co` (`id_pulse_company`,`posted`)
+  KEY `dept` (`usali_dept`,`period`,`posted`), KEY `ent` (`entity`,`id_entity`), KEY `co` (`id_pulse_company`,`posted`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_map` (
@@ -53,7 +57,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_map` (
   `key_value` VARCHAR(64) NOT NULL, `label` VARCHAR(128), `account_code` VARCHAR(16) DEFAULT NULL, `tax_account_code` VARCHAR(16) DEFAULT NULL,
   `contra_account_code` VARCHAR(16) DEFAULT NULL COMMENT 'inventory account for stock, accumulated depreciation for asset classes',
   `cost_centre` VARCHAR(32) DEFAULT NULL, `wht_rate_pct` DECIMAL(6,3) NOT NULL DEFAULT 0, `note` VARCHAR(255), `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_acc_map`), UNIQUE KEY `k` (`map_type`,`key_value`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_map`), UNIQUE KEY `k` (`id_hotel`,`map_type`,`key_value`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_queue` (
@@ -61,7 +67,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_queue` (
   `business_date` DATE NOT NULL, `payload` TEXT, `status` ENUM('pending','posted','skipped','failed') NOT NULL DEFAULT 'pending',
   `attempts` TINYINT NOT NULL DEFAULT 0, `last_error` VARCHAR(255), `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_queue`), UNIQUE KEY `src` (`source`,`source_ref`), KEY `st` (`status`,`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_queue`), UNIQUE KEY `src` (`id_hotel`,`source`,`source_ref`), KEY `st` (`status`,`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_invoice` (
@@ -74,7 +81,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_invoice` (
   `status` ENUM('draft','issued','part_paid','paid','credited','written_off','cancelled') NOT NULL DEFAULT 'issued',
   `period` CHAR(7) NOT NULL, `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `note` VARCHAR(255), `id_employee` INT UNSIGNED,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_invoice`), UNIQUE KEY `no` (`invoice_no`), KEY `co` (`id_pulse_company`,`status`), KEY `due` (`status`,`due_date`), KEY `f` (`id_pulse_folio`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_invoice`), UNIQUE KEY `no` (`id_hotel`,`invoice_no`), KEY `co` (`id_pulse_company`,`status`), KEY `due` (`status`,`due_date`), KEY `f` (`id_pulse_folio`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_invoice_line` (
@@ -82,7 +90,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_invoice_line` (
   `department` VARCHAR(32), `account_code` VARCHAR(16), `qty` DECIMAL(10,3) NOT NULL DEFAULT 1, `unit_price` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `tax_rate` DECIMAL(6,3) NOT NULL DEFAULT 0, `tax_amount` DECIMAL(20,6) NOT NULL DEFAULT 0, `line_total` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `id_pulse_folio_line` BIGINT UNSIGNED DEFAULT NULL, `business_date` DATE,
-  PRIMARY KEY (`id_pulse_acc_invoice_line`), KEY `inv` (`id_pulse_acc_invoice`), KEY `fl` (`id_pulse_folio_line`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_invoice_line`), KEY `inv` (`id_pulse_acc_invoice`), KEY `fl` (`id_pulse_folio_line`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_receipt` (
@@ -92,7 +101,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_receipt` (
   `wht_cert_no` VARCHAR(32), `allocated` DECIMAL(20,6) NOT NULL DEFAULT 0, `unallocated` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `reference` VARCHAR(64), `note` VARCHAR(255), `status` ENUM('draft','posted','cancelled') NOT NULL DEFAULT 'posted',
   `period` CHAR(7) NOT NULL, `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_receipt`), UNIQUE KEY `no` (`receipt_no`), KEY `co` (`id_pulse_company`,`receipt_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_receipt`), UNIQUE KEY `no` (`id_hotel`,`receipt_no`), KEY `co` (`id_pulse_company`,`receipt_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_allocation` (
@@ -100,7 +110,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_allocation` (
   `id_source` INT UNSIGNED NOT NULL COMMENT 'AR: receipt or credit note; AP: payment', `source_type` ENUM('receipt','credit_note','payment') NOT NULL DEFAULT 'receipt',
   `id_target` INT UNSIGNED NOT NULL COMMENT 'AR: invoice; AP: bill', `amount` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_allocation`), KEY `src` (`kind`,`source_type`,`id_source`), KEY `tgt` (`kind`,`id_target`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_allocation`), KEY `src` (`kind`,`source_type`,`id_source`), KEY `tgt` (`kind`,`id_target`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_dunning` (
@@ -108,7 +119,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_dunning` (
   `level` TINYINT NOT NULL DEFAULT 1 COMMENT '1 reminder, 2 second notice, 3 final demand', `as_of` DATE NOT NULL,
   `balance` DECIMAL(20,6) NOT NULL DEFAULT 0, `overdue` DECIMAL(20,6) NOT NULL DEFAULT 0, `invoices` VARCHAR(255), `body` MEDIUMTEXT,
   `status` ENUM('draft','sent','settled','cancelled') NOT NULL DEFAULT 'draft', `sent_at` DATETIME DEFAULT NULL, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_dunning`), KEY `co` (`id_pulse_company`,`as_of`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_dunning`), KEY `co` (`id_pulse_company`,`as_of`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bill` (
@@ -121,7 +134,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bill` (
   `status` ENUM('draft','approved','part_paid','paid','disputed','cancelled') NOT NULL DEFAULT 'approved',
   `period` CHAR(7) NOT NULL, `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `note` VARCHAR(255), `id_employee` INT UNSIGNED,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_bill`), UNIQUE KEY `no` (`bill_no`), KEY `sup` (`id_pulse_inv_supplier`,`status`), KEY `due` (`status`,`due_date`), KEY `grn` (`id_pulse_inv_grn`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_bill`), UNIQUE KEY `no` (`id_hotel`,`bill_no`), KEY `sup` (`id_pulse_inv_supplier`,`status`), KEY `due` (`status`,`due_date`), KEY `grn` (`id_pulse_inv_grn`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bill_line` (
@@ -129,7 +143,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bill_line` (
   `account_code` VARCHAR(16), `department` VARCHAR(32), `qty` DECIMAL(14,3) NOT NULL DEFAULT 1, `unit_price` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `tax_rate` DECIMAL(6,3) NOT NULL DEFAULT 0, `tax_amount` DECIMAL(20,6) NOT NULL DEFAULT 0, `line_total` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `id_pulse_inv_item` INT UNSIGNED DEFAULT NULL, `is_accrual_clear` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = clears the GRN accrual rather than hitting an expense',
-  PRIMARY KEY (`id_pulse_acc_bill_line`), KEY `b` (`id_pulse_acc_bill`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_bill_line`), KEY `b` (`id_pulse_acc_bill`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_payment` (
@@ -140,7 +156,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_payment` (
   `amount` DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT 'net paid to the supplier', `reference` VARCHAR(64), `note` VARCHAR(255),
   `status` ENUM('draft','approved','paid','cancelled') NOT NULL DEFAULT 'paid', `period` CHAR(7) NOT NULL,
   `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_payment`), UNIQUE KEY `no` (`payment_no`), KEY `sup` (`id_pulse_inv_supplier`,`payment_date`), KEY `run` (`run_no`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_payment`), UNIQUE KEY `no` (`id_hotel`,`payment_no`), KEY `sup` (`id_pulse_inv_supplier`,`payment_date`), KEY `run` (`run_no`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_vat` (
@@ -150,7 +167,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_vat` (
   `vat_amount` DECIMAL(20,6) NOT NULL DEFAULT 0, `consumption_tax` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `business_date` DATE NOT NULL, `period` CHAR(7) NOT NULL, `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL,
   `returned` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'included in a filed return', `return_ref` VARCHAR(32), `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_vat`), UNIQUE KEY `src` (`direction`,`source`,`source_ref`), KEY `per` (`period`,`direction`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_vat`), UNIQUE KEY `src` (`id_hotel`,`direction`,`source`,`source_ref`), KEY `per` (`period`,`direction`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_wht` (
@@ -162,7 +180,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_wht` (
   `source` VARCHAR(24) NOT NULL DEFAULT 'manual', `source_ref` VARCHAR(96), `doc_no` VARCHAR(64),
   `business_date` DATE NOT NULL, `period` CHAR(7) NOT NULL, `remitted` TINYINT(1) NOT NULL DEFAULT 0, `remit_ref` VARCHAR(64), `remit_date` DATE DEFAULT NULL,
   `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_wht`), UNIQUE KEY `cert` (`cert_no`), KEY `per` (`period`,`direction`), KEY `src` (`source`,`source_ref`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_wht`), UNIQUE KEY `cert` (`id_hotel`,`cert_no`), KEY `per` (`period`,`direction`), KEY `src` (`source`,`source_ref`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_einvoice` (
@@ -173,7 +192,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_einvoice` (
   `qr_data` VARCHAR(512), `csid` VARCHAR(255) COMMENT 'cryptographic stamp / signature returned by the service',
   `submitted_at` DATETIME DEFAULT NULL, `accepted_at` DATETIME DEFAULT NULL, `next_retry_at` DATETIME DEFAULT NULL,
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_einvoice`), UNIQUE KEY `doc` (`doc_type`,`id_pulse_acc_invoice`), KEY `st` (`status`,`next_retry_at`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_einvoice`), UNIQUE KEY `doc` (`id_hotel`,`doc_type`,`id_pulse_acc_invoice`), KEY `st` (`status`,`next_retry_at`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bank_account` (
@@ -182,7 +202,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bank_account` (
   `bank_name` VARCHAR(96), `account_no` VARCHAR(32), `account_name` VARCHAR(128), `branch` VARCHAR(96), `currency` CHAR(3) NOT NULL DEFAULT 'NGN',
   `account_code` VARCHAR(16) NOT NULL COMMENT 'GL account in pulse_acc_account', `opening_balance` DECIMAL(20,6) NOT NULL DEFAULT 0, `opening_date` DATE DEFAULT NULL,
   `imprest_float` DECIMAL(20,6) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `sort` SMALLINT NOT NULL DEFAULT 0, `note` VARCHAR(255),
-  PRIMARY KEY (`id_pulse_acc_bank_account`), UNIQUE KEY `code` (`code`), KEY `acct` (`account_code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_bank_account`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `acct` (`account_code`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bank_statement` (
@@ -191,7 +212,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bank_statement` (
   `rows_total` INT NOT NULL DEFAULT 0, `rows_matched` INT NOT NULL DEFAULT 0, `rows_unmatched` INT NOT NULL DEFAULT 0,
   `total_in` DECIMAL(20,6) NOT NULL DEFAULT 0, `total_out` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `status` ENUM('imported','reconciled','closed') NOT NULL DEFAULT 'imported', `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_bank_statement`), KEY `ba` (`id_pulse_acc_bank_account`,`status`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_bank_statement`), KEY `ba` (`id_pulse_acc_bank_account`,`status`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bank_line` (
@@ -201,7 +223,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_bank_line` (
   `match_state` ENUM('unmatched','auto','manual','ignored','created') NOT NULL DEFAULT 'unmatched',
   `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `id_pulse_acc_journal_line` BIGINT UNSIGNED DEFAULT NULL, `match_note` VARCHAR(255), `raw` VARCHAR(1000),
   `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_bank_line`), KEY `st` (`id_pulse_acc_bank_statement`,`match_state`), KEY `ba` (`id_pulse_acc_bank_account`,`txn_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_bank_line`), KEY `st` (`id_pulse_acc_bank_statement`,`match_state`), KEY `ba` (`id_pulse_acc_bank_account`,`txn_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_petty_cash` (
@@ -210,7 +233,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_petty_cash` (
   `business_date` DATE NOT NULL, `description` VARCHAR(255) NOT NULL, `amount` DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT 'signed: + into the box, - out',
   `balance_after` DECIMAL(20,6) NOT NULL DEFAULT 0, `reference` VARCHAR(64), `id_pulse_cashier_session` INT UNSIGNED DEFAULT NULL, `id_pulse_expense` INT UNSIGNED DEFAULT NULL,
   `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_petty_cash`), KEY `ba` (`id_pulse_acc_bank_account`,`business_date`), KEY `sess` (`id_pulse_cashier_session`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_petty_cash`), KEY `ba` (`id_pulse_acc_bank_account`,`business_date`), KEY `sess` (`id_pulse_cashier_session`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_asset_class` (
@@ -219,7 +243,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_asset_class` (
   `life_months` SMALLINT NOT NULL DEFAULT 60, `rate_pct` DECIMAL(6,3) NOT NULL DEFAULT 0 COMMENT 'reducing balance annual rate', `residual_pct` DECIMAL(6,3) NOT NULL DEFAULT 0,
   `asset_account` VARCHAR(16) NOT NULL, `accum_account` VARCHAR(16) NOT NULL, `expense_account` VARCHAR(16) NOT NULL,
   `capital_allowance_note` VARCHAR(255) COMMENT 'CITA Second Schedule initial/annual allowance for the class', `active` TINYINT(1) NOT NULL DEFAULT 1, `sort` SMALLINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_pulse_acc_asset_class`), UNIQUE KEY `code` (`code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_asset_class`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_asset` (
@@ -237,7 +263,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_asset` (
   `status` ENUM('in_service','idle','under_repair','held_for_sale','disposed','written_off') NOT NULL DEFAULT 'in_service',
   `disposal_date` DATE DEFAULT NULL, `disposal_proceeds` DECIMAL(20,6) NOT NULL DEFAULT 0, `disposal_gain_loss` DECIMAL(20,6) NOT NULL DEFAULT 0, `disposal_note` VARCHAR(255),
   `capex_budget_line` VARCHAR(32) DEFAULT NULL, `note` VARCHAR(255), `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_asset`), UNIQUE KEY `code` (`code`), KEY `cls` (`id_pulse_acc_asset_class`,`status`), KEY `eng` (`id_pulse_asset`), KEY `room` (`id_room`), KEY `par` (`id_parent`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_asset`), UNIQUE KEY `code` (`id_hotel`,`code`), KEY `cls` (`id_pulse_acc_asset_class`,`status`), KEY `eng` (`id_pulse_asset`), KEY `room` (`id_room`), KEY `par` (`id_parent`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_depreciation` (
@@ -245,7 +272,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_depreciation` (
   `period` CHAR(7) NOT NULL, `business_date` DATE NOT NULL, `method` VARCHAR(24) NOT NULL DEFAULT 'straight_line',
   `opening_nbv` DECIMAL(20,6) NOT NULL DEFAULT 0, `amount` DECIMAL(20,6) NOT NULL DEFAULT 0, `accum_after` DECIMAL(20,6) NOT NULL DEFAULT 0, `closing_nbv` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_depreciation`), UNIQUE KEY `asset_period` (`id_pulse_acc_asset`,`period`), KEY `per` (`period`,`class_code`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_depreciation`), UNIQUE KEY `asset_period` (`id_hotel`,`id_pulse_acc_asset`,`period`), KEY `per` (`period`,`class_code`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_asset_event` (
@@ -253,7 +281,8 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_acc_asset_event` (
   `type` ENUM('addition','component','transfer','revaluation','impairment','disposal','write_off','reinstate') NOT NULL,
   `business_date` DATE NOT NULL, `amount` DECIMAL(20,6) NOT NULL DEFAULT 0, `from_value` VARCHAR(128), `to_value` VARCHAR(128),
   `note` VARCHAR(255), `id_pulse_acc_journal` INT UNSIGNED DEFAULT NULL, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_acc_asset_event`), KEY `a` (`id_pulse_acc_asset`,`business_date`)
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_acc_asset_event`), KEY `a` (`id_pulse_acc_asset`,`business_date`), KEY `pulse_hotel` (`id_hotel`)
 ) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `PREFIX_pulse_acc_account` (`code`,`name`,`type`,`subtype`,`parent_code`,`usali_dept`,`normal_balance`,`is_header`,`is_control`,`control_of`,`cashflow`,`is_contra`,`sort`) VALUES
@@ -478,8 +507,8 @@ INSERT IGNORE INTO `PREFIX_pulse_acc_map` (`map_type`,`key_value`,`label`,`accou
 ('charge_code','LNDY','Laundry','4310','2210','laundry'),
 ('charge_code','SPA','Spa','4320','2210','spa'),
 ('charge_code','TELE','Telephone','4330','2210','telephone'),
-('charge_code','MISC','Miscellaneous','4400','2210','general'),
-('charge_code','SURCH','Card processing surcharge','4400','2210','general'),
+('charge_code','MISC','Miscellaneous','4440','2210','general'),
+('charge_code','SURCH','Card processing surcharge','4440','2210','general'),
 ('charge_code','DMG','Damage / Loss','4430',NULL,'general'),
 ('charge_code','ADJ','Adjustment / rebate','4190',NULL,'rooms'),
 ('charge_code','CASH','Cash','1110',NULL,'general'),
@@ -542,6 +571,7 @@ INSERT IGNORE INTO `PREFIX_pulse_acc_map` (`map_type`,`key_value`,`label`,`accou
 ('payroll_department','sales','Marketing payroll','7210','sales'),
 ('payroll_department','security','Security','7195','security'),
 ('payroll_department','admin','A&G payroll','7110','admin'),
+('payroll_department','accounts','Accounts & Finance','7110','admin'),
 ('payroll_department','general','A&G payroll','7110','general'),
 ('department','rooms','Rooms','','rooms'),
 ('department','fnb','Food & Beverage','','fnb'),
@@ -579,7 +609,7 @@ INSERT IGNORE INTO `PREFIX_pulse_acc_map` (`map_type`,`key_value`,`label`,`accou
 ('pos_major_group','beverage','Soft drinks and water','4230',NULL,'fnb'),
 ('pos_major_group','liquor','Beer, wine and spirits','4235',NULL,'fnb'),
 ('pos_major_group','tobacco','Tobacco','4240',NULL,'fnb'),
-('pos_major_group','other','Other F&B','4400',NULL,'fnb');
+('pos_major_group','other','Other F&B','4440',NULL,'fnb');
 
 INSERT IGNORE INTO `PREFIX_pulse_acc_map` (`map_type`,`key_value`,`label`,`account_code`,`wht_rate_pct`,`note`) VALUES
 ('wht_category','services','Professional and technical services','2230',5,'CITA/VAT Act: 5% on services rendered by a resident company or individual'),
@@ -606,3 +636,6 @@ INSERT IGNORE INTO `PREFIX_pulse_acc_bank_account` (`code`,`name`,`type`,`bank_n
 ('CASH-FB','F&B outlet cash','cash','','NGN','1111',2),
 ('PETTY','Petty cash / imprest','petty_cash','','NGN','1115',3),
 ('CARD','Card and gateway settlement','card_settlement','','NGN','1130',9);
+
+INSERT IGNORE INTO `PREFIX_pulse_acc_account` (`code`,`name`,`type`,`subtype`,`parent_code`,`usali_dept`,`normal_balance`,`is_header`,`is_control`,`control_of`,`cashflow`,`is_contra`,`sort`) VALUES
+('4440','Sundry income','revenue','other_revenue','4400','other_operated','credit',0,0,NULL,'operating',0,4440);

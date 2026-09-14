@@ -16,32 +16,39 @@ Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON
 
 $days = isset($argv[2]) ? (int) $argv[2] : (int) Tools::getValue('days', 2);
 $days = max(1, min(60, $days));
-$to = isset($argv[3]) ? $argv[3] : Tools::getValue('date', '');
-$to = ($to && strtotime($to)) ? date('Y-m-d', strtotime($to)) : PulseTaService::bd();
-$from = date('Y-m-d', strtotime($to.' -'.($days - 1).' day'));
+$given = isset($argv[3]) ? $argv[3] : Tools::getValue('date', '');
+// With no date on the command line each property rebuilds up to its own business date, which is what
+// makes the job safe to run across a group whose properties roll the night audit at different hours.
+$given = ($given && strtotime($given)) ? date('Y-m-d', strtotime($given)) : '';
 
-$t0 = microtime(true);
-$r = PulseTaEngine::buildRange($from, $to);
+$run = PulseCoreService::forEachHotel(function ($idHotel, $hotel) use ($days, $given) {
+    $to = $given ? $given : PulseTaService::bd();
+    $from = date('Y-m-d', strtotime($to.' -'.($days - 1).' day'));
 
-// Keep every open approval period's counters honest so the Timesheets screen tells the truth in the morning.
-$periods = 0;
-foreach (Db::getInstance()->executeS('SELECT id_pulse_ta_period FROM `'._DB_PREFIX_.'pulse_ta_period` WHERE status IN ("open","submitted","reopened")') as $p) {
-    PulseTaTimesheet::refreshPeriod((int) $p['id_pulse_ta_period']);
-    $periods++;
-}
+    $t0 = microtime(true);
+    $r = PulseTaEngine::buildRange($from, $to);
 
-$purged = PulseTaPunch::purge();
-$counts = PulseTaExceptionQueue::counts();
-$ms = (int) round((microtime(true) - $t0) * 1000);
+    // Keep every open approval period's counters honest so the Timesheets screen tells the truth in the morning.
+    $periods = 0;
+    foreach (PulseDb::executeS('SELECT id_pulse_ta_period FROM `'._DB_PREFIX_.'pulse_ta_period` WHERE status IN ("open","submitted","reopened")') as $p) {
+        PulseTaTimesheet::refreshPeriod((int) $p['id_pulse_ta_period']);
+        $periods++;
+    }
 
-if ($counts['block'] > 0) {
-    PulseTaService::alert($counts['block'].' blocking timesheet exception(s) are open — a payroll period cannot be approved until they are cleared.');
-}
+    $purged = PulseTaPunch::purge();
+    $counts = PulseTaExceptionQueue::counts();
+    $ms = (int) round((microtime(true) - $t0) * 1000);
 
-PulseCoreService::audit('pulsetime', 'cron_build', array('from' => $from, 'to' => $to, 'days' => $r['days'], 'timesheets' => $r['timesheets'],
-    'exceptions' => $r['exceptions'], 'open' => $counts['total'], 'blocking' => $counts['block'], 'periods' => $periods, 'ms' => $ms));
+    if ($counts['block'] > 0) {
+        PulseTaService::alert($counts['block'].' blocking timesheet exception(s) are open — a payroll period cannot be approved until they are cleared.');
+    }
 
-echo 'Rebuilt '.$from.' → '.$to.': '.$r['days'].' day(s), '.$r['timesheets'].' timesheet(s), '.$r['exceptions']." exception(s) raised.\n";
-echo 'Queue now: '.$counts['total'].' open, '.$counts['block']." blocking approval.\n";
-echo 'Periods refreshed: '.$periods.', punches purged by retention: '.$purged.' ('.$ms."ms)\n";
-if ($r['errors']) { echo 'Problems: '.implode(' | ', array_slice($r['errors'], 0, 8))."\n"; }
+    PulseCoreService::audit('pulsetime', 'cron_build', array('from' => $from, 'to' => $to, 'days' => $r['days'], 'timesheets' => $r['timesheets'],
+        'exceptions' => $r['exceptions'], 'open' => $counts['total'], 'blocking' => $counts['block'], 'periods' => $periods, 'ms' => $ms));
+
+    echo '['.$hotel.'] Rebuilt '.$from.' → '.$to.': '.$r['days'].' day(s), '.$r['timesheets'].' timesheet(s), '.$r['exceptions']." exception(s) raised.\n";
+    echo '['.$hotel.'] Queue now: '.$counts['total'].' open, '.$counts['block']." blocking approval.\n";
+    echo '['.$hotel.'] Periods refreshed: '.$periods.', punches purged by retention: '.$purged.' ('.$ms."ms)\n";
+    if ($r['errors']) { echo '['.$hotel.'] Problems: '.implode(' | ', array_slice($r['errors'], 0, 8))."\n"; }
+});
+foreach ($run['results'] as $h) { if (!$h['ok']) { echo '['.$h['name'].'] FAILED: '.$h['error']."\n"; } }

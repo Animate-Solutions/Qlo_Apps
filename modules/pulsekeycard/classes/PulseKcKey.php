@@ -12,7 +12,7 @@ class PulseKcKey
 
     public static function get($id)
     {
-        return Db::getInstance()->getRow('SELECT k.*, e.name encoder_name, g.name staff_group, CONCAT(iss.firstname," ",iss.lastname) issued_by_name, CONCAT(hol.firstname," ",hol.lastname) holder_name
+        return PulseDb::getRow('SELECT k.*, e.name encoder_name, g.name staff_group, CONCAT(iss.firstname," ",iss.lastname) issued_by_name, CONCAT(hol.firstname," ",hol.lastname) holder_name
             FROM `'._DB_PREFIX_.self::T.'` k
             LEFT JOIN `'._DB_PREFIX_.'pulse_kc_encoder` e ON e.id_pulse_kc_encoder=k.id_pulse_kc_encoder
             LEFT JOIN `'._DB_PREFIX_.'pulse_kc_staff_group` g ON g.id_pulse_kc_staff_group=k.id_pulse_kc_staff_group
@@ -33,7 +33,7 @@ class PulseKcKey
         if (!empty($f['from'])) { $w .= ' AND k.business_date>="'.pSQL($f['from']).'"'; }
         if (!empty($f['to'])) { $w .= ' AND k.business_date<="'.pSQL($f['to']).'"'; }
         if (!empty($f['q'])) { $q = pSQL($f['q']); $w .= ' AND (k.key_no LIKE "%'.$q.'%" OR k.card_serial LIKE "%'.$q.'%" OR k.guest_name LIKE "%'.$q.'%" OR k.room_nums LIKE "%'.$q.'%")'; }
-        return Db::getInstance()->executeS('SELECT k.id_pulse_kc_key, k.key_no, k.type, k.status, k.room_nums, k.guest_name, k.card_serial, k.sequence, k.valid_from, k.valid_to,
+        return PulseDb::executeS('SELECT k.id_pulse_kc_key, k.key_no, k.type, k.status, k.room_nums, k.guest_name, k.card_serial, k.sequence, k.valid_from, k.valid_to,
                 k.mobile, k.mechanical, k.adapter, k.id_htl_booking, k.id_room, k.issued_at, k.cancelled_at, k.cancel_reason, k.last_error, k.business_date,
                 e.name encoder_name, g.name staff_group, CONCAT(emp.firstname," ",emp.lastname) issued_by_name, CONCAT(hol.firstname," ",hol.lastname) holder_name
             FROM `'._DB_PREFIX_.self::T.'` k
@@ -46,11 +46,11 @@ class PulseKcKey
 
     public static function forBooking($idBooking, $status = 'issued,pending,failed')
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_htl_booking='.(int) $idBooking.' AND status IN ("'.implode('","', array_map('pSQL', explode(',', $status))).'") ORDER BY id_pulse_kc_key DESC');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_htl_booking='.(int) $idBooking.' AND status IN ("'.implode('","', array_map('pSQL', explode(',', $status))).'") ORDER BY id_pulse_kc_key DESC');
     }
     public static function forRoom($idRoom, $status = 'issued')
     {
-        return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE (id_room='.(int) $idRoom.' OR FIND_IN_SET('.(int) $idRoom.', id_rooms)) AND status IN ("'.implode('","', array_map('pSQL', explode(',', $status))).'") ORDER BY id_pulse_kc_key DESC');
+        return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE (id_room='.(int) $idRoom.' OR FIND_IN_SET('.(int) $idRoom.', id_rooms)) AND status IN ("'.implode('","', array_map('pSQL', explode(',', $status))).'") ORDER BY id_pulse_kc_key DESC');
     }
 
     /* ---------- issue ---------- */
@@ -101,13 +101,13 @@ class PulseKcKey
             'issued_by' => PulseKcService::emp(), 'note' => pSQL(Tools::substr((string) (isset($d['note']) ? $d['note'] : ''), 0, 255)),
             'business_date' => PulseKcService::bd(), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         );
-        Db::getInstance()->insert(self::T, $row);
-        $id = (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert(self::T, $row);
+        $id = (int) PulseDb::Insert_ID();
 
         try {
             $res = self::encodeOn($id, $encoder, $allRooms);
         } catch (PulseKcEncoderException $e) {
-            Db::getInstance()->update(self::T, array('status' => 'failed', 'last_error' => pSQL(Tools::substr($e->getMessage(), 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.$id);
+            PulseDb::update(self::T, array('status' => 'failed', 'last_error' => pSQL(Tools::substr($e->getMessage(), 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.$id);
             PulseKcEncoder::markSeen((int) $encoder['id_pulse_kc_encoder'], false, $e->getMessage());
             PulseKcService::queue('encode', array('all_rooms' => $allRooms ? 1 : 0), $id, (int) $encoder['id_pulse_kc_encoder'], null, $e->getMessage());
             PulseCoreService::audit('pulsekeycard', 'key_encode_failed', array('key_no' => $keyNo, 'encoder' => $encoder['name'], 'error' => $e->getMessage()), self::T, $id);
@@ -123,7 +123,7 @@ class PulseKcKey
     /** Send a pending/failed key row to its encoder and record the vendor's answer. Payload is stored encrypted. */
     protected static function encodeOn($id, $encoder, $allRooms = false)
     {
-        $k = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_key='.(int) $id);
+        $k = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_key='.(int) $id);
         $adapter = PulseKcEncoder::adapter($encoder);
         $payloadIn = array(
             'type' => $k['type'], 'key_no' => $k['key_no'], 'guest_name' => $k['guest_name'],
@@ -135,7 +135,7 @@ class PulseKcKey
         $res = $adapter->encode($payloadIn);
         $payload = isset($res['payload']) ? (string) $res['payload'] : '';
         $hash = $payload !== '' ? hash('sha256', $payload) : '';
-        Db::getInstance()->update(self::T, array(
+        PulseDb::update(self::T, array(
             'status' => 'issued', 'key_ref' => pSQL((string) $res['key_ref']), 'card_serial' => pSQL((string) $res['card_serial']),
             'sequence' => (int) (isset($res['sequence']) ? $res['sequence'] : $k['sequence']),
             'payload_enc' => $payload !== '' ? pSQL(PulseCoreService::encrypt($payload), true) : '', 'payload_hash' => pSQL($hash),
@@ -149,13 +149,13 @@ class PulseKcKey
     /** Cron/queue path: try a failed key again on its encoder (or another one). */
     public static function retryEncode($id, $idEncoder = null)
     {
-        $k = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_key='.(int) $id);
+        $k = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T.'` WHERE id_pulse_kc_key='.(int) $id);
         if (!$k) { throw new PrestaShopException('Key not found'); }
         if ($k['status'] === 'issued') { return true; }
         if (strtotime($k['valid_to']) < time()) { self::setStatus($id, 'expired'); return true; }
         $encoder = PulseKcEncoder::pick($idEncoder ? (int) $idEncoder : (int) $k['id_pulse_kc_encoder']);
-        Db::getInstance()->update(self::T, array('id_pulse_kc_encoder' => (int) $encoder['id_pulse_kc_encoder'], 'adapter' => pSQL($encoder['adapter'])), 'id_pulse_kc_key='.(int) $id);
-        self::encodeOn($id, $encoder, !empty($k['id_pulse_kc_staff_group']) && (int) Db::getInstance()->getValue('SELECT all_rooms FROM `'._DB_PREFIX_.'pulse_kc_staff_group` WHERE id_pulse_kc_staff_group='.(int) $k['id_pulse_kc_staff_group']));
+        PulseDb::update(self::T, array('id_pulse_kc_encoder' => (int) $encoder['id_pulse_kc_encoder'], 'adapter' => pSQL($encoder['adapter'])), 'id_pulse_kc_key='.(int) $id);
+        self::encodeOn($id, $encoder, !empty($k['id_pulse_kc_staff_group']) && (int) PulseDb::getValue('SELECT all_rooms FROM `'._DB_PREFIX_.'pulse_kc_staff_group` WHERE id_pulse_kc_staff_group='.(int) $k['id_pulse_kc_staff_group']));
         PulseCoreService::audit('pulsekeycard', 'key_retry_ok', array('key_no' => $k['key_no']), self::T, $id);
         return true;
     }
@@ -180,7 +180,7 @@ class PulseKcKey
         if (!in_array($k['status'], array('issued', 'pending', 'failed'))) { throw new PrestaShopException('Key '.$k['key_no'].' is '.$k['status'].' — cut a new key instead of duplicating it'); }
         if (strtotime($k['valid_to']) <= time()) { throw new PrestaShopException('Key '.$k['key_no'].' has already expired — cut a new key instead'); }
         $max = (int) PulseKcService::cfg('MAX_DUPLICATES', 4);
-        $n = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE (id_parent_key='.(int) $idKey.' OR id_pulse_kc_key='.(int) $idKey.') AND status="issued"');
+        $n = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T.'` WHERE (id_parent_key='.(int) $idKey.' OR id_pulse_kc_key='.(int) $idKey.') AND status="issued"');
         if ($max > 0 && $n >= $max) { throw new PrestaShopException('This stay already has '.$n.' active cards (limit '.$max.') — cancel one first or raise the limit in Settings'); }
         return self::issue(array_merge(array(
             'type' => 'duplicate', 'id_htl_booking' => $k['id_htl_booking'], 'id_customer' => $k['id_customer'], 'guest_name' => $k['guest_name'],
@@ -216,17 +216,17 @@ class PulseKcKey
         $to = date('Y-m-d H:i:s', strtotime($newValidTo));
         if (strtotime($to) <= strtotime($k['valid_from'])) { throw new PrestaShopException('New expiry must be after the key start'); }
         if ($k['mechanical']) { // nothing to re-encode on a metal key — just move the collection date
-            Db::getInstance()->update(self::T, array('valid_to' => pSQL($to), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey);
+            PulseDb::update(self::T, array('valid_to' => pSQL($to), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey);
             PulseCoreService::audit('pulsekeycard', 'key_extend', array('key_no' => $k['key_no'], 'old_to' => $k['valid_to'], 'new_to' => $to, 'mechanical' => 1), self::T, $idKey);
             return true;
         }
         $encoder = PulseKcEncoder::pick((int) $k['id_pulse_kc_encoder']);
         $seq = PulseKcService::nextSequence(array_filter(explode(',', (string) $k['room_nums'])));
-        Db::getInstance()->update(self::T, array('valid_to' => pSQL($to), 'sequence' => (int) $seq, 'status' => 'pending', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey);
+        PulseDb::update(self::T, array('valid_to' => pSQL($to), 'sequence' => (int) $seq, 'status' => 'pending', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey);
         try {
             self::encodeOn($idKey, $encoder);
         } catch (PulseKcEncoderException $e) {
-            Db::getInstance()->update(self::T, array('status' => 'failed', 'last_error' => pSQL(Tools::substr($e->getMessage(), 0, 255))), 'id_pulse_kc_key='.(int) $idKey);
+            PulseDb::update(self::T, array('status' => 'failed', 'last_error' => pSQL(Tools::substr($e->getMessage(), 0, 255))), 'id_pulse_kc_key='.(int) $idKey);
             PulseKcEncoder::markSeen((int) $encoder['id_pulse_kc_encoder'], false, $e->getMessage());
             PulseKcService::queue('encode', array(), (int) $idKey, (int) $encoder['id_pulse_kc_encoder'], null, $e->getMessage());
             throw $e;
@@ -256,7 +256,7 @@ class PulseKcKey
                 if (!$quiet) { PulseKcService::queue('cancel', array('reason' => $reason), (int) $idKey, (int) $k['id_pulse_kc_encoder'], null, $err); }
             } catch (Exception $e) { $err = $e->getMessage(); }
         }
-        Db::getInstance()->update(self::T, array('status' => pSQL($status), 'cancelled_by' => PulseKcService::emp(), 'cancelled_at' => date('Y-m-d H:i:s'),
+        PulseDb::update(self::T, array('status' => pSQL($status), 'cancelled_by' => PulseKcService::emp(), 'cancelled_at' => date('Y-m-d H:i:s'),
             'cancel_reason' => pSQL(Tools::substr((string) $reason, 0, 128)), 'last_error' => pSQL(Tools::substr((string) $err, 0, 255)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey);
         PulseKcMobileKey::revokeForKey($idKey, $reason ? $reason : 'key cancelled');
         PulseCoreService::audit('pulsekeycard', 'key_cancel', array('key_no' => $k['key_no'], 'reason' => $reason, 'status' => $status, 'vendor_error' => $err), self::T, $idKey);
@@ -295,7 +295,7 @@ class PulseKcKey
 
     public static function setStatus($idKey, $status)
     {
-        return Db::getInstance()->update(self::T, array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey);
+        return PulseDb::update(self::T, array('status' => pSQL($status), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_key='.(int) $idKey);
     }
 
     /** Mechanical fallback: record that a metal key was handed over because the encoder was down. */
@@ -304,11 +304,11 @@ class PulseKcKey
         $roomNums = self::roomNumbers(array((int) $idRoom));
         $from = date('Y-m-d H:i:s'); $to = date('Y-m-d H:i:s', time() + 24 * 3600);
         if ($idBooking && PulseKcService::fd() && ($b = PulseFdService::booking((int) $idBooking))) { list($from, $to) = PulseKcService::window($b['date_from'], $b['date_to']); }
-        Db::getInstance()->insert(self::T, array('key_no' => pSQL(PulseKcService::nextNo('M')), 'type' => 'guest', 'id_htl_booking' => $idBooking ? (int) $idBooking : null,
+        PulseDb::insert(self::T, array('key_no' => pSQL(PulseKcService::nextNo('M')), 'type' => 'guest', 'id_htl_booking' => $idBooking ? (int) $idBooking : null,
             'id_room' => (int) $idRoom, 'id_rooms' => (int) $idRoom, 'room_nums' => pSQL(implode(',', $roomNums)), 'valid_from' => pSQL($from), 'valid_to' => pSQL($to),
             'adapter' => 'mechanical', 'mechanical' => 1, 'status' => 'issued', 'issued_by' => PulseKcService::emp(), 'issued_at' => date('Y-m-d H:i:s'),
             'note' => pSQL(Tools::substr((string) $note, 0, 255)), 'business_date' => PulseKcService::bd(), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')));
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         PulseCoreService::audit('pulsekeycard', 'mechanical_key', array('id_room' => $idRoom, 'note' => $note), self::T, $id);
         PulseKcService::alert('Mechanical key handed out for room '.implode(',', $roomNums).' — collect it at check-out.', $idBooking, $idRoom);
         return $id;
@@ -335,7 +335,7 @@ class PulseKcKey
     /** Cron: everything past its validity becomes `expired`. */
     public static function expireDue()
     {
-        $rows = Db::getInstance()->executeS('SELECT id_pulse_kc_key, key_no, key_ref, id_pulse_kc_encoder, status FROM `'._DB_PREFIX_.self::T.'` WHERE status IN ("issued","pending","failed") AND valid_to<NOW() LIMIT 500');
+        $rows = PulseDb::executeS('SELECT id_pulse_kc_key, key_no, key_ref, id_pulse_kc_encoder, status FROM `'._DB_PREFIX_.self::T.'` WHERE status IN ("issued","pending","failed") AND valid_to<NOW() LIMIT 500');
         foreach ($rows as $k) {
             if ($k['status'] === 'issued' && $k['key_ref']) {
                 try { PulseKcEncoder::adapter((int) $k['id_pulse_kc_encoder'])->cancel($k['key_ref']); } catch (Exception $e) { /* offline locks expire on their own clock */ }
@@ -351,7 +351,7 @@ class PulseKcKey
         $ids = array_filter(array_map('intval', $ids));
         if (!$ids) { return array(); }
         $map = array();
-        foreach (Db::getInstance()->executeS('SELECT id, room_num FROM `'._DB_PREFIX_.'htl_room_information` WHERE id IN ('.implode(',', $ids).')') as $r) { $map[(int) $r['id']] = $r['room_num']; }
+        foreach (PulseDb::executeS('SELECT id, room_num FROM `'._DB_PREFIX_.'htl_room_information` WHERE id IN ('.implode(',', $ids).')') as $r) { $map[(int) $r['id']] = $r['room_num']; }
         $out = array();
         foreach ($ids as $id) { if (isset($map[$id])) { $out[] = $map[$id]; } }
         return $out;

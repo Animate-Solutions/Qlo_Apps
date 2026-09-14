@@ -17,7 +17,7 @@ class AdminPulseKeycardKeysController extends ModuleAdminController
         if ($id = (int) Tools::getValue('id_key')) {
             $k = PulseKcKey::get($id);
             $this->context->smarty->assign(array('k' => $k, 'audit' => $k ? PulseKcAudit::search(array('q' => $k['card_serial']), 100) : array(),
-                'mobile' => $k ? Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_kc_mobile_key` WHERE id_pulse_kc_key='.(int) $id) : array(),
+                'mobile' => $k ? PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_kc_mobile_key` WHERE id_pulse_kc_key='.(int) $id) : array(),
                 'self_url' => self::$currentIndex.'&token='.$this->token));
             return $this->setTemplate('key.tpl');
         }

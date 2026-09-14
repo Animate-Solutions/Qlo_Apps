@@ -41,11 +41,25 @@ class PulseGuestPortalApiModuleFrontController extends PulseApiController
             PulseGpService::rateHit('dev'.(int) $this->device['id_pulse_gp_device']);
             if ($this->device['status'] === 'blocked') { throw new PrestaShopException('This screen has been taken out of service', 403); }
             if ($this->device['status'] !== 'active' && !in_array($res, array('ping', 'pair', 'heartbeat'))) { throw new PrestaShopException('Device is waiting for the front desk to pair it', 403); }
+            // A screen is fitted in one property, so the device itself says which hotel this call is for.
+            // Without this the request would run with no hotel and every read would come back empty.
+            if (!PulseCoreService::enterHotel((int) $this->device['id_hotel'])) {
+                throw new PrestaShopException('This screen is registered to a property that is no longer active', 409);
+            }
             $sessTok = isset($_SERVER['HTTP_X_PULSE_SESSION']) ? $_SERVER['HTTP_X_PULSE_SESSION'] : Tools::getValue('session_token');
             if ($sessTok) { $this->session = PulseGpSession::verify($sessTok, $this->device); }
             return;
         }
-        if (in_array($res, array('ping', 'pair'))) { PulseGpService::rateHit('ip'.md5((string) Tools::getRemoteAddr()), (int) PulseGpService::cfg('RATE_PAIR_PER_MIN', 20)); return; }
+        if (in_array($res, array('ping', 'pair'))) {
+            PulseGpService::rateHit('ip'.md5((string) Tools::getRemoteAddr()), (int) PulseGpService::cfg('RATE_PAIR_PER_MIN', 20));
+            // A screen that has never been paired has no token and no device row, so nothing about the
+            // request knows the property yet: the launcher has to name it, and pair() writes the new
+            // device row into that hotel. `ping` needs no hotel — it reports the server, not the property.
+            if ($res === 'pair' && !PulseCoreService::enterHotelNamed(PulseCoreService::namedHotel())) {
+                throw new PrestaShopException('Say which property this screen is in: add hotel=<id> to the pairing URL', 400);
+            }
+            return;
+        }
         parent::authenticate();
         $this->requireScope('portal');
         PulseGpService::rateHit('tok'.(int) $this->token['id_pulse_api_token']);
@@ -116,7 +130,7 @@ class PulseGuestPortalApiModuleFrontController extends PulseApiController
     protected function directory()
     {
         $this->dev();
-        $idProduct = $this->session && $this->session['id_htl_booking'] ? (int) Db::getInstance()->getValue('SELECT id_product FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $this->session['id_htl_booking']) : 0;
+        $idProduct = $this->session && $this->session['id_htl_booking'] ? (int) PulseDb::getValue('SELECT id_product FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id='.(int) $this->session['id_htl_booking']) : 0;
         return array('pages' => PulseGpContent::directory($this->lang(), $idProduct), 'categories' => PulseGpContent::categories(), 'promos' => PulseGpContent::promos('directory', $this->lang()));
     }
 
@@ -173,7 +187,7 @@ class PulseGuestPortalApiModuleFrontController extends PulseApiController
     protected function language($id, $b)
     {
         $d = $this->own(); $lang = PulseGpService::lang(isset($b['lang']) ? $b['lang'] : '');
-        Db::getInstance()->update('pulse_gp_device', array('locale' => pSQL($lang), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_gp_device='.(int) $d['id_pulse_gp_device']);
+        PulseDb::update('pulse_gp_device', array('locale' => pSQL($lang), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_gp_device='.(int) $d['id_pulse_gp_device']);
         if ($this->session) { PulseGpSession::setLocale((int) $this->session['id_pulse_gp_session'], $lang); }
         return array('lang' => $lang, 'rtl' => PulseGpService::rtl($lang) ? 1 : 0);
     }

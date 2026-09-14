@@ -11,9 +11,9 @@
  */
 class PulseAccAssets
 {
-    public static function classes($activeOnly = true) { return Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset_class` WHERE 1'.($activeOnly ? ' AND active=1' : '').' ORDER BY sort, code'); }
-    public static function assetClass($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset_class` WHERE id_pulse_acc_asset_class='.(int) $id); }
-    public static function assetClassByCode($code) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset_class` WHERE code="'.pSQL($code).'"'); }
+    public static function classes($activeOnly = true) { return PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset_class` WHERE 1'.($activeOnly ? ' AND active=1' : '').' ORDER BY sort, code'); }
+    public static function assetClass($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset_class` WHERE id_pulse_acc_asset_class='.(int) $id); }
+    public static function assetClassByCode($code) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset_class` WHERE code="'.pSQL($code).'"'); }
 
     public static function saveClass(array $d)
     {
@@ -27,9 +27,9 @@ class PulseAccAssets
             'capital_allowance_note' => pSQL(Tools::substr(isset($d['capital_allowance_note']) ? $d['capital_allowance_note'] : '', 0, 255)),
             'active' => isset($d['active']) ? (int) (bool) $d['active'] : 1, 'sort' => (int) (isset($d['sort']) ? $d['sort'] : 0),
         );
-        if (!empty($d['id_pulse_acc_asset_class'])) { Db::getInstance()->update('pulse_acc_asset_class', $row, 'id_pulse_acc_asset_class='.(int) $d['id_pulse_acc_asset_class']); return (int) $d['id_pulse_acc_asset_class']; }
-        Db::getInstance()->insert('pulse_acc_asset_class', $row, true);
-        return (int) Db::getInstance()->Insert_ID();
+        if (!empty($d['id_pulse_acc_asset_class'])) { PulseDb::update('pulse_acc_asset_class', $row, 'id_pulse_acc_asset_class='.(int) $d['id_pulse_acc_asset_class']); return (int) $d['id_pulse_acc_asset_class']; }
+        PulseDb::insert('pulse_acc_asset_class', $row, true);
+        return (int) PulseDb::Insert_ID();
     }
 
     /* ---------------- register ---------------- */
@@ -43,7 +43,7 @@ class PulseAccAssets
         if (!empty($f['cost_centre'])) { $w[] = 'a.cost_centre="'.pSQL($f['cost_centre']).'"'; }
         if (!empty($f['id_room'])) { $w[] = 'a.id_room='.(int) $f['id_room']; }
         if (!empty($f['q'])) { $q = pSQL($f['q']); $w[] = '(a.code LIKE "%'.$q.'%" OR a.name LIKE "%'.$q.'%" OR a.serial_no LIKE "%'.$q.'%" OR a.location LIKE "%'.$q.'%")'; }
-        return Db::getInstance()->executeS('SELECT a.*, c.name class_name, r.room_num, e.name eng_name, e.serial_no eng_serial, e.status eng_status
+        return PulseDb::executeS('SELECT a.*, c.name class_name, r.room_num, e.name eng_name, e.serial_no eng_serial, e.status eng_status
             FROM `'._DB_PREFIX_.'pulse_acc_asset` a INNER JOIN `'._DB_PREFIX_.'pulse_acc_asset_class` c ON c.id_pulse_acc_asset_class=a.id_pulse_acc_asset_class
             LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=a.id_room
             LEFT JOIN `'._DB_PREFIX_.'pulse_asset` e ON e.id_pulse_asset=a.id_pulse_asset
@@ -52,12 +52,12 @@ class PulseAccAssets
 
     public static function asset($id)
     {
-        $a = Db::getInstance()->getRow('SELECT a.*, c.name class_name, c.asset_account, c.accum_account, c.expense_account, c.capital_allowance_note, r.room_num FROM `'._DB_PREFIX_.'pulse_acc_asset` a INNER JOIN `'._DB_PREFIX_.'pulse_acc_asset_class` c ON c.id_pulse_acc_asset_class=a.id_pulse_acc_asset_class LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=a.id_room WHERE a.id_pulse_acc_asset='.(int) $id);
+        $a = PulseDb::getRow('SELECT a.*, c.name class_name, c.asset_account, c.accum_account, c.expense_account, c.capital_allowance_note, r.room_num FROM `'._DB_PREFIX_.'pulse_acc_asset` a INNER JOIN `'._DB_PREFIX_.'pulse_acc_asset_class` c ON c.id_pulse_acc_asset_class=a.id_pulse_acc_asset_class LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=a.id_room WHERE a.id_pulse_acc_asset='.(int) $id);
         if (!$a) { return null; }
-        $a['schedule'] = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_depreciation` WHERE id_pulse_acc_asset='.(int) $id.' ORDER BY period');
-        $a['events'] = Db::getInstance()->executeS('SELECT ev.*, j.journal_no FROM `'._DB_PREFIX_.'pulse_acc_asset_event` ev LEFT JOIN `'._DB_PREFIX_.'pulse_acc_journal` j ON j.id_pulse_acc_journal=ev.id_pulse_acc_journal WHERE ev.id_pulse_acc_asset='.(int) $id.' ORDER BY ev.business_date, ev.id_pulse_acc_asset_event');
-        $a['components'] = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE id_parent='.(int) $id.' ORDER BY code');
-        $a['engineering'] = $a['id_pulse_asset'] && PulseAccService::mnt() ? Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_asset` WHERE id_pulse_asset='.(int) $a['id_pulse_asset']) : null;
+        $a['schedule'] = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_depreciation` WHERE id_pulse_acc_asset='.(int) $id.' ORDER BY period');
+        $a['events'] = PulseDb::executeS('SELECT ev.*, j.journal_no FROM `'._DB_PREFIX_.'pulse_acc_asset_event` ev LEFT JOIN `'._DB_PREFIX_.'pulse_acc_journal` j ON j.id_pulse_acc_journal=ev.id_pulse_acc_journal WHERE ev.id_pulse_acc_asset='.(int) $id.' ORDER BY ev.business_date, ev.id_pulse_acc_asset_event');
+        $a['components'] = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE id_parent='.(int) $id.' ORDER BY code');
+        $a['engineering'] = $a['id_pulse_asset'] && PulseAccService::mnt() ? PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_asset` WHERE id_pulse_asset='.(int) $a['id_pulse_asset']) : null;
         return $a;
     }
 
@@ -65,7 +65,7 @@ class PulseAccAssets
     public static function unlinkedEngineeringAssets($limit = 200)
     {
         if (!PulseAccService::mnt()) { return array(); }
-        return Db::getInstance()->executeS('SELECT e.*, r.room_num FROM `'._DB_PREFIX_.'pulse_asset` e LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=e.id_room WHERE e.status<>"retired" AND e.purchase_cost>0 AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_asset` a WHERE a.id_pulse_asset=e.id_pulse_asset) ORDER BY e.purchase_cost DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT e.*, r.room_num FROM `'._DB_PREFIX_.'pulse_asset` e LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=e.id_room WHERE e.status<>"retired" AND e.purchase_cost>0 AND NOT EXISTS (SELECT 1 FROM `'._DB_PREFIX_.'pulse_acc_asset` a WHERE a.id_pulse_asset=e.id_pulse_asset) ORDER BY e.purchase_cost DESC LIMIT '.(int) $limit);
     }
 
     /**
@@ -80,12 +80,12 @@ class PulseAccAssets
         $cost = round((float) (isset($d['cost']) ? $d['cost'] : 0), 2);
         if ($cost <= 0) { throw new PrestaShopException('An asset needs a cost'); }
         $code = !empty($d['code']) ? Tools::substr($d['code'], 0, 32) : self::nextAssetCode($cls['code']);
-        if (Db::getInstance()->getValue('SELECT id_pulse_acc_asset FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE code="'.pSQL($code).'"')) { throw new PrestaShopException('Asset code '.$code.' already exists'); }
+        if (PulseDb::getValue('SELECT id_pulse_acc_asset FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE code="'.pSQL($code).'"')) { throw new PrestaShopException('Asset code '.$code.' already exists'); }
         $acq = !empty($d['acquisition_date']) ? Tools::substr($d['acquisition_date'], 0, 10) : PulseAccService::bd();
         $inService = !empty($d['in_service_date']) ? Tools::substr($d['in_service_date'], 0, 10) : $acq;
         $method = !empty($d['method']) ? $d['method'] : $cls['method'];
         $residual = isset($d['residual_value']) ? round((float) $d['residual_value'], 2) : round($cost * (float) $cls['residual_pct'] / 100, 2);
-        Db::getInstance()->insert('pulse_acc_asset', array(
+        PulseDb::insert('pulse_acc_asset', array(
             'code' => pSQL($code), 'name' => pSQL(Tools::substr($d['name'], 0, 128)), 'id_pulse_acc_asset_class' => (int) $cls['id_pulse_acc_asset_class'], 'class_code' => pSQL($cls['code']),
             'id_pulse_asset' => !empty($d['id_pulse_asset']) ? (int) $d['id_pulse_asset'] : null, 'id_parent' => !empty($d['id_parent']) ? (int) $d['id_parent'] : null,
             'id_room' => !empty($d['id_room']) ? (int) $d['id_room'] : null, 'location' => pSQL(Tools::substr(isset($d['location']) ? $d['location'] : '', 0, 128)),
@@ -103,7 +103,7 @@ class PulseAccAssets
             'note' => pSQL(Tools::substr(isset($d['note']) ? $d['note'] : '', 0, 255)), 'id_employee' => PulseAccService::emp(),
             'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         ), true);
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         $idJ = null;
         if (empty($d['no_journal'])) {
             $credit = !empty($d['credit_account']) ? $d['credit_account'] : '2110';
@@ -119,8 +119,8 @@ class PulseAccAssets
 
     public static function nextAssetCode($classCode)
     {
-        $n = (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE class_code="'.pSQL($classCode).'"') + 1;
-        do { $code = $classCode.'-'.str_pad($n, 4, '0', STR_PAD_LEFT); $n++; } while (Db::getInstance()->getValue('SELECT id_pulse_acc_asset FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE code="'.pSQL($code).'"'));
+        $n = (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE class_code="'.pSQL($classCode).'"') + 1;
+        do { $code = $classCode.'-'.str_pad($n, 4, '0', STR_PAD_LEFT); $n++; } while (PulseDb::getValue('SELECT id_pulse_acc_asset FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE code="'.pSQL($code).'"'));
         return $code;
     }
 
@@ -134,19 +134,19 @@ class PulseAccAssets
         foreach (array('residual_value', 'rate_pct', 'units_total', 'units_used') as $f) { if (isset($d[$f])) { $row[$f] = round((float) $d[$f], 3); } }
         if (isset($d['method'])) { $row['method'] = pSQL($d['method']); }
         if (isset($d['status']) && in_array($d['status'], array('in_service', 'idle', 'under_repair', 'held_for_sale'))) { $row['status'] = pSQL($d['status']); }
-        Db::getInstance()->update('pulse_acc_asset', $row, 'id_pulse_acc_asset='.(int) $id, 0, true);
+        PulseDb::update('pulse_acc_asset', $row, 'id_pulse_acc_asset='.(int) $id, 0, true);
         PulseCoreService::audit('pulseaccounts', 'asset_update', array('code' => $a['code']), 'pulse_acc_asset', (int) $id);
         return true;
     }
 
     protected static function event($idAsset, $type, $date, $amount, $note, $idJournal = null, $from = '', $to = '')
     {
-        Db::getInstance()->insert('pulse_acc_asset_event', array(
+        PulseDb::insert('pulse_acc_asset_event', array(
             'id_pulse_acc_asset' => (int) $idAsset, 'type' => pSQL($type), 'business_date' => pSQL($date), 'amount' => round((float) $amount, 2),
             'from_value' => pSQL(Tools::substr($from, 0, 128)), 'to_value' => pSQL(Tools::substr($to, 0, 128)), 'note' => pSQL(Tools::substr($note, 0, 255)),
             'id_pulse_acc_journal' => $idJournal ? (int) $idJournal : null, 'id_employee' => PulseAccService::emp(), 'date_add' => date('Y-m-d H:i:s'),
         ), true);
-        return (int) Db::getInstance()->Insert_ID();
+        return (int) PulseDb::Insert_ID();
     }
 
     /* ---------------- depreciation ---------------- */
@@ -179,7 +179,7 @@ class PulseAccAssets
         } elseif ($a['method'] === 'units_of_production') {
             $totalUnits = (float) $a['units_total'];
             if ($totalUnits <= 0) { return 0; }
-            $done = round((float) Db::getInstance()->getValue('SELECT COALESCE(SUM(amount),0) FROM `'._DB_PREFIX_.'pulse_acc_depreciation` WHERE id_pulse_acc_asset='.(int) $a['id_pulse_acc_asset']), 2);
+            $done = round((float) PulseDb::getValue('SELECT COALESCE(SUM(amount),0) FROM `'._DB_PREFIX_.'pulse_acc_depreciation` WHERE id_pulse_acc_asset='.(int) $a['id_pulse_acc_asset']), 2);
             $target = round($depreciable * min(1, (float) $a['units_used'] / $totalUnits), 2);
             $charge = round($target - $done, 2);
         }
@@ -202,7 +202,7 @@ class PulseAccAssets
         if (!$dryRun) { PulseAccService::assertPeriodOpen($date); }
         $byClass = array(); $rows = array(); $total = 0;
         foreach (self::assets(array('include_disposed' => false), 5000) as $a) {
-            if (Db::getInstance()->getValue('SELECT id_pulse_acc_depreciation FROM `'._DB_PREFIX_.'pulse_acc_depreciation` WHERE id_pulse_acc_asset='.(int) $a['id_pulse_acc_asset'].' AND period="'.pSQL($period).'"')) { continue; }
+            if (PulseDb::getValue('SELECT id_pulse_acc_depreciation FROM `'._DB_PREFIX_.'pulse_acc_depreciation` WHERE id_pulse_acc_asset='.(int) $a['id_pulse_acc_asset'].' AND period="'.pSQL($period).'"')) { continue; }
             if ($a['last_period'] && $a['last_period'] >= $period) { continue; }
             $charge = self::monthlyCharge($a, $period);
             if ($charge < 0.005) { continue; }
@@ -219,13 +219,13 @@ class PulseAccAssets
             $a = $r['asset'];
             $accum = round((float) $a['accum_depreciation'] + $r['charge'], 2);
             $closing = round((float) $a['cost'] + (float) $a['revaluation'] - $accum, 2);
-            Db::getInstance()->insert('pulse_acc_depreciation', array(
+            PulseDb::insert('pulse_acc_depreciation', array(
                 'id_pulse_acc_asset' => (int) $a['id_pulse_acc_asset'], 'class_code' => pSQL($a['class_code']), 'period' => pSQL($period), 'business_date' => pSQL($date),
                 'method' => pSQL($a['method']), 'opening_nbv' => $r['opening_nbv'], 'amount' => $r['charge'], 'accum_after' => $accum, 'closing_nbv' => $closing,
                 'date_add' => date('Y-m-d H:i:s'),
             ), true, true, Db::INSERT_IGNORE);
-            if (!Db::getInstance()->Affected_Rows()) { continue; }
-            $id = (int) Db::getInstance()->Insert_ID();
+            if (!PulseDb::Affected_Rows()) { continue; }
+            $id = (int) PulseDb::Insert_ID();
             if (!$token) { $token = $id; }
             $claimed[] = array('id' => $id, 'asset' => $a, 'accum' => $accum, 'closing' => $closing);
             if (!isset($byClass[$a['class_code']])) { $byClass[$a['class_code']] = 0; }
@@ -249,8 +249,8 @@ class PulseAccAssets
         }
         foreach ($claimed as $c) {
             $a = $c['asset'];
-            if (isset($journals[$a['class_code']])) { Db::getInstance()->update('pulse_acc_depreciation', array('id_pulse_acc_journal' => (int) $journals[$a['class_code']]), 'id_pulse_acc_depreciation='.(int) $c['id']); }
-            Db::getInstance()->update('pulse_acc_asset', array('accum_depreciation' => $c['accum'], 'nbv' => $c['closing'], 'last_period' => pSQL($period), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_asset='.(int) $a['id_pulse_acc_asset']);
+            if (isset($journals[$a['class_code']])) { PulseDb::update('pulse_acc_depreciation', array('id_pulse_acc_journal' => (int) $journals[$a['class_code']]), 'id_pulse_acc_depreciation='.(int) $c['id']); }
+            PulseDb::update('pulse_acc_asset', array('accum_depreciation' => $c['accum'], 'nbv' => $c['closing'], 'last_period' => pSQL($period), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_asset='.(int) $a['id_pulse_acc_asset']);
         }
         PulseCoreService::audit('pulseaccounts', 'depreciation_run', array('period' => $period, 'assets' => count($claimed), 'total' => round($total, 2)));
         PulseCoreService::event('actionPulseAccDepreciationRun', array('period' => $period, 'total' => round($total, 2), 'assets' => count($claimed)));
@@ -259,7 +259,7 @@ class PulseAccAssets
 
     public static function runs($limit = 24)
     {
-        return Db::getInstance()->executeS('SELECT period, COUNT(*) assets, ROUND(SUM(amount),2) total, MIN(date_add) run_at FROM `'._DB_PREFIX_.'pulse_acc_depreciation` GROUP BY period ORDER BY period DESC LIMIT '.(int) $limit);
+        return PulseDb::executeS('SELECT period, COUNT(*) assets, ROUND(SUM(amount),2) total, MIN(date_add) run_at FROM `'._DB_PREFIX_.'pulse_acc_depreciation` GROUP BY period ORDER BY period DESC LIMIT '.(int) $limit);
     }
 
     /* ---------------- transfers, revaluation, impairment ---------------- */
@@ -268,7 +268,7 @@ class PulseAccAssets
     {
         $a = self::asset($id);
         if (!$a) { throw new PrestaShopException('Unknown asset'); }
-        Db::getInstance()->update('pulse_acc_asset', array('cost_centre' => pSQL(Tools::substr($costCentre, 0, 32)), 'location' => pSQL(Tools::substr($location, 0, 128)), 'id_room' => $idRoom ? (int) $idRoom : null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_asset='.(int) $id);
+        PulseDb::update('pulse_acc_asset', array('cost_centre' => pSQL(Tools::substr($costCentre, 0, 32)), 'location' => pSQL(Tools::substr($location, 0, 128)), 'id_room' => $idRoom ? (int) $idRoom : null, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_asset='.(int) $id);
         self::event($id, 'transfer', PulseAccService::bd(), 0, $note, null, $a['cost_centre'].' / '.$a['location'], $costCentre.' / '.$location);
         return true;
     }
@@ -286,7 +286,7 @@ class PulseAccAssets
             array('account' => '3300', 'debit' => $amount < 0 ? abs($amount) : 0, 'credit' => $amount > 0 ? $amount : 0, 'memo' => 'Revaluation reserve '.$a['code']),
         )));
         // MySQL evaluates SET assignments left to right, so nbv already sees the new revaluation — do not add it twice
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_acc_asset` SET revaluation=ROUND(revaluation+'.$amount.',2), nbv=ROUND(cost+revaluation-accum_depreciation,2), date_upd=NOW() WHERE id_pulse_acc_asset='.(int) $id);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_acc_asset` SET revaluation=ROUND(revaluation+'.$amount.',2), nbv=ROUND(cost+revaluation-accum_depreciation,2), date_upd=NOW() WHERE id_pulse_acc_asset='.(int) $id);
         self::event($id, 'revaluation', $date, $amount, $note, $idJ);
         return $idJ;
     }
@@ -304,7 +304,7 @@ class PulseAccAssets
             array('account' => $a['accum_account'], 'credit' => $amount, 'memo' => 'Impairment '.$a['code'], 'entity' => 'pulse_acc_asset', 'id_entity' => (int) $id),
         )));
         // impairment is a memo column; the write-down itself lives in accum_depreciation, so nbv counts it once
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_acc_asset` SET impairment=ROUND(impairment+'.$amount.',2), accum_depreciation=ROUND(accum_depreciation+'.$amount.',2), nbv=ROUND(cost+revaluation-accum_depreciation,2), date_upd=NOW() WHERE id_pulse_acc_asset='.(int) $id);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_acc_asset` SET impairment=ROUND(impairment+'.$amount.',2), accum_depreciation=ROUND(accum_depreciation+'.$amount.',2), nbv=ROUND(cost+revaluation-accum_depreciation,2), date_upd=NOW() WHERE id_pulse_acc_asset='.(int) $id);
         self::event($id, 'impairment', $date, $amount, $note, $idJ);
         return $idJ;
     }
@@ -332,7 +332,7 @@ class PulseAccAssets
         if ($proceeds > 0.004) { $lines[] = array('account' => $debitAccount, 'debit' => $proceeds, 'memo' => 'Proceeds on disposal of '.$a['code']); }
         if (abs($gain) > 0.004) { $lines[] = array('account' => $gain > 0 ? '4920' : '8700', 'debit' => $gain < 0 ? abs($gain) : 0, 'credit' => $gain > 0 ? $gain : 0, 'memo' => ($gain > 0 ? 'Gain' : 'Loss').' on disposal of '.$a['code'], 'cost_centre' => $a['cost_centre']); }
         $idJ = PulseAccJournal::post(array('type' => 'general', 'source' => 'asset', 'source_ref' => 'disposal:'.(int) $id, 'business_date' => $date, 'reference' => $a['code'], 'memo' => 'Disposal of '.$a['code'].' — '.$a['name'].($note ? ' ('.$note.')' : ''), 'lines' => $lines));
-        Db::getInstance()->update('pulse_acc_asset', array('status' => 'disposed', 'disposal_date' => pSQL($date), 'disposal_proceeds' => $proceeds, 'disposal_gain_loss' => $gain, 'disposal_note' => pSQL(Tools::substr($note, 0, 255)), 'nbv' => 0, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_asset='.(int) $id);
+        PulseDb::update('pulse_acc_asset', array('status' => 'disposed', 'disposal_date' => pSQL($date), 'disposal_proceeds' => $proceeds, 'disposal_gain_loss' => $gain, 'disposal_note' => pSQL(Tools::substr($note, 0, 255)), 'nbv' => 0, 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_acc_asset='.(int) $id);
         self::event($id, 'disposal', $date, $proceeds, ($gain >= 0 ? 'Gain ' : 'Loss ').number_format(abs($gain), 2).' on NBV '.number_format($nbv, 2).($note ? ' — '.$note : ''), $idJ);
         PulseCoreService::audit('pulseaccounts', 'asset_disposal', array('code' => $a['code'], 'proceeds' => $proceeds, 'nbv' => $nbv, 'gain' => $gain), 'pulse_acc_asset', (int) $id);
         return array('id_journal' => $idJ, 'nbv' => $nbv, 'gain' => $gain);
@@ -342,7 +342,7 @@ class PulseAccAssets
     public static function writeOff($id, $date, $note = '')
     {
         $r = self::dispose($id, 0, $date, $note ? $note : 'Written off');
-        Db::getInstance()->update('pulse_acc_asset', array('status' => 'written_off'), 'id_pulse_acc_asset='.(int) $id);
+        PulseDb::update('pulse_acc_asset', array('status' => 'written_off'), 'id_pulse_acc_asset='.(int) $id);
         return $r;
     }
 
@@ -396,10 +396,10 @@ class PulseAccAssets
     public static function capexVsBudget($year)
     {
         $year = (int) $year;
-        $actual = Db::getInstance()->executeS('SELECT class_code, DATE_FORMAT(acquisition_date,"%m") m, ROUND(SUM(cost),2) spend, COUNT(*) items FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE YEAR(acquisition_date)='.$year.' GROUP BY class_code, m');
+        $actual = PulseDb::executeS('SELECT class_code, DATE_FORMAT(acquisition_date,"%m") m, ROUND(SUM(cost),2) spend, COUNT(*) items FROM `'._DB_PREFIX_.'pulse_acc_asset` WHERE YEAR(acquisition_date)='.$year.' GROUP BY class_code, m');
         $budget = array();
         if (PulseAccService::tableExists('pulse_budget')) {
-            foreach (Db::getInstance()->executeS('SELECT `line`, `month`, amount FROM `'._DB_PREFIX_.'pulse_budget` WHERE `year`='.$year.' AND `line` LIKE "capex:%"') as $b) {
+            foreach (PulseDb::executeS('SELECT `line`, `month`, amount FROM `'._DB_PREFIX_.'pulse_budget` WHERE `year`='.$year.' AND `line` LIKE "capex:%"') as $b) {
                 $cls = Tools::substr($b['line'], 6);
                 if (!isset($budget[$cls])) { $budget[$cls] = 0; }
                 $budget[$cls] += (float) $b['amount'];

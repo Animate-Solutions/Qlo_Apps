@@ -3,19 +3,19 @@ class PulseGuestProfile
 {
     public static function touch($idCustomer)
     {
-        Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_guest_profile` (id_customer, date_upd) VALUES ('.(int) $idCustomer.', NOW())');
+        PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_guest_profile` (id_customer, date_upd) VALUES ('.(int) $idCustomer.', NOW())');
     }
     public static function recordStay($idCustomer, $nights, $revenue, $lastStay)
     {
         self::touch($idCustomer);
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_guest_profile` SET stays=stays+1, nights=nights+'.(int) $nights.', lifetime_revenue=lifetime_revenue+'.(float) $revenue.', last_stay="'.pSQL($lastStay).'", date_upd=NOW() WHERE id_customer='.(int) $idCustomer);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_guest_profile` SET stays=stays+1, nights=nights+'.(int) $nights.', lifetime_revenue=lifetime_revenue+'.(float) $revenue.', last_stay="'.pSQL($lastStay).'", date_upd=NOW() WHERE id_customer='.(int) $idCustomer);
     }
     public static function get($idCustomer)
     {
         self::touch($idCustomer);
-        $p = Db::getInstance()->getRow('SELECT gp.*, c.firstname, c.lastname, c.email, comp.name company_name FROM `'._DB_PREFIX_.'pulse_guest_profile` gp INNER JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=gp.id_customer LEFT JOIN `'._DB_PREFIX_.'pulse_company` comp ON comp.id_pulse_company=gp.id_pulse_company WHERE gp.id_customer='.(int) $idCustomer);
-        $p['identities'] = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_guest_identity` WHERE id_customer='.(int) $idCustomer.' ORDER BY date_add DESC');
-        $p['history'] = Db::getInstance()->executeS('SELECT b.id, b.date_from, b.date_to, b.room_num, b.room_type_name, b.total_price_tax_incl, b.id_status FROM `'._DB_PREFIX_.'htl_booking_detail` b WHERE b.id_customer='.(int) $idCustomer.' ORDER BY b.date_from DESC LIMIT 20');
+        $p = PulseDb::getRow('SELECT gp.*, c.firstname, c.lastname, c.email, comp.name company_name FROM `'._DB_PREFIX_.'pulse_guest_profile` gp INNER JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=gp.id_customer LEFT JOIN `'._DB_PREFIX_.'pulse_company` comp ON comp.id_pulse_company=gp.id_pulse_company WHERE gp.id_customer='.(int) $idCustomer);
+        $p['identities'] = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_guest_identity` WHERE id_customer='.(int) $idCustomer.' ORDER BY date_add DESC');
+        $p['history'] = PulseDb::executeS('SELECT b.id, b.date_from, b.date_to, b.room_num, b.room_type_name, b.total_price_tax_incl, b.id_status FROM `'._DB_PREFIX_.'htl_booking_detail` b WHERE b.id_customer='.(int) $idCustomer.' ORDER BY b.date_from DESC LIMIT 20');
         $p['preferences'] = $p['preferences'] ? json_decode($p['preferences'], true) : array();
         return $p;
     }
@@ -27,7 +27,7 @@ class PulseGuestProfile
         foreach (array('blacklist_reason', 'nationality', 'phone', 'address', 'notes') as $k) { if (isset($data[$k])) { $upd[$k] = pSQL($data[$k]); } }
         if (isset($data['preferences'])) { $upd['preferences'] = pSQL(json_encode($data['preferences']), true); }
         $upd['date_upd'] = date('Y-m-d H:i:s');
-        return Db::getInstance()->update('pulse_guest_profile', $upd, 'id_customer='.(int) $idCustomer);
+        return PulseDb::update('pulse_guest_profile', $upd, 'id_customer='.(int) $idCustomer);
     }
 
     /** Candidate duplicate profiles: same email domain-insensitive, same phone digits, same ID number, or same full name. */
@@ -40,14 +40,14 @@ class PulseGuestProfile
             LEFT JOIN `'._DB_PREFIX_.'pulse_guest_identity` i1 ON i1.id_customer=c1.id_customer LEFT JOIN `'._DB_PREFIX_.'pulse_guest_identity` i2 ON i2.id_customer=c2.id_customer
             WHERE c1.deleted=0 AND c2.deleted=0 AND (LOWER(c1.email)=LOWER(c2.email) OR (i1.id_number IS NOT NULL AND i1.id_number=i2.id_number) OR (p1.phone IS NOT NULL AND p1.phone<>"" AND REPLACE(REPLACE(p1.phone," ",""),"+","")=REPLACE(REPLACE(p2.phone," ",""),"+","")) OR (LOWER(c1.firstname)=LOWER(c2.firstname) AND LOWER(c1.lastname)=LOWER(c2.lastname)))
             GROUP BY c1.id_customer, c2.id_customer LIMIT '.(int) $limit;
-        return Db::getInstance()->executeS($sql);
+        return PulseDb::executeS($sql);
     }
 
     /** Merge $idMerge into $idKeep: repoint bookings, orders, folios, identities, tickets, waitlist; sum stats; soft-delete the merged customer. */
     public static function merge($idKeep, $idMerge)
     {
         if ((int) $idKeep === (int) $idMerge) { return false; }
-        $k = (int) $idKeep; $m = (int) $idMerge; $db = Db::getInstance();
+        $k = (int) $idKeep; $m = (int) $idMerge; $db = PulseDb::handle();
         foreach (array('htl_booking_detail', 'orders', 'cart', 'address', 'pulse_folio', 'pulse_guest_identity', 'pulse_ticket', 'pulse_waitlist', 'pulse_registration_card', 'pulse_comms_log', 'pulse_trace') as $t) {
             $db->execute('UPDATE `'._DB_PREFIX_.$t.'` SET id_customer='.$k.' WHERE id_customer='.$m);
         }

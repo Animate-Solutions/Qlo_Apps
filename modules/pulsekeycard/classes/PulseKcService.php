@@ -53,14 +53,14 @@ class PulseKcService
 
     public static function doors($activeOnly = true, $type = null)
     {
-        return Db::getInstance()->executeS('SELECT d.*, r.room_num FROM `'._DB_PREFIX_.'pulse_kc_door` d LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=d.id_room
+        return PulseDb::executeS('SELECT d.*, r.room_num FROM `'._DB_PREFIX_.'pulse_kc_door` d LEFT JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=d.id_room
             WHERE 1'.($activeOnly ? ' AND d.active=1' : '').($type ? ' AND d.type="'.pSQL($type).'"' : '').' ORDER BY FIELD(d.type,"common","lift","gate","back_of_house","wall_reader","safe","room"), d.name');
     }
-    public static function door($id) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_kc_door` WHERE id_pulse_kc_door='.(int) $id); }
+    public static function door($id) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_kc_door` WHERE id_pulse_kc_door='.(int) $id); }
     public static function defaultDoorIds()
     {
         $ids = array();
-        foreach (Db::getInstance()->executeS('SELECT id_pulse_kc_door FROM `'._DB_PREFIX_.'pulse_kc_door` WHERE active=1 AND is_default=1') as $d) { $ids[] = (int) $d['id_pulse_kc_door']; }
+        foreach (PulseDb::executeS('SELECT id_pulse_kc_door FROM `'._DB_PREFIX_.'pulse_kc_door` WHERE active=1 AND is_default=1') as $d) { $ids[] = (int) $d['id_pulse_kc_door']; }
         return $ids;
     }
     /** Turn a csv of door ids into the vendor lock codes an adapter expects. */
@@ -69,7 +69,7 @@ class PulseKcService
         $ids = array_filter(array_map('intval', explode(',', (string) $csv)));
         if (!$ids) { return array(); }
         $out = array();
-        foreach (Db::getInstance()->executeS('SELECT code, lock_id FROM `'._DB_PREFIX_.'pulse_kc_door` WHERE id_pulse_kc_door IN ('.implode(',', $ids).')') as $d) { $out[] = $d['lock_id'] ? $d['lock_id'] : $d['code']; }
+        foreach (PulseDb::executeS('SELECT code, lock_id FROM `'._DB_PREFIX_.'pulse_kc_door` WHERE id_pulse_kc_door IN ('.implode(',', $ids).')') as $d) { $out[] = $d['lock_id'] ? $d['lock_id'] : $d['code']; }
         return $out;
     }
     public static function saveDoor(array $d, $id = 0)
@@ -78,8 +78,8 @@ class PulseKcService
             'id_room' => !empty($d['id_room']) ? (int) $d['id_room'] : null, 'floor' => pSQL(isset($d['floor']) ? $d['floor'] : ''), 'zone' => pSQL(isset($d['zone']) ? $d['zone'] : ''),
             'is_default' => !empty($d['is_default']) ? 1 : 0, 'id_pulse_kc_encoder' => !empty($d['id_pulse_kc_encoder']) ? (int) $d['id_pulse_kc_encoder'] : null,
             'active' => isset($d['active']) ? (int) $d['active'] : 1, 'date_upd' => date('Y-m-d H:i:s'));
-        if ($id) { Db::getInstance()->update('pulse_kc_door', $row, 'id_pulse_kc_door='.(int) $id); }
-        else { $row['date_add'] = date('Y-m-d H:i:s'); Db::getInstance()->insert('pulse_kc_door', $row, false, true, Db::INSERT_IGNORE); $id = (int) Db::getInstance()->Insert_ID(); }
+        if ($id) { PulseDb::update('pulse_kc_door', $row, 'id_pulse_kc_door='.(int) $id); }
+        else { $row['date_add'] = date('Y-m-d H:i:s'); PulseDb::insert('pulse_kc_door', $row, false, true, Db::INSERT_IGNORE); $id = (int) PulseDb::Insert_ID(); }
         return $id;
     }
 
@@ -87,7 +87,7 @@ class PulseKcService
     public static function syncRoomDoors()
     {
         $n = 0;
-        foreach (Db::getInstance()->executeS('SELECT r.id, r.room_num, r.floor FROM `'._DB_PREFIX_.'htl_room_information` r
+        foreach (PulseDb::executeS('SELECT r.id, r.room_num, r.floor FROM `'._DB_PREFIX_.'htl_room_information` r
             LEFT JOIN `'._DB_PREFIX_.'pulse_kc_door` d ON d.id_room=r.id AND d.type="room" WHERE d.id_pulse_kc_door IS NULL') as $r) {
             self::saveDoor(array('code' => 'R'.$r['room_num'], 'name' => 'Room '.$r['room_num'], 'type' => 'room', 'lock_id' => 'LK-'.$r['room_num'], 'id_room' => (int) $r['id'], 'floor' => $r['floor']));
             $n++;
@@ -100,18 +100,18 @@ class PulseKcService
     /** Park work the encoder could not take right now; cron/expire.php drains it. Payload is encrypted. */
     public static function queue($type, array $payload, $idKey = null, $idEncoder = null, $idDoor = null, $error = null)
     {
-        Db::getInstance()->insert('pulse_kc_job', array('type' => pSQL($type), 'id_pulse_kc_key' => $idKey ? (int) $idKey : null, 'id_pulse_kc_encoder' => $idEncoder ? (int) $idEncoder : null,
+        PulseDb::insert('pulse_kc_job', array('type' => pSQL($type), 'id_pulse_kc_key' => $idKey ? (int) $idKey : null, 'id_pulse_kc_encoder' => $idEncoder ? (int) $idEncoder : null,
             'id_pulse_kc_door' => $idDoor ? (int) $idDoor : null, 'payload_enc' => pSQL(PulseCoreService::encrypt(json_encode($payload)), true), 'attempts' => 0,
             'last_error' => pSQL(Tools::substr((string) $error, 0, 255)), 'next_try_at' => date('Y-m-d H:i:s', time() + 300), 'status' => 'queued',
             'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s')));
-        return (int) Db::getInstance()->Insert_ID();
+        return (int) PulseDb::Insert_ID();
     }
 
     /** Drain the queue. Backs off 5min, 15min, 45min… and gives up after $maxAttempts. */
     public static function runQueue($maxAttempts = 6, $limit = 50)
     {
         $done = 0; $failed = 0;
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_kc_job` WHERE status="queued" AND next_try_at<=NOW() ORDER BY id_pulse_kc_job LIMIT '.(int) $limit) as $j) {
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_kc_job` WHERE status="queued" AND next_try_at<=NOW() ORDER BY id_pulse_kc_job LIMIT '.(int) $limit) as $j) {
             $attempts = (int) $j['attempts'] + 1;
             try {
                 $payload = json_decode((string) PulseCoreService::decrypt($j['payload_enc']), true);
@@ -121,11 +121,11 @@ class PulseKcService
                 elseif ($j['type'] === 'mobile_revoke') { PulseKcMobileKey::revoke((int) $j['id_pulse_kc_key'], isset($payload['reason']) ? $payload['reason'] : 'queued revoke'); }
                 elseif ($j['type'] === 'audit_pull') { PulseKcAudit::pull((int) $j['id_pulse_kc_door']); }
                 elseif ($j['type'] === 'blacklist') { PulseKcKey::blacklistSerial(isset($payload['card_serial']) ? $payload['card_serial'] : '', (int) $j['id_pulse_kc_encoder']); }
-                Db::getInstance()->update('pulse_kc_job', array('status' => 'done', 'attempts' => $attempts, 'last_error' => '', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_job='.(int) $j['id_pulse_kc_job']);
+                PulseDb::update('pulse_kc_job', array('status' => 'done', 'attempts' => $attempts, 'last_error' => '', 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_job='.(int) $j['id_pulse_kc_job']);
                 $done++;
             } catch (Exception $e) {
                 $give = $attempts >= (int) $maxAttempts;
-                Db::getInstance()->update('pulse_kc_job', array('status' => $give ? 'failed' : 'queued', 'attempts' => $attempts, 'last_error' => pSQL(Tools::substr($e->getMessage(), 0, 255)),
+                PulseDb::update('pulse_kc_job', array('status' => $give ? 'failed' : 'queued', 'attempts' => $attempts, 'last_error' => pSQL(Tools::substr($e->getMessage(), 0, 255)),
                     'next_try_at' => date('Y-m-d H:i:s', time() + min(3600, 300 * $attempts)), 'date_upd' => date('Y-m-d H:i:s')), 'id_pulse_kc_job='.(int) $j['id_pulse_kc_job']);
                 if ($give) { $failed++; }
             }
@@ -135,7 +135,7 @@ class PulseKcService
 
     public static function jobs($status = 'queued,failed')
     {
-        return Db::getInstance()->executeS('SELECT j.*, k.key_no, k.room_nums FROM `'._DB_PREFIX_.'pulse_kc_job` j LEFT JOIN `'._DB_PREFIX_.'pulse_kc_key` k ON k.id_pulse_kc_key=j.id_pulse_kc_key
+        return PulseDb::executeS('SELECT j.*, k.key_no, k.room_nums FROM `'._DB_PREFIX_.'pulse_kc_job` j LEFT JOIN `'._DB_PREFIX_.'pulse_kc_key` k ON k.id_pulse_kc_key=j.id_pulse_kc_key
             WHERE j.status IN ("'.implode('","', array_map('pSQL', explode(',', $status))).'") ORDER BY j.id_pulse_kc_job DESC LIMIT 100');
     }
 
@@ -147,7 +147,7 @@ class PulseKcService
         $q = trim((string) $q);
         $where = $q === '' ? '' : ' AND (r.room_num LIKE "%'.pSQL($q).'%" OR CONCAT(c.firstname," ",c.lastname) LIKE "%'.pSQL($q).'%" OR b.id='.(int) $q.')';
         if (!class_exists('HotelBookingDetail')) { return array(); }
-        return Db::getInstance()->executeS('SELECT b.id id_htl_booking, b.id_customer, b.id_room, b.date_from, b.date_to, r.room_num, r.floor,
+        return PulseDb::executeS('SELECT b.id id_htl_booking, b.id_customer, b.id_room, b.date_from, b.date_to, r.room_num, r.floor,
                 CONCAT(c.firstname," ",c.lastname) guest, c.email, pl.name room_type,
                 (SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_kc_key` k WHERE k.id_htl_booking=b.id AND k.status="issued") active_keys
             FROM `'._DB_PREFIX_.'htl_booking_detail` b
@@ -162,7 +162,7 @@ class PulseKcService
     public static function arrivalsWithoutKeys()
     {
         if (!class_exists('HotelBookingDetail')) { return array(); }
-        return Db::getInstance()->executeS('SELECT b.id id_htl_booking, b.id_room, b.date_from, b.date_to, r.room_num, CONCAT(c.firstname," ",c.lastname) guest
+        return PulseDb::executeS('SELECT b.id id_htl_booking, b.id_room, b.date_from, b.date_to, r.room_num, CONCAT(c.firstname," ",c.lastname) guest
             FROM `'._DB_PREFIX_.'htl_booking_detail` b INNER JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=b.id_room
             LEFT JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=b.id_customer
             WHERE b.is_cancelled=0 AND b.is_refunded=0 AND b.date_from="'.pSQL(self::bd()).'" AND b.id_status='.(int) HotelBookingDetail::STATUS_ALLOTED.'
@@ -172,7 +172,7 @@ class PulseKcService
     /** Counters for the Key Desk header. */
     public static function dashboard()
     {
-        $db = Db::getInstance();
+        $db = PulseDb::handle();
         return array(
             'issued_today' => (int) $db->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_kc_key` WHERE business_date="'.pSQL(self::bd()).'" AND status="issued"'),
             'active' => (int) $db->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_kc_key` WHERE status="issued" AND valid_to>NOW()'),

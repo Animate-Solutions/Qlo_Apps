@@ -18,7 +18,7 @@ require_once dirname(__FILE__).'/../classes/autoload.php';
 if (php_sapi_name() !== 'cli') { $t = Tools::getValue('token'); if ($t !== Configuration::get('PULSE_ACC_CRON_TOKEN')) { die('Invalid token'); } }
 Context::getContext()->employee = new Employee((int) Configuration::get('PS_CRON_EMPLOYEE_ID') ?: 1);
 
-$D = Db::getInstance();
+$D = PulseDb::handle();
 $made = array('periods' => 0, 'assets' => 0, 'journals' => 0, 'companies' => 0, 'invoices' => 0, 'receipts' => 0, 'bills' => 0, 'payments' => 0, 'petty' => 0, 'depreciation' => 0);
 
 /* ---------- 0. hotel identity and periods ---------- */
@@ -51,7 +51,7 @@ foreach (array(
     if ($id) { $b['id_pulse_acc_bank_account'] = $id; }
     PulseAccService::saveBankAccount($b);
 }
-$petty = $D->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_bank_account` WHERE type="petty_cash" LIMIT 1');
+$petty = $D->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_acc_bank_account` WHERE type="petty_cash"');
 if ($petty && (float) $petty['imprest_float'] <= 0) { $D->update('pulse_acc_bank_account', array('imprest_float' => 250000, 'account_name' => pSQL('Front office imprest'), 'name' => pSQL('Petty cash / imprest — front office')), 'id_pulse_acc_bank_account='.(int) $petty['id_pulse_acc_bank_account']); $petty = PulseAccService::bankAccount((int) $petty['id_pulse_acc_bank_account']); }
 $gtb = PulseAccService::bankByAccountCode('1121');
 $zen = PulseAccService::bankByAccountCode('1120');

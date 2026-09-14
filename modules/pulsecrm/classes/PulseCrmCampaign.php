@@ -9,14 +9,14 @@ class PulseCrmCampaign
 {
     public static function all($status = null)
     {
-        return Db::getInstance()->executeS('SELECT ca.*, s.name segment_name, s.member_count FROM `'._DB_PREFIX_.'pulse_crm_campaign` ca
+        return PulseDb::executeS('SELECT ca.*, s.name segment_name, s.member_count FROM `'._DB_PREFIX_.'pulse_crm_campaign` ca
             LEFT JOIN `'._DB_PREFIX_.'pulse_crm_segment` s ON s.id_pulse_crm_segment=ca.id_pulse_crm_segment
             '.($status ? 'WHERE ca.status IN ("'.implode('","', array_map('pSQL', explode(',', $status))).'") ' : '').'ORDER BY ca.date_add DESC');
     }
 
     public static function get($id)
     {
-        $c = Db::getInstance()->getRow('SELECT ca.*, s.name segment_name FROM `'._DB_PREFIX_.'pulse_crm_campaign` ca LEFT JOIN `'._DB_PREFIX_.'pulse_crm_segment` s ON s.id_pulse_crm_segment=ca.id_pulse_crm_segment WHERE ca.id_pulse_crm_campaign='.(int) $id);
+        $c = PulseDb::getRow('SELECT ca.*, s.name segment_name FROM `'._DB_PREFIX_.'pulse_crm_campaign` ca LEFT JOIN `'._DB_PREFIX_.'pulse_crm_segment` s ON s.id_pulse_crm_segment=ca.id_pulse_crm_segment WHERE ca.id_pulse_crm_campaign='.(int) $id);
         if ($c) { $c['stats'] = self::stats($id); }
         return $c;
     }
@@ -36,10 +36,10 @@ class PulseCrmCampaign
             'date_upd' => date('Y-m-d H:i:s'),
         );
         if (isset($d['status'])) { $row['status'] = pSQL($d['status']); }
-        if ($id) { Db::getInstance()->update('pulse_crm_campaign', $row, 'id_pulse_crm_campaign='.(int) $id); return (int) $id; }
+        if ($id) { PulseDb::update('pulse_crm_campaign', $row, 'id_pulse_crm_campaign='.(int) $id); return (int) $id; }
         $row['id_employee'] = PulseCrmService::emp(); $row['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert('pulse_crm_campaign', $row);
-        return (int) Db::getInstance()->Insert_ID();
+        PulseDb::insert('pulse_crm_campaign', $row);
+        return (int) PulseDb::Insert_ID();
     }
 
     /**
@@ -50,7 +50,7 @@ class PulseCrmCampaign
     {
         $c = self::get($id); if (!$c) { throw new PrestaShopException('No such campaign'); }
         if (!$c['id_pulse_crm_segment']) { throw new PrestaShopException('Give the campaign a segment first'); }
-        $db = Db::getInstance(); $now = date('Y-m-d H:i:s');
+        $db = PulseDb::handle(); $now = date('Y-m-d H:i:s');
         $channel = $c['channel'] === 'email' ? 'email' : ($c['channel'] === 'whatsapp' ? 'whatsapp' : 'sms');
         $queued = 0; $skipped = 0; $split = (int) $c['ab_split_pct'];
         $gp = PulseCrmService::gp();
@@ -84,7 +84,7 @@ class PulseCrmCampaign
         $c = self::get($id); if (!$c) { throw new PrestaShopException('No such campaign'); }
         if (in_array($c['status'], array('paused', 'cancelled'))) { return array('sent' => 0, 'failed' => 0, 'stopped' => $c['status']); }
         if (PulseCrmService::inQuietHours($c['quiet_from'], $c['quiet_to'])) { return array('sent' => 0, 'failed' => 0, 'stopped' => 'quiet_hours', 'resume_at' => PulseCrmService::afterQuiet($c['quiet_from'], $c['quiet_to'])); }
-        $db = Db::getInstance(); $limit = (int) ($limit ? $limit : $c['throttle_per_run']);
+        $db = PulseDb::handle(); $limit = (int) ($limit ? $limit : $c['throttle_per_run']);
         $db->update('pulse_crm_campaign', array('status' => 'sending', 'last_run_at' => date('Y-m-d H:i:s')), 'id_pulse_crm_campaign='.(int) $id);
         $sent = 0; $failed = 0; $skipped = 0;
         $recips = $db->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE id_pulse_crm_campaign='.(int) $id.' AND status="queued" ORDER BY id_pulse_crm_campaign_recipient LIMIT '.$limit);
@@ -113,7 +113,7 @@ class PulseCrmCampaign
         if ($res['ok']) { $u['status'] = 'sent'; }
         elseif (in_array($res['reason'], array('send_failed', 'error'))) { $u['status'] = 'failed'; $u['error'] = pSQL(isset($res['error']) ? $res['error'] : 'delivery failed'); }
         else { $u['status'] = 'skipped'; $u['skip_reason'] = pSQL($res['reason']); }
-        Db::getInstance()->update('pulse_crm_campaign_recipient', $u, 'id_pulse_crm_campaign_recipient='.(int) $r['id_pulse_crm_campaign_recipient']);
+        PulseDb::update('pulse_crm_campaign_recipient', $u, 'id_pulse_crm_campaign_recipient='.(int) $r['id_pulse_crm_campaign_recipient']);
         return $res;
     }
 
@@ -133,8 +133,8 @@ class PulseCrmCampaign
     {
         $now = date('Y-m-d H:i:s'); $today = date('Y-m-d');
         $out = array();
-        foreach (Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_campaign` WHERE status IN ("scheduled","sending")') as $c) {
-            if ((int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE id_pulse_crm_campaign='.(int) $c['id_pulse_crm_campaign'].' AND status="queued"')) { $out[] = $c; continue; }
+        foreach (PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_campaign` WHERE status IN ("scheduled","sending")') as $c) {
+            if ((int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE id_pulse_crm_campaign='.(int) $c['id_pulse_crm_campaign'].' AND status="queued"')) { $out[] = $c; continue; }
             if (!self::isRecurring($c)) { continue; }
             $last = $c['last_run_at'] ? substr($c['last_run_at'], 0, 10) : '';
             if ($last === $today) { continue; }
@@ -161,16 +161,16 @@ class PulseCrmCampaign
 
     public static function recount($id)
     {
-        $s = Db::getInstance()->getRow('SELECT SUM(status="queued") q, SUM(status IN ("sent","opened","clicked","unsubscribed")) s, SUM(status="failed") f,
+        $s = PulseDb::getRow('SELECT SUM(status="queued") q, SUM(status IN ("sent","opened","clicked","unsubscribed")) s, SUM(status="failed") f,
                 SUM(open_count>0) o, SUM(click_count>0) cl, SUM(status="unsubscribed") u, SUM(status="skipped") sk
             FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE id_pulse_crm_campaign='.(int) $id);
-        return Db::getInstance()->update('pulse_crm_campaign', array('count_queued' => (int) $s['q'], 'count_sent' => (int) $s['s'], 'count_failed' => (int) $s['f'],
+        return PulseDb::update('pulse_crm_campaign', array('count_queued' => (int) $s['q'], 'count_sent' => (int) $s['s'], 'count_failed' => (int) $s['f'],
             'count_opened' => (int) $s['o'], 'count_clicked' => (int) $s['cl'], 'count_unsub' => (int) $s['u'], 'count_skipped' => (int) $s['sk']), 'id_pulse_crm_campaign='.(int) $id);
     }
 
     public static function stats($id)
     {
-        $rows = Db::getInstance()->executeS('SELECT variant, COUNT(*) total, SUM(status IN ("sent","opened","clicked","unsubscribed")) sent, SUM(open_count>0) opened, SUM(click_count>0) clicked, SUM(status="unsubscribed") unsub, SUM(status="failed") failed, SUM(status="skipped") skipped
+        $rows = PulseDb::executeS('SELECT variant, COUNT(*) total, SUM(status IN ("sent","opened","clicked","unsubscribed")) sent, SUM(open_count>0) opened, SUM(click_count>0) clicked, SUM(status="unsubscribed") unsub, SUM(status="failed") failed, SUM(status="skipped") skipped
             FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE id_pulse_crm_campaign='.(int) $id.' GROUP BY variant');
         foreach ($rows as &$r) {
             $r['open_pct'] = $r['sent'] ? round($r['opened'] / $r['sent'] * 100, 1) : 0;
@@ -182,19 +182,19 @@ class PulseCrmCampaign
 
     public static function recipients($id, $status = null, $limit = 200)
     {
-        return Db::getInstance()->executeS('SELECT r.*, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` r
+        return PulseDb::executeS('SELECT r.*, CONCAT(c.firstname," ",c.lastname) guest FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` r
             INNER JOIN `'._DB_PREFIX_.'customer` c ON c.id_customer=r.id_customer WHERE r.id_pulse_crm_campaign='.(int) $id.($status ? ' AND r.status="'.pSQL($status).'"' : '').'
             ORDER BY r.id_pulse_crm_campaign_recipient LIMIT '.(int) $limit);
     }
 
     /* ---------- tracking callbacks ---------- */
 
-    public static function byToken($token) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE token="'.pSQL($token).'"'); }
+    public static function byToken($token) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE token="'.pSQL($token).'"'); }
 
     public static function markOpen($token)
     {
         $r = self::byToken($token); if (!$r) { return false; }
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_campaign_recipient` SET open_count=open_count+1, date_opened=COALESCE(date_opened,NOW()), status=IF(status IN ("sent","opened"),"opened",status) WHERE id_pulse_crm_campaign_recipient='.(int) $r['id_pulse_crm_campaign_recipient']);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_campaign_recipient` SET open_count=open_count+1, date_opened=COALESCE(date_opened,NOW()), status=IF(status IN ("sent","opened"),"opened",status) WHERE id_pulse_crm_campaign_recipient='.(int) $r['id_pulse_crm_campaign_recipient']);
         self::recount((int) $r['id_pulse_crm_campaign']);
         return true;
     }
@@ -202,7 +202,7 @@ class PulseCrmCampaign
     public static function markClick($token)
     {
         $r = self::byToken($token); if (!$r) { return false; }
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_campaign_recipient` SET click_count=click_count+1, date_clicked=COALESCE(date_clicked,NOW()), open_count=GREATEST(open_count,1), date_opened=COALESCE(date_opened,NOW()), status=IF(status IN ("sent","opened","clicked"),"clicked",status) WHERE id_pulse_crm_campaign_recipient='.(int) $r['id_pulse_crm_campaign_recipient']);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_campaign_recipient` SET click_count=click_count+1, date_clicked=COALESCE(date_clicked,NOW()), open_count=GREATEST(open_count,1), date_opened=COALESCE(date_opened,NOW()), status=IF(status IN ("sent","opened","clicked"),"clicked",status) WHERE id_pulse_crm_campaign_recipient='.(int) $r['id_pulse_crm_campaign_recipient']);
         self::recount((int) $r['id_pulse_crm_campaign']);
         return true;
     }
@@ -214,16 +214,16 @@ class PulseCrmCampaign
         $c = self::get((int) $r['id_pulse_crm_campaign']);
         $channel = $c && $c['channel'] !== 'email' ? $c['channel'] : 'email';
         PulseCrmProfile::setConsent((int) $r['id_customer'], $channel, 'opt_out', 'campaign_unsub', 'campaign:'.$r['id_pulse_crm_campaign'], $reason);
-        Db::getInstance()->update('pulse_crm_campaign_recipient', array('status' => 'unsubscribed'), 'id_pulse_crm_campaign_recipient='.(int) $r['id_pulse_crm_campaign_recipient']);
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_campaign_recipient` SET status="skipped", skip_reason="opted_out" WHERE id_customer='.(int) $r['id_customer'].' AND status="queued"');
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.'pulse_crm_journey_run` SET status="cancelled", last_error="unsubscribed", date_upd=NOW() WHERE id_customer='.(int) $r['id_customer'].' AND status="active"');
+        PulseDb::update('pulse_crm_campaign_recipient', array('status' => 'unsubscribed'), 'id_pulse_crm_campaign_recipient='.(int) $r['id_pulse_crm_campaign_recipient']);
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_campaign_recipient` SET status="skipped", skip_reason="opted_out" WHERE id_customer='.(int) $r['id_customer'].' AND status="queued"');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.'pulse_crm_journey_run` SET status="cancelled", last_error="unsubscribed", date_upd=NOW() WHERE id_customer='.(int) $r['id_customer'].' AND status="active"');
         self::recount((int) $r['id_pulse_crm_campaign']);
         return $r;
     }
 
     public static function remove($id)
     {
-        Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE id_pulse_crm_campaign='.(int) $id);
-        return Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_campaign` WHERE id_pulse_crm_campaign='.(int) $id);
+        PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_campaign_recipient` WHERE id_pulse_crm_campaign='.(int) $id);
+        return PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_crm_campaign` WHERE id_pulse_crm_campaign='.(int) $id);
     }
 }

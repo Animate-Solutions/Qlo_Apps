@@ -45,7 +45,7 @@ class AdminPulseKeycardSettingsController extends ModuleAdminController
         $shop = Tools::getShopDomainSsl(true).__PS_BASE_URI__;
         $this->context->smarty->assign(array(
             'doors' => PulseKcService::doors(false), 'encoders' => PulseKcEncoder::all(false),
-            'rooms' => Db::getInstance()->executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY room_num'),
+            'rooms' => PulseDb::executeS('SELECT id id_room, room_num FROM `'._DB_PREFIX_.'htl_room_information` ORDER BY room_num'),
             'door_types' => array('common', 'lift', 'gate', 'back_of_house', 'wall_reader', 'safe', 'room'),
             'cron_url' => $shop.'modules/pulsekeycard/cron/expire.php?token='.Configuration::get('PULSE_KC_CRON_TOKEN'),
             'api_url' => $shop.'pulse/api/keycard/ping', 'fd' => PulseKcService::fd(), 'maintenance' => class_exists('PulseTicket'),

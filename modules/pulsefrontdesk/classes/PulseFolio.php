@@ -24,8 +24,8 @@ class PulseFolio extends ObjectModel
             'total_charges'    => array('type' => self::TYPE_FLOAT, 'validate' => 'isPrice'),
             'total_payments'   => array('type' => self::TYPE_FLOAT, 'validate' => 'isPrice'),
             'balance'          => array('type' => self::TYPE_FLOAT, 'validate' => 'isFloat'),
-            'closed_by'        => array('type' => self::TYPE_INT, 'validate' => 'isUnsignedInt'),
-            'date_closed'      => array('type' => self::TYPE_DATE, 'validate' => 'isDate'),
+            'closed_by'        => array('type' => self::TYPE_INT, 'validate' => 'isUnsignedInt', 'allow_null' => true),
+            'date_closed'      => array('type' => self::TYPE_DATE, 'validate' => 'isDate', 'allow_null' => true),
             'date_add'         => array('type' => self::TYPE_DATE, 'validate' => 'isDate'),
             'date_upd'         => array('type' => self::TYPE_DATE, 'validate' => 'isDate'),
         ),
@@ -43,7 +43,7 @@ class PulseFolio extends ObjectModel
 
     public static function openForBooking($idHtlBooking)
     {
-        $id = (int) Db::getInstance()->getValue('SELECT id_pulse_folio FROM `'._DB_PREFIX_.'pulse_folio` WHERE id_htl_booking='.(int) $idHtlBooking.' AND status="open" AND type="guest"');
+        $id = (int) PulseDb::getValue('SELECT id_pulse_folio FROM `'._DB_PREFIX_.'pulse_folio` WHERE id_htl_booking='.(int) $idHtlBooking.' AND status="open" AND type="guest"');
         return $id ? new self($id) : null;
     }
 
@@ -62,10 +62,10 @@ class PulseFolio extends ObjectModel
         $f->type = 'guest';
         $f->add();
         // Apply any online prepayment already recorded on the order as a deposit
-        $paid = (float) Db::getInstance()->getValue('SELECT SUM(amount) FROM `'._DB_PREFIX_.'order_payment` op INNER JOIN `'._DB_PREFIX_.'orders` o ON o.reference=op.order_reference WHERE o.id_order='.(int) $booking['id_order']);
-        if ($paid > 0 && !Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE id_pulse_folio_line IN (SELECT id_pulse_folio_line FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE source="order_prepaid" AND source_ref="'.(int) $booking['id_order'].'")')) {
+        $paid = (float) PulseDb::getValue('SELECT SUM(amount) FROM `'._DB_PREFIX_.'order_payment` op INNER JOIN `'._DB_PREFIX_.'orders` o ON o.reference=op.order_reference WHERE o.id_order='.(int) $booking['id_order']);
+        if ($paid > 0 && !PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE id_pulse_folio_line IN (SELECT id_pulse_folio_line FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE source="order_prepaid" AND source_ref="'.(int) $booking['id_order'].'")')) {
             // one order may cover several rooms: apportion by room share
-            $orderTotal = (float) Db::getInstance()->getValue('SELECT SUM(total_price_tax_incl) FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order='.(int) $booking['id_order']);
+            $orderTotal = (float) PulseDb::getValue('SELECT SUM(total_price_tax_incl) FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE id_order='.(int) $booking['id_order']);
             $share = $orderTotal > 0 ? $booking['total_price_tax_incl'] / $orderTotal : 1;
             $f->post('DEP', 'Online prepayment applied', 1, round($paid * $share, 2), 0, true, 'online', 'order_prepaid', (int) $booking['id_order']);
         }
@@ -99,7 +99,7 @@ class PulseFolio extends ObjectModel
         $amount = round($qty * $unitPriceTaxExcl * (1 + $taxRate / 100), 2);
         $ctx = Context::getContext();
         $emp = isset($ctx->employee) ? (int) $ctx->employee->id : 0;
-        Db::getInstance()->insert('pulse_folio_line', array(
+        PulseDb::insert('pulse_folio_line', array(
             'id_pulse_folio'       => (int) $this->id,
             'id_pulse_charge_code' => (int) $cc['id_pulse_charge_code'],
             'department'           => pSQL($cc['department']),
@@ -117,7 +117,7 @@ class PulseFolio extends ObjectModel
             'business_date'        => PulseCoreService::businessDate(),
             'date_add'             => date('Y-m-d H:i:s'),
         ));
-        $idLine = (int) Db::getInstance()->Insert_ID();
+        $idLine = (int) PulseDb::Insert_ID();
         $this->recalc();
         PulseCoreService::audit('pulsefrontdesk', $isPayment ? 'payment' : 'charge', array('code' => $code, 'amount' => $amount, 'line' => $idLine), 'pulse_folio', $this->id);
         PulseCoreService::event('actionPulseFolioPost', array('folio' => $this, 'id_line' => $idLine, 'code' => $code, 'amount' => $amount, 'is_payment' => $isPayment));
@@ -132,13 +132,13 @@ class PulseFolio extends ObjectModel
         $c = new Currency($cur); $rate = (float) $c->conversion_rate; // shop currency = 1
         $amountShop = round($amountForeign / $rate, 2);
         $id = $this->post($code, $description.' ['.$isoCode.' '.number_format($amountForeign, 2).' @ '.$rate.']', 1, $amountShop, 0, true, $paymentMethod);
-        Db::getInstance()->update('pulse_folio_line', array('currency_iso' => pSQL($isoCode), 'foreign_amount' => (float) $amountForeign, 'exchange_rate' => $rate), 'id_pulse_folio_line='.(int) $id);
+        PulseDb::update('pulse_folio_line', array('currency_iso' => pSQL($isoCode), 'foreign_amount' => (float) $amountForeign, 'exchange_rate' => $rate), 'id_pulse_folio_line='.(int) $id);
         return $id;
     }
 
     public function voidLine($idLine, $reason)
     {
-        Db::getInstance()->update('pulse_folio_line', array('voided' => 1, 'void_reason' => pSQL($reason)), 'id_pulse_folio_line='.(int) $idLine.' AND id_pulse_folio='.(int) $this->id);
+        PulseDb::update('pulse_folio_line', array('voided' => 1, 'void_reason' => pSQL($reason)), 'id_pulse_folio_line='.(int) $idLine.' AND id_pulse_folio='.(int) $this->id);
         $this->recalc();
         PulseCoreService::audit('pulsefrontdesk', 'void_line', array('line' => $idLine, 'reason' => $reason), 'pulse_folio', $this->id);
     }
@@ -146,22 +146,22 @@ class PulseFolio extends ObjectModel
     /** Move a line to another folio (routing to company / group master). */
     public function transferLine($idLine, PulseFolio $to)
     {
-        $line = Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE id_pulse_folio_line='.(int) $idLine.' AND id_pulse_folio='.(int) $this->id.' AND voided=0');
+        $line = PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE id_pulse_folio_line='.(int) $idLine.' AND id_pulse_folio='.(int) $this->id.' AND voided=0');
         if (!$line || $to->status !== 'open') { return false; }
-        Db::getInstance()->update('pulse_folio_line', array('voided' => 1, 'void_reason' => 'Transferred to '.pSQL($to->folio_no), 'transferred_to' => (int) $to->id), 'id_pulse_folio_line='.(int) $idLine);
+        PulseDb::update('pulse_folio_line', array('voided' => 1, 'void_reason' => 'Transferred to '.pSQL($to->folio_no), 'transferred_to' => (int) $to->id), 'id_pulse_folio_line='.(int) $idLine);
         unset($line['id_pulse_folio_line'], $line['voided'], $line['void_reason'], $line['transferred_to']);
         $line['id_pulse_folio'] = (int) $to->id;
         $line['source'] = 'transfer';
         $line['source_ref'] = $this->folio_no;
         $line['date_add'] = date('Y-m-d H:i:s');
-        Db::getInstance()->insert('pulse_folio_line', array_map('pSQL', $line));
+        PulseDb::insert('pulse_folio_line', array_map('pSQL', $line));
         $this->recalc(); $to->recalc();
         return true;
     }
 
     public function recalc()
     {
-        $r = Db::getInstance()->getRow('SELECT COALESCE(SUM(IF(is_payment=0,amount_tax_incl,0)),0) c, COALESCE(SUM(IF(is_payment=1,amount_tax_incl,0)),0) p FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE voided=0 AND id_pulse_folio='.(int) $this->id);
+        $r = PulseDb::getRow('SELECT COALESCE(SUM(IF(is_payment=0,amount_tax_incl,0)),0) c, COALESCE(SUM(IF(is_payment=1,amount_tax_incl,0)),0) p FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE voided=0 AND id_pulse_folio='.(int) $this->id);
         $this->total_charges = (float) $r['c'];
         $this->total_payments = (float) $r['p'];
         $this->balance = round($this->total_charges - $this->total_payments, 2);
@@ -199,6 +199,6 @@ class PulseFolio extends ObjectModel
 
     public function lines($includeVoided = false)
     {
-        return Db::getInstance()->executeS('SELECT l.*, e.firstname, e.lastname FROM `'._DB_PREFIX_.'pulse_folio_line` l LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=l.id_employee WHERE l.id_pulse_folio='.(int) $this->id.($includeVoided ? '' : ' AND l.voided=0').' ORDER BY l.date_add');
+        return PulseDb::executeS('SELECT l.*, e.firstname, e.lastname FROM `'._DB_PREFIX_.'pulse_folio_line` l LEFT JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=l.id_employee WHERE l.id_pulse_folio='.(int) $this->id.($includeVoided ? '' : ' AND l.voided=0').' ORDER BY l.date_add');
     }
 }

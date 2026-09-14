@@ -10,8 +10,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_room_status` (
   `id_employee` INT UNSIGNED DEFAULT NULL,
   `note` VARCHAR(255) DEFAULT NULL,
   `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_room`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_room`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_room_status_log` (
   `id_pulse_room_status_log` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -19,8 +21,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_room_status_log` (
   `from_status` VARCHAR(32), `to_status` VARCHAR(32) NOT NULL,
   `id_employee` INT UNSIGNED, `source` VARCHAR(32) NOT NULL DEFAULT 'manual',
   `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_room_status_log`), KEY `room` (`id_room`,`date_add`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_room_status_log`), KEY `room` (`id_room`,`date_add`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_housekeeping_task` (
   `id_pulse_housekeeping_task` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -31,8 +35,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_housekeeping_task` (
   `priority` TINYINT NOT NULL DEFAULT 5,
   `note` TEXT, `business_date` DATE NOT NULL,
   `date_add` DATETIME NOT NULL, `date_done` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_housekeeping_task`), KEY `room_status` (`id_room`,`status`), KEY `bdate` (`business_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_housekeeping_task`), KEY `room_status` (`id_room`,`status`), KEY `bdate` (`business_date`), KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_guest_profile` (
   `id_customer` INT UNSIGNED NOT NULL,
@@ -44,8 +49,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_guest_profile` (
   `stays` SMALLINT UNSIGNED NOT NULL DEFAULT 0, `nights` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `lifetime_revenue` DECIMAL(20,6) NOT NULL DEFAULT 0, `last_stay` DATE DEFAULT NULL,
   `notes` TEXT, `special_dates` VARCHAR(255) DEFAULT NULL, `merged_into` INT UNSIGNED DEFAULT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_customer`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_customer`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_guest_identity` (
   `id_pulse_guest_identity` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -53,8 +60,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_guest_identity` (
   `id_type` ENUM('nin','passport','drivers_licence','voters_card','intl_passport','other') NOT NULL,
   `id_number` VARCHAR(64) NOT NULL, `issuing_country` VARCHAR(3) DEFAULT NULL, `expiry` DATE DEFAULT NULL,
   `scan_path` VARCHAR(255) DEFAULT NULL, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_guest_identity`), KEY `cust` (`id_customer`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_guest_identity`), KEY `cust` (`id_customer`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_company` (
   `id_pulse_company` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -63,8 +72,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_company` (
   `credit_limit` DECIMAL(20,6) NOT NULL DEFAULT 0, `ledger_balance` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `discount_pct` DECIMAL(6,3) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `payment_terms_days` SMALLINT NOT NULL DEFAULT 30, `auto_route_departments` VARCHAR(255) DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_company`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_company`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_charge_code` (
   `id_pulse_charge_code` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -72,8 +83,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_charge_code` (
   `department` ENUM('rooms','fnb','minibar','spa','laundry','telephone','business_centre','misc','tax','payment','adjustment') NOT NULL,
   `default_price` DECIMAL(20,6) NOT NULL DEFAULT 0, `tax_rate` DECIMAL(6,3) NOT NULL DEFAULT 0,
   `is_payment` TINYINT(1) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id_pulse_charge_code`), UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_charge_code`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_folio` (
   `id_pulse_folio` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -86,8 +99,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_folio` (
   `balance` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `closed_by` INT UNSIGNED DEFAULT NULL, `date_closed` DATETIME DEFAULT NULL, `invoice_no` VARCHAR(32) DEFAULT NULL, `date_invoiced` DATETIME DEFAULT NULL,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_folio`), UNIQUE KEY `folio_no` (`folio_no`), KEY `booking` (`id_htl_booking`), KEY `order` (`id_order`), KEY `status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_folio`), UNIQUE KEY `folio_no` (`id_hotel`,`folio_no`), KEY `booking` (`id_htl_booking`), KEY `order` (`id_order`), KEY `status` (`status`), KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_folio_line` (
   `id_pulse_folio_line` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -106,8 +120,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_folio_line` (
   `currency_iso` CHAR(3) DEFAULT NULL, `foreign_amount` DECIMAL(20,6) DEFAULT NULL, `exchange_rate` DECIMAL(13,6) DEFAULT NULL,
   `id_employee` INT UNSIGNED DEFAULT NULL, `id_cashier_session` INT UNSIGNED DEFAULT NULL,
   `business_date` DATE NOT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_folio_line`), KEY `folio` (`id_pulse_folio`), KEY `bdate_dept` (`business_date`,`department`), KEY `session` (`id_cashier_session`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_folio_line`), KEY `folio` (`id_pulse_folio`), KEY `bdate_dept` (`business_date`,`department`), KEY `session` (`id_cashier_session`), KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_cashier_session` (
   `id_pulse_cashier_session` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -117,15 +132,18 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_cashier_session` (
   `status` ENUM('open','closed') NOT NULL DEFAULT 'open', `blind_close` TINYINT(1) NOT NULL DEFAULT 0,
   `business_date` DATE NOT NULL, `note` VARCHAR(255),
   `date_open` DATETIME NOT NULL, `date_close` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_cashier_session`), KEY `emp_status` (`id_employee`,`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_cashier_session`), KEY `emp_status` (`id_employee`,`status`), KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_room_move` (
   `id_pulse_room_move` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `id_htl_booking` INT UNSIGNED NOT NULL, `from_room` INT UNSIGNED NOT NULL, `to_room` INT UNSIGNED NOT NULL,
   `reason` VARCHAR(128), `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_room_move`), KEY `booking` (`id_htl_booking`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_room_move`), KEY `booking` (`id_htl_booking`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_trace` (
   `id_pulse_trace` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -135,8 +153,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_trace` (
   `due_at` DATETIME NOT NULL, `text` VARCHAR(255) NOT NULL,
   `status` ENUM('open','done','cancelled') NOT NULL DEFAULT 'open',
   `id_employee` INT UNSIGNED, `resolved_by` INT UNSIGNED, `date_add` DATETIME NOT NULL, `date_resolved` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_trace`), KEY `due` (`status`,`due_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_trace`), KEY `due` (`status`,`due_at`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_night_audit` (
   `id_pulse_night_audit` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -146,8 +166,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_night_audit` (
   `guest_ledger` DECIMAL(20,6), `city_ledger` DECIMAL(20,6),
   `status` ENUM('running','closed','failed') NOT NULL DEFAULT 'running',
   `log` TEXT, `date_add` DATETIME NOT NULL, `date_end` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_night_audit`), UNIQUE KEY `bdate` (`business_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_night_audit`), UNIQUE KEY `bdate` (`id_hotel`,`business_date`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 -- Seed charge codes (Nigerian defaults: 7.5% VAT, 5% consumption tax on F&B — adjust in Settings)
 INSERT IGNORE INTO `PREFIX_pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES
@@ -182,15 +204,18 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_group_block` (
   `status` ENUM('tentative','definite','cancelled','released') NOT NULL DEFAULT 'tentative',
   `contact_name` VARCHAR(128), `contact_phone` VARCHAR(32), `contact_email` VARCHAR(128), `notes` TEXT,
   `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_group_block`), UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_group_block`), UNIQUE KEY `code` (`id_hotel`,`code`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_group_block_allot` (
   `id_pulse_group_block_allot` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `id_pulse_group_block` INT UNSIGNED NOT NULL, `id_product` INT UNSIGNED NOT NULL COMMENT 'room type',
   `blocked` SMALLINT UNSIGNED NOT NULL DEFAULT 0, `picked_up` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_pulse_group_block_allot`), UNIQUE KEY `blk_type` (`id_pulse_group_block`,`id_product`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_group_block_allot`), UNIQUE KEY `blk_type` (`id_hotel`,`id_pulse_group_block`,`id_product`), KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_booking_ext` (
   `id_htl_booking` INT UNSIGNED NOT NULL,
@@ -200,8 +225,9 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_booking_ext` (
   `precheckin_token` CHAR(40) DEFAULT NULL, `precheckin_done` TINYINT(1) NOT NULL DEFAULT 0,
   `checkout_token` CHAR(40) DEFAULT NULL, `card_auth_ref` VARCHAR(64) DEFAULT NULL, `card_auth_amount` DECIMAL(20,6) DEFAULT NULL,
   `late_fee_posted` TINYINT(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_htl_booking`), KEY `block` (`id_pulse_group_block`), KEY `pct` (`precheckin_token`), KEY `cot` (`checkout_token`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_htl_booking`), KEY `block` (`id_pulse_group_block`), KEY `pct` (`precheckin_token`), KEY `cot` (`checkout_token`), KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_waitlist` (
   `id_pulse_waitlist` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -209,13 +235,17 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_waitlist` (
   `id_product` INT UNSIGNED NOT NULL, `date_from` DATE NOT NULL, `date_to` DATE NOT NULL, `rooms` TINYINT NOT NULL DEFAULT 1,
   `priority` TINYINT NOT NULL DEFAULT 5, `status` ENUM('waiting','offered','booked','expired','cancelled') NOT NULL DEFAULT 'waiting',
   `offered_at` DATETIME DEFAULT NULL, `note` VARCHAR(255), `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_waitlist`), KEY `st` (`status`,`priority`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_waitlist`), KEY `st` (`status`,`priority`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_overbooking` (
   `id_product` INT UNSIGNED NOT NULL, `max_over` TINYINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_product`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_hotel`,`id_product`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_registration_card` (
   `id_pulse_registration_card` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -223,8 +253,10 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_registration_card` (
   `terms_version` VARCHAR(16) NOT NULL, `terms_accepted` TINYINT(1) NOT NULL DEFAULT 0,
   `signature` MEDIUMTEXT COMMENT 'PNG data URL', `signed_name` VARCHAR(128), `ip` VARCHAR(45), `channel` ENUM('desk','precheckin') NOT NULL DEFAULT 'desk',
   `snapshot` TEXT COMMENT 'JSON of guest/stay details at signing', `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_registration_card`), KEY `bk` (`id_htl_booking`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_registration_card`), KEY `bk` (`id_htl_booking`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_upsell_offer` (
   `id_pulse_upsell_offer` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -232,15 +264,19 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_upsell_offer` (
   `name` VARCHAR(128) NOT NULL, `charge_code` VARCHAR(16) NOT NULL, `price_tax_excl` DECIMAL(20,6) NOT NULL DEFAULT 0,
   `per` ENUM('stay','night','person') NOT NULL DEFAULT 'stay', `min_avail_pct` TINYINT NOT NULL DEFAULT 0 COMMENT 'only offer when availability >= this %',
   `active` TINYINT(1) NOT NULL DEFAULT 1, `sort` SMALLINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id_pulse_upsell_offer`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_upsell_offer`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_upsell_sale` (
   `id_pulse_upsell_sale` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `id_pulse_upsell_offer` INT UNSIGNED, `id_htl_booking` INT UNSIGNED NOT NULL, `amount_tax_incl` DECIMAL(20,6) NOT NULL,
   `id_employee` INT UNSIGNED, `stage` ENUM('checkin','instay','precheckin') NOT NULL DEFAULT 'checkin', `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_upsell_sale`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_upsell_sale`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_routing_rule` (
   `id_pulse_routing_rule` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -248,16 +284,19 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_routing_rule` (
   `department` VARCHAR(32) NOT NULL COMMENT 'rooms|fnb|minibar|...|*',
   `target` ENUM('guest','company','master') NOT NULL, `id_target_folio` INT UNSIGNED DEFAULT NULL,
   `active` TINYINT(1) NOT NULL DEFAULT 1, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_routing_rule`), KEY `sc` (`scope`,`id_scope`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_routing_rule`), KEY `sc` (`scope`,`id_scope`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_drawer_movement` (
   `id_pulse_drawer_movement` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `id_pulse_cashier_session` INT UNSIGNED NOT NULL,
   `type` ENUM('blind_drop','paid_out','float_in','float_out','correction') NOT NULL,
   `amount` DECIMAL(20,6) NOT NULL, `note` VARCHAR(255), `id_employee` INT UNSIGNED, `witness` INT UNSIGNED DEFAULT NULL, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_drawer_movement`), KEY `sess` (`id_pulse_cashier_session`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_drawer_movement`), KEY `sess` (`id_pulse_cashier_session`), KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ticket` (
   `id_pulse_ticket` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -269,29 +308,39 @@ CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ticket` (
   `status` ENUM('open','assigned','in_progress','resolved','closed','reopened') NOT NULL DEFAULT 'open',
   `assigned_to` INT UNSIGNED DEFAULT NULL, `sla_due` DATETIME DEFAULT NULL, `resolution` TEXT, `source` VARCHAR(16) NOT NULL DEFAULT 'desk',
   `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL, `date_upd` DATETIME NOT NULL, `date_resolved` DATETIME DEFAULT NULL,
-  PRIMARY KEY (`id_pulse_ticket`), UNIQUE KEY `no` (`ticket_no`), KEY `st` (`status`,`department`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ticket`), UNIQUE KEY `no` (`id_hotel`,`ticket_no`), KEY `st` (`status`,`department`), KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_ticket_note` (
   `id_pulse_ticket_note` INT UNSIGNED NOT NULL AUTO_INCREMENT, `id_pulse_ticket` INT UNSIGNED NOT NULL,
   `note` TEXT NOT NULL, `id_employee` INT UNSIGNED, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_ticket_note`), KEY `t` (`id_pulse_ticket`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_ticket_note`), KEY `t` (`id_pulse_ticket`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_comms_log` (
   `id_pulse_comms_log` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `channel` ENUM('email','sms','whatsapp') NOT NULL, `template` VARCHAR(32) NOT NULL, `to_addr` VARCHAR(128) NOT NULL,
   `id_htl_booking` INT UNSIGNED, `id_customer` INT UNSIGNED, `status` ENUM('queued','sent','failed') NOT NULL DEFAULT 'queued',
   `provider_ref` VARCHAR(64), `error` VARCHAR(255), `date_add` DATETIME NOT NULL, `date_sent` DATETIME,
-  PRIMARY KEY (`id_pulse_comms_log`), KEY `bk` (`id_htl_booking`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_comms_log`), KEY `bk` (`id_htl_booking`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `PREFIX_pulse_pabx_log` (
   `id_pulse_pabx_log` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `extension` VARCHAR(16) NOT NULL, `id_room` INT UNSIGNED, `event` ENUM('call','status_code','wakeup_result') NOT NULL,
   `payload` VARCHAR(255), `duration_sec` INT UNSIGNED, `cost` DECIMAL(20,6), `posted` TINYINT(1) NOT NULL DEFAULT 0, `date_add` DATETIME NOT NULL,
-  PRIMARY KEY (`id_pulse_pabx_log`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id_hotel` INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_pulse_pabx_log`),
+  KEY `pulse_hotel` (`id_hotel`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8;
+
+-- multi-currency on folios (settlement currency captured per line; folio kept in shop currency)
+
 
 INSERT IGNORE INTO `PREFIX_pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES
 ('UPG','Room Upgrade','rooms',0,7.5,0),('ECI','Early Check-in','rooms',0,7.5,0),('DAYUSE','Day Use','rooms',0,7.5,0),

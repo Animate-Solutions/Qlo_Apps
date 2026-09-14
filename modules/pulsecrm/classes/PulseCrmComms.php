@@ -56,12 +56,12 @@ class PulseCrmComms extends PulseCrmCommsBase
     {
         $days = max(0, (int) $days);
         if (!$days) { return false; }
-        return (bool) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_crm_send_log` WHERE id_customer='.(int) $idCustomer.' AND send_date>=DATE_SUB(CURDATE(), INTERVAL '.($days - 1).' DAY)');
+        return (bool) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_crm_send_log` WHERE id_customer='.(int) $idCustomer.' AND send_date>=DATE_SUB(CURDATE(), INTERVAL '.($days - 1).' DAY)');
     }
 
     public static function logSend($idCustomer, $channel, $kind, $reference)
     {
-        return Db::getInstance()->insert('pulse_crm_send_log', array('id_customer' => (int) $idCustomer, 'channel' => pSQL($channel), 'kind' => pSQL($kind), 'reference' => pSQL($reference), 'send_date' => date('Y-m-d'), 'date_add' => date('Y-m-d H:i:s')));
+        return PulseDb::insert('pulse_crm_send_log', array('id_customer' => (int) $idCustomer, 'channel' => pSQL($channel), 'kind' => pSQL($kind), 'reference' => pSQL($reference), 'send_date' => date('Y-m-d'), 'date_add' => date('Y-m-d H:i:s')));
     }
 
     /**
@@ -78,7 +78,7 @@ class PulseCrmComms extends PulseCrmCommsBase
         if (!empty($opt['suppress_days']) && self::suppressed($idCustomer, $opt['suppress_days'])) { return array('ok' => false, 'reason' => 'suppressed'); }
         $c = new Customer((int) $idCustomer);
         if (!Validate::isLoadedObject($c)) { return array('ok' => false, 'reason' => 'no_customer'); }
-        $phone = PulseCrmService::gp() ? Db::getInstance()->getValue('SELECT phone FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.(int) $idCustomer) : null;
+        $phone = PulseCrmService::gp() ? PulseDb::getValue('SELECT phone FROM `'._DB_PREFIX_.'pulse_guest_profile` WHERE id_customer='.(int) $idCustomer) : null;
         $vars['id_customer'] = (int) $idCustomer; $vars['name'] = isset($vars['name']) && $vars['name'] ? $vars['name'] : $c->firstname;
         try {
             if ($channel === 'email') {
@@ -109,7 +109,7 @@ class PulseCrmComms extends PulseCrmCommsBase
         if (!$a) { self::logFailure('whatsapp', $template, $phone, $vars, 'No SMS/WhatsApp adapter configured'); return false; }
         $r = $a->sendWhatsApp($phone, $text);
         if (!PulseCrmService::tableExists('pulse_comms_log')) { return !empty($r['ok']); }
-        Db::getInstance()->insert('pulse_comms_log', array('channel' => 'whatsapp', 'template' => pSQL($template), 'to_addr' => pSQL($phone),
+        PulseDb::insert('pulse_comms_log', array('channel' => 'whatsapp', 'template' => pSQL($template), 'to_addr' => pSQL($phone),
             'id_htl_booking' => !empty($vars['id_htl_booking']) ? (int) $vars['id_htl_booking'] : null, 'id_customer' => !empty($vars['id_customer']) ? (int) $vars['id_customer'] : null,
             'status' => !empty($r['ok']) ? 'sent' : 'failed', 'provider_ref' => pSQL(isset($r['ref']) ? $r['ref'] : ''), 'error' => pSQL(isset($r['error']) ? $r['error'] : ''),
             'date_add' => date('Y-m-d H:i:s'), 'date_sent' => !empty($r['ok']) ? date('Y-m-d H:i:s') : null));
@@ -119,7 +119,7 @@ class PulseCrmComms extends PulseCrmCommsBase
     protected static function logFailure($channel, $template, $to, array $vars, $error)
     {
         if (!PulseCrmService::tableExists('pulse_comms_log')) { return; }
-        Db::getInstance()->insert('pulse_comms_log', array('channel' => pSQL($channel), 'template' => pSQL($template), 'to_addr' => pSQL($to),
+        PulseDb::insert('pulse_comms_log', array('channel' => pSQL($channel), 'template' => pSQL($template), 'to_addr' => pSQL($to),
             'id_htl_booking' => !empty($vars['id_htl_booking']) ? (int) $vars['id_htl_booking'] : null, 'id_customer' => !empty($vars['id_customer']) ? (int) $vars['id_customer'] : null,
             'status' => 'failed', 'error' => pSQL($error), 'date_add' => date('Y-m-d H:i:s')));
     }

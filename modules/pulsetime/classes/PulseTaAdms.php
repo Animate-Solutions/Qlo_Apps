@@ -29,12 +29,30 @@ class PulseTaAdms
     public static function enabled() { return (int) self::cfg('PUSH_ENABLED', 1) === 1; }
     public static function maxBytes() { return max(4096, (int) self::cfg('PUSH_MAX_BYTES', 1048576)); }
 
+    /**
+     * The property a clock reports to.
+     *
+     * A device dials in with nothing but its serial, and a serial is exactly what a claimed device is
+     * known by, so the device row names the property. A serial we have never seen has no row to read —
+     * that is the auto-registration case — so the property comes instead from the address the installer
+     * configured on the device, which is per-property anyway: the firmware only ever dials one address.
+     * An employee cookie is never consulted here; a clock has none. Returns 0 when neither says anything,
+     * and the endpoint then refuses rather than filing another property's punches.
+     */
+    public static function enterHotel($serial)
+    {
+        $serial = self::cleanSerial($serial);
+        $id = $serial === '' ? 0 : PulseCoreService::hotelOf(self::T_DEVICE, 'serial', $serial);
+        if ($id) { return PulseCoreService::enterHotel($id); }
+        return PulseCoreService::enterHotel(PulseCoreService::namedHotel());
+    }
+
     /* ---------- logging ---------- */
 
     /** One row per inbound request. This is the audit trail for a surface with no login, so it is never optional. */
     public static function log($serial, $path, $table, $result, $message = '', $bytes = 0, $rowsIn = 0, $rowsKept = 0, $idDevice = null, $sample = '')
     {
-        return Db::getInstance()->insert(self::T_LOG, PulseTaService::nulls(array(
+        return PulseDb::insert(self::T_LOG, PulseTaService::nulls(array(
             'id_pulse_ta_device' => $idDevice ? (int) $idDevice : null, 'serial' => pSQL(Tools::substr((string) $serial, 0, 64)), 'direction' => 'in',
             'path' => pSQL(Tools::substr((string) $path, 0, 64)), 'table_name' => pSQL(Tools::substr((string) $table, 0, 32)),
             'ip' => pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)), 'bytes' => (int) $bytes, 'rows_in' => (int) $rowsIn, 'rows_kept' => (int) $rowsKept,
@@ -55,7 +73,7 @@ class PulseTaAdms
     /** Requests from one serial in the last minute — the flood guard for a device stuck in a retry loop. */
     protected static function recentRequests($serial)
     {
-        return (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T_LOG.'` WHERE `serial`="'.pSQL($serial).'" AND `date_add`>DATE_SUB(NOW(), INTERVAL 60 SECOND)');
+        return (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T_LOG.'` WHERE `serial`="'.pSQL($serial).'" AND `date_add`>DATE_SUB(NOW(), INTERVAL 60 SECOND)');
     }
 
     /**
@@ -65,16 +83,16 @@ class PulseTaAdms
      */
     protected static function recentFromIp()
     {
-        return (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T_LOG.'` WHERE `ip`="'.pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)).'" AND `date_add`>DATE_SUB(NOW(), INTERVAL 60 SECOND)');
+        return (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T_LOG.'` WHERE `ip`="'.pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)).'" AND `date_add`>DATE_SUB(NOW(), INTERVAL 60 SECOND)');
     }
 
     /** How many unclaimed serials are already parked. A serial-varying flood must not fill the device table. */
     protected static function pendingCount()
     {
-        return (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T_DEVICE.'` WHERE `status`="pending"');
+        return (int) PulseDb::getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.self::T_DEVICE.'` WHERE `status`="pending"');
     }
 
-    public static function bySerial($serial) { return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T_DEVICE.'` WHERE `serial`="'.pSQL($serial).'"'); }
+    public static function bySerial($serial) { return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T_DEVICE.'` WHERE `serial`="'.pSQL($serial).'"'); }
 
     /**
      * Decide whether this request may proceed.
@@ -143,8 +161,8 @@ class PulseTaAdms
         // `name` is UNIQUE, so a clash must be resolved before the insert or the row is silently lost.
         $base = Tools::substr('Unclaimed '.$serial, 0, 56);
         $name = $base;
-        for ($i = 2; $i < 40 && Db::getInstance()->getValue('SELECT id_pulse_ta_device FROM `'._DB_PREFIX_.self::T_DEVICE.'` WHERE `name`="'.pSQL($name).'"'); $i++) { $name = $base.' ('.$i.')'; }
-        Db::getInstance()->insert(self::T_DEVICE, array(
+        for ($i = 2; $i < 40 && PulseDb::getValue('SELECT id_pulse_ta_device FROM `'._DB_PREFIX_.self::T_DEVICE.'` WHERE `name`="'.pSQL($name).'"'); $i++) { $name = $base.' ('.$i.')'; }
+        PulseDb::insert(self::T_DEVICE, array(
             'name' => pSQL($name), 'brand' => 'zkteco', 'adapter' => 'PulseTaZkPush', 'location' => 'Unknown', 'mode' => 'push', 'protocol' => 'http',
             'host' => pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 128)), 'port' => 80, 'endpoint' => '/iclock', 'serial' => pSQL($serial),
             'timezone' => pSQL((string) self::cfg('TZ', 'Africa/Lagos')), 'direction_mode' => 'both', 'poll_interval_min' => 0, 'timeout_sec' => 8,
@@ -152,10 +170,10 @@ class PulseTaAdms
             'note' => pSQL('Registered itself from '.Tools::substr((string) Tools::getRemoteAddr(), 0, 45).' — claim it to start accepting its punches.'),
             'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         ));
-        $id = (int) Db::getInstance()->Insert_ID();
+        $id = (int) PulseDb::Insert_ID();
         PulseCoreService::audit('pulsetime', 'device_pending', array('serial' => $serial, 'ip' => Tools::getRemoteAddr()), self::T_DEVICE, $id);
         PulseCoreService::event('actionPulseTaDeviceHealth', array('id_device' => $id, 'serial' => $serial, 'state' => 'pending'));
-        return Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.self::T_DEVICE.'` WHERE id_pulse_ta_device='.$id);
+        return PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.self::T_DEVICE.'` WHERE id_pulse_ta_device='.$id);
     }
 
     /** A call-in is proof of life: refresh the device and clear any "stopped reporting" exception it raised. */
@@ -163,7 +181,7 @@ class PulseTaAdms
     {
         $u = array('last_seen_at' => date('Y-m-d H:i:s'), 'health' => 'online', 'error_count' => 0, 'last_error' => '', 'date_upd' => date('Y-m-d H:i:s'));
         if ($punchAt) { $u['last_punch_at'] = pSQL($punchAt); }
-        Db::getInstance()->update(self::T_DEVICE, $u, 'id_pulse_ta_device='.(int) $dev['id_pulse_ta_device']);
+        PulseDb::update(self::T_DEVICE, $u, 'id_pulse_ta_device='.(int) $dev['id_pulse_ta_device']);
         if (isset($dev['health']) && $dev['health'] !== 'online') {
             PulseTaExceptionQueue::closeByKey('device_offline', 'dev'.(int) $dev['id_pulse_ta_device'], 'Device "'.$dev['name'].'" called in again');
         }
@@ -240,7 +258,7 @@ class PulseTaAdms
             if ($latest === null || $ts > $latest) { $latest = $ts; }
         }
         $kept = $rows ? PulseTaPunch::ingestMany($dev, $rows) : 0;
-        if ($latest) { Db::getInstance()->update(self::T_DEVICE, array('last_cursor' => pSQL((string) $latest)), 'id_pulse_ta_device='.(int) $dev['id_pulse_ta_device']); }
+        if ($latest) { PulseDb::update(self::T_DEVICE, array('last_cursor' => pSQL((string) $latest)), 'id_pulse_ta_device='.(int) $dev['id_pulse_ta_device']); }
         self::touch($dev, $latest ? date('Y-m-d H:i:s', $latest) : null);
         self::log($dev['serial'], 'cdata', 'ATTLOG', 'ok', $kept.' of '.count($rows).' stored, '.($seen - count($rows)).' unparseable', strlen((string) $body), $seen, $kept, (int) $dev['id_pulse_ta_device'], isset($lines[0]) ? $lines[0] : '');
         // Acknowledge every row the device sent, not only the ones that parsed: a firmware that is told it
@@ -291,13 +309,13 @@ class PulseTaAdms
     public static function getrequest($dev)
     {
         $batch = (int) self::cfg('PUSH_CMD_BATCH', 5);
-        $rows = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.self::T_CMD.'` WHERE id_pulse_ta_device='.(int) $dev['id_pulse_ta_device']
+        $rows = PulseDb::executeS('SELECT * FROM `'._DB_PREFIX_.self::T_CMD.'` WHERE id_pulse_ta_device='.(int) $dev['id_pulse_ta_device']
             .' AND status="queued" AND (expires_at IS NULL OR expires_at>NOW()) ORDER BY id_pulse_ta_device_cmd LIMIT '.max(1, $batch));
         self::touch($dev);
         if (!$rows) { self::log($dev['serial'], 'getrequest', '', 'ok', 'no commands queued', 0, 0, 0, (int) $dev['id_pulse_ta_device']); return 'OK'; }
         $out = array(); $ids = array();
         foreach ($rows as $r) { $out[] = 'C:'.(int) $r['id_pulse_ta_device_cmd'].':'.str_replace(array("\r", "\n"), array('', ''), $r['cmd']); $ids[] = (int) $r['id_pulse_ta_device_cmd']; }
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T_CMD.'` SET status="sent", sent_at=NOW(), attempts=attempts+1, date_upd=NOW() WHERE id_pulse_ta_device_cmd IN ('.implode(',', array_map('intval', $ids)).')');
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T_CMD.'` SET status="sent", sent_at=NOW(), attempts=attempts+1, date_upd=NOW() WHERE id_pulse_ta_device_cmd IN ('.implode(',', array_map('intval', $ids)).')');
         self::log($dev['serial'], 'getrequest', '', 'ok', count($ids).' command(s) handed over', 0, 0, count($ids), (int) $dev['id_pulse_ta_device']);
         return implode("\r\n", $out)."\r\n";
     }
@@ -319,7 +337,7 @@ class PulseTaAdms
             $ret = isset($kv['Return']) ? (string) $kv['Return'] : '';
             $ok = ($ret === '0' || $ret === '');
             if ($ok) { $done++; } else { $failed++; }
-            Db::getInstance()->update(self::T_CMD, array(
+            PulseDb::update(self::T_CMD, array(
                 'status' => $ok ? 'done' : 'failed', 'replied_at' => date('Y-m-d H:i:s'),
                 'return_code' => pSQL(Tools::substr($ret, 0, 16)), 'reply' => pSQL(Tools::substr($line, 0, 255), true), 'date_upd' => date('Y-m-d H:i:s'),
             ), 'id_pulse_ta_device_cmd='.$id.' AND id_pulse_ta_device='.(int) $dev['id_pulse_ta_device']);
@@ -353,11 +371,11 @@ class PulseTaAdms
     /** Queue one ADMS command for a push device. Returns the command id used in the C:<id>: prefix. */
     public static function queue($idDevice, $cmd, $kind = 'other', $ttlHours = 72)
     {
-        Db::getInstance()->insert(self::T_CMD, array(
+        PulseDb::insert(self::T_CMD, array(
             'id_pulse_ta_device' => (int) $idDevice, 'cmd' => pSQL($cmd, true), 'kind' => pSQL(Tools::substr($kind, 0, 32)), 'status' => 'queued',
             'expires_at' => date('Y-m-d H:i:s', time() + max(1, (int) $ttlHours) * 3600), 'date_add' => date('Y-m-d H:i:s'), 'date_upd' => date('Y-m-d H:i:s'),
         ));
-        return (int) Db::getInstance()->Insert_ID();
+        return (int) PulseDb::Insert_ID();
     }
 
     /** DATA UPDATE USERINFO — the enrolment push for a push-mode device. */
@@ -464,10 +482,10 @@ class PulseTaAdms
         $days = (int) self::cfg('LOG_RETENTION', 30);
         $rows = 0;
         if ($days > 0) {
-            Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.self::T_LOG.'` WHERE date_add<DATE_SUB(NOW(), INTERVAL '.$days.' DAY)');
-            $rows = (int) Db::getInstance()->Affected_Rows();
+            PulseDb::execute('DELETE FROM `'._DB_PREFIX_.self::T_LOG.'` WHERE date_add<DATE_SUB(NOW(), INTERVAL '.$days.' DAY)');
+            $rows = (int) PulseDb::Affected_Rows();
         }
-        Db::getInstance()->execute('UPDATE `'._DB_PREFIX_.self::T_CMD.'` SET status="expired", date_upd=NOW() WHERE status IN ("queued","sent") AND expires_at IS NOT NULL AND expires_at<NOW()');
-        return array('log_rows' => $rows, 'commands_expired' => (int) Db::getInstance()->Affected_Rows());
+        PulseDb::execute('UPDATE `'._DB_PREFIX_.self::T_CMD.'` SET status="expired", date_upd=NOW() WHERE status IN ("queued","sent") AND expires_at IS NOT NULL AND expires_at<NOW()');
+        return array('log_rows' => $rows, 'commands_expired' => (int) PulseDb::Affected_Rows());
     }
 }

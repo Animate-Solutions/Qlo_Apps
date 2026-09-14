@@ -11,7 +11,10 @@ class PulseFrontDeskPrecheckinModuleFrontController extends ModuleFrontControlle
     {
         parent::init();
         $t = preg_replace('/[^a-f0-9]/', '', Tools::getValue('t'));
-        $this->ext = $t ? Db::getInstance()->getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_booking_ext` WHERE precheckin_token="'.pSQL($t).'"') : null;
+        // The stay behind the token settles the property before anything is read, so the row below is
+        // fetched through the ordinary scoped query and a token from another hotel matches nothing.
+        $this->ext = $t && PulseFdService::enterHotelFromToken('precheckin_token', $t)
+            ? PulseDb::getRow('SELECT * FROM `'._DB_PREFIX_.'pulse_booking_ext` WHERE precheckin_token="'.pSQL($t).'"') : null;
         $this->booking = $this->ext ? PulseFdService::booking($this->ext['id_htl_booking']) : null;
     }
 
@@ -27,13 +30,13 @@ class PulseFrontDeskPrecheckinModuleFrontController extends ModuleFrontControlle
                     $dir = _PS_MODULE_DIR_.'pulsefrontdesk/uploads/'; if (!is_dir($dir)) { mkdir($dir, 0755, true); file_put_contents($dir.'.htaccess', "Deny from all\n"); }
                     $scan = 'uploads/'.sha1($id.time()).'.'.pathinfo($_FILES['id_scan']['name'], PATHINFO_EXTENSION); move_uploaded_file($_FILES['id_scan']['tmp_name'], _PS_MODULE_DIR_.'pulsefrontdesk/'.$scan);
                 }
-                Db::getInstance()->insert('pulse_guest_identity', array('id_customer' => $cust, 'id_htl_booking' => $id, 'id_type' => pSQL(Tools::getValue('id_type')), 'id_number' => pSQL(Tools::getValue('id_number')), 'issuing_country' => pSQL(Tools::getValue('issuing_country')), 'expiry' => Tools::getValue('expiry') ?: null, 'scan_path' => pSQL($scan), 'id_employee' => 0, 'date_add' => date('Y-m-d H:i:s')));
+                PulseDb::insert('pulse_guest_identity', array('id_customer' => $cust, 'id_htl_booking' => $id, 'id_type' => pSQL(Tools::getValue('id_type')), 'id_number' => pSQL(Tools::getValue('id_number')), 'issuing_country' => pSQL(Tools::getValue('issuing_country')), 'expiry' => Tools::getValue('expiry') ?: null, 'scan_path' => pSQL($scan), 'id_employee' => 0, 'date_add' => date('Y-m-d H:i:s')));
             }
             if (!Tools::getValue('accept_terms') || !Tools::getValue('signature')) { throw new PrestaShopException('Please accept the terms and sign'); }
             PulseRegistrationCard::sign($id, Tools::getValue('signature'), Tools::getValue('signed_name') ?: $this->booking['guest'], 'precheckin');
             foreach ((array) Tools::getValue('upsell') as $json) { $o = json_decode($json, true); if ($o) { PulseUpsell::accept($id, $o, 'precheckin'); } }
             if ((float) Tools::getValue('preauth') > 0) { PulsePaymentBridge::preAuthorize($id, (float) Tools::getValue('preauth')); }
-            Db::getInstance()->update('pulse_booking_ext', array('precheckin_done' => 1), 'id_htl_booking='.$id);
+            PulseDb::update('pulse_booking_ext', array('precheckin_done' => 1), 'id_htl_booking='.$id);
             PulseTrace::add('trace', 'Pre-check-in completed online by '.$this->booking['guest'].' — key can be pre-cut', date('Y-m-d H:i:s', strtotime($this->booking['date_from'].' 08:00')), $id, $this->booking['id_room'], $cust);
             $this->context->smarty->assign('done', true);
         } catch (Exception $e) { $this->context->smarty->assign('error', $e->getMessage()); }

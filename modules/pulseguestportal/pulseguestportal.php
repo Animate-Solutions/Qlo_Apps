@@ -42,8 +42,8 @@ class PulseGuestPortal extends Module
             'PULSE_GP_HTTP_TIMEOUT' => 6, 'PULSE_GP_LAUNDRY_API' => '', 'PULSE_GP_API_TOKEN' => '', 'PULSE_GP_SECRET' => Tools::passwdGen(48), 'PULSE_GP_CRON_TOKEN' => Tools::passwdGen(32),
         ) as $k => $v) { Configuration::updateValue($k, $v); }
         // paid VOD needs a charge code, but only Front Desk owns that table — the portal installs standalone
-        if (Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_charge_code"')) {
-            Db::getInstance()->execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES ("VOD","In-room Movie","misc",0,7.5,0)');
+        if (PulseDb::executeS('SHOW TABLES LIKE "'._DB_PREFIX_.'pulse_charge_code"')) {
+            PulseDb::execute('INSERT IGNORE INTO `'._DB_PREFIX_.'pulse_charge_code` (`code`,`name`,`department`,`default_price`,`tax_rate`,`is_payment`) VALUES ("VOD","In-room Movie","misc",0,7.5,0)');
         }
         return true;
     }
@@ -61,13 +61,9 @@ class PulseGuestPortal extends Module
 
     protected function runSql($f)
     {
-        $path = dirname(__FILE__).'/sql/'.$f.'.sql';
-        if (!file_exists($path)) { return true; }
-        $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents($path));
+        $sql = str_replace(array('PREFIX_', 'ENGINE_TYPE'), array(_DB_PREFIX_, _MYSQL_ENGINE_), Tools::file_get_contents(dirname(__FILE__).'/sql/'.$f.'.sql'));
         $sql = preg_replace('/^\s*--.*$/m', '', $sql);
-        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) {
-            if ($q !== '' && !Db::getInstance()->execute($q)) { return false; }
-        }
+        foreach (array_filter(array_map('trim', preg_split('/;\s*[\r\n]+/', $sql))) as $q) { if (!Db::getInstance()->execute($q)) { return false; } }
         return true;
     }
 
@@ -105,7 +101,7 @@ class PulseGuestPortal extends Module
         if (empty($p['id_room'])) { return; }
         if (!empty($p['booking']['id'])) {
             PulseGpSession::revokeForBooking((int) $p['booking']['id'], empty($p['room_move']) ? 'checkout' : 'room_move');
-            Db::getInstance()->update('pulse_gp_request', array('status' => 'done', 'date_upd' => date('Y-m-d H:i:s')), 'id_htl_booking='.(int) $p['booking']['id'].' AND type IN ("dnd_on","mur") AND status IN ("new","ack","in_progress")');
+            PulseDb::update('pulse_gp_request', array('status' => 'done', 'date_upd' => date('Y-m-d H:i:s')), 'id_htl_booking='.(int) $p['booking']['id'].' AND type IN ("dnd_on","mur") AND status IN ("new","ack","in_progress")');
         }
         PulseGpDevice::wipeRoom((int) $p['id_room'], empty($p['room_move']) ? 'checkout' : 'room_move');
     }
@@ -123,7 +119,7 @@ class PulseGuestPortal extends Module
         $idCheck = 0;
         if (!empty($p['id_check'])) { $idCheck = (int) $p['id_check']; }
         elseif (!empty($p['line']['id_pulse_pos_check'])) { $idCheck = (int) $p['line']['id_pulse_pos_check']; }
-        elseif (!empty($p['id_line'])) { $idCheck = (int) Db::getInstance()->getValue('SELECT id_pulse_pos_check FROM `'._DB_PREFIX_.'pulse_pos_check_line` WHERE id_pulse_pos_check_line='.(int) $p['id_line']); }
+        elseif (!empty($p['id_line'])) { $idCheck = (int) PulseDb::getValue('SELECT id_pulse_pos_check FROM `'._DB_PREFIX_.'pulse_pos_check_line` WHERE id_pulse_pos_check_line='.(int) $p['id_line']); }
         if ($idCheck) { PulseGpDining::markReady($idCheck); }
     }
     /** A settled room-service check closes the guest's order tracker. */
@@ -141,8 +137,8 @@ class PulseGuestPortal extends Module
     {
         PulseGpSession::purge(7);
         PulseGpEntertainment::castExpire();
-        Db::getInstance()->execute('DELETE FROM `'._DB_PREFIX_.'pulse_gp_command` WHERE status IN ("acked","expired") AND date_add<DATE_SUB(NOW(), INTERVAL 3 DAY)');
-        Db::getInstance()->update('pulse_gp_command', array('status' => 'expired'), 'status IN ("queued","sent") AND date_add<DATE_SUB(NOW(), INTERVAL 1 DAY)');
+        PulseDb::execute('DELETE FROM `'._DB_PREFIX_.'pulse_gp_command` WHERE status IN ("acked","expired") AND date_add<DATE_SUB(NOW(), INTERVAL 3 DAY)');
+        PulseDb::update('pulse_gp_command', array('status' => 'expired'), 'status IN ("queued","sent") AND date_add<DATE_SUB(NOW(), INTERVAL 1 DAY)');
     }
 
     public function hookActionPulsePortalDevicePaired($p) {}

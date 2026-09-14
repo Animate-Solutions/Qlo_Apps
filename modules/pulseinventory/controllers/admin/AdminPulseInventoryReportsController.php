@@ -10,7 +10,7 @@ class AdminPulseInventoryReportsController extends ModuleAdminController
         $r = Tools::getValue('report', 'stock'); $f = Tools::getValue('from', date('Y-m-01')); $t = Tools::getValue('to', PulseInvService::bd()); $item = (int) Tools::getValue('item');
         $rows = $this->runReport($r, $f, $t, $item);
         if (Tools::getValue('export')) { header('Content-Type: text/csv'); header('Content-Disposition: attachment; filename="inventory-'.$r.'-'.$f.'-'.$t.'.csv"'); die(PulseInvReport::toCsv($rows)); }
-        $this->context->smarty->assign(array('reports' => $this->reports, 'report' => $r, 'from' => $f, 'to' => $t, 'item' => $item, 'rows' => $rows, 'columns' => $rows ? array_keys($rows[0]) : array(), 'items' => Db::getInstance()->executeS('SELECT id_pulse_inv_item, name FROM `'._DB_PREFIX_.'pulse_inv_item` WHERE active=1 ORDER BY name'), 'self_url' => self::$currentIndex.'&token='.$this->token));
+        $this->context->smarty->assign(array('reports' => $this->reports, 'report' => $r, 'from' => $f, 'to' => $t, 'item' => $item, 'rows' => $rows, 'columns' => $rows ? array_keys($rows[0]) : array(), 'items' => PulseDb::executeS('SELECT id_pulse_inv_item, name FROM `'._DB_PREFIX_.'pulse_inv_item` WHERE active=1 ORDER BY name'), 'self_url' => self::$currentIndex.'&token='.$this->token));
         $this->setTemplate('reports.tpl');
     }
 }

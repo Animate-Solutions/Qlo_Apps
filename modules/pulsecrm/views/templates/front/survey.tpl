@@ -1,5 +1,3 @@
-{extends file='page.tpl'}
-{block name='page_content'}
 <div class="pulse-guest pulse-crm-survey">
 {if $invalid}
   <h2>That link is not valid</h2>
@@ -45,7 +43,7 @@
   </form>
 {/if}
 </div>
-{literal}<style>
+{literal}<style>{literal}
 .pulse-crm-survey{max-width:560px;margin:0 auto;padding:16px;font:16px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#222}
 .pulse-crm-survey h2{font-size:22px;margin:0 0 8px}
 .crm-intro{color:#555;margin-bottom:20px}
@@ -64,5 +62,5 @@
 .crm-foot{font-size:12px;color:#999;text-align:center;margin-top:16px}
 .crm-low{padding:12px;background:#fff4e5;border-left:4px solid #f0a020;border-radius:4px}
 @media(max-width:420px){.crm-nps label{min-width:32px}.crm-nps span,.crm-scale span{padding:10px 0;font-size:14px}}
-</style>{/literal}
-{/block}
+{/literal}</style>{/literal}
+

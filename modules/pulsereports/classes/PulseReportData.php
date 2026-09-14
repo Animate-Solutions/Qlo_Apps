@@ -5,9 +5,9 @@
  */
 class PulseReportData
 {
-    protected static function has($table) { static $c = array(); if (!isset($c[$table])) { $c[$table] = (bool) Db::getInstance()->executeS('SHOW TABLES LIKE "'._DB_PREFIX_.$table.'"'); } return $c[$table]; }
-    protected static function v($sql) { return (float) Db::getInstance()->getValue($sql); }
-    protected static function rows($sql) { return Db::getInstance()->executeS($sql) ?: array(); }
+    protected static function has($table) { static $c = array(); if (!isset($c[$table])) { $c[$table] = (bool) PulseDb::executeS('SHOW TABLES LIKE "'._DB_PREFIX_.$table.'"'); } return $c[$table]; }
+    protected static function v($sql) { return (float) PulseDb::getValue($sql); }
+    protected static function rows($sql) { return PulseDb::executeS($sql) ?: array(); }
     protected static function range($from, $to) { return 'BETWEEN "'.pSQL($from).'" AND "'.pSQL($to).'"'; }
 
     /** Everything for one range. */
@@ -110,7 +110,7 @@ class PulseReportData
         $o['cancellations'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_booking_detail` WHERE is_cancelled=1 AND comment NOT LIKE "%NO-SHOW%" AND DATE(date_upd) '.self::range($from, $to));
         if (self::has('pulse_booking_ext')) { $o['source_mix'] = self::rows('SELECT x.source, COUNT(*) n FROM `'._DB_PREFIX_.'pulse_booking_ext` x INNER JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=x.id_htl_booking WHERE b.date_from '.self::range($from, $to).' GROUP BY x.source ORDER BY n DESC'); $o['walk_ins'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_booking_ext` x INNER JOIN `'._DB_PREFIX_.'htl_booking_detail` b ON b.id=x.id_htl_booking WHERE x.source="walkin" AND b.date_from '.self::range($from, $to)); }
         $web = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'htl_booking_detail` b WHERE b.date_from '.self::range($from, $to).' AND b.is_cancelled=0'.(self::has('pulse_booking_ext') ? ' AND b.id NOT IN (SELECT id_htl_booking FROM `'._DB_PREFIX_.'pulse_booking_ext`)' : '')); if ($web) { $o['source_mix'][] = array('source' => 'web', 'n' => $web); }
-        if (self::has('pulse_upsell_sale')) { $r = Db::getInstance()->getRow('SELECT COUNT(*) n, COALESCE(SUM(amount_tax_incl),0) a FROM `'._DB_PREFIX_.'pulse_upsell_sale` WHERE DATE(date_add) '.self::range($from, $to)); $o['upsell_count'] = (int) $r['n']; $o['upsell_revenue'] = (float) $r['a']; }
+        if (self::has('pulse_upsell_sale')) { $r = PulseDb::getRow('SELECT COUNT(*) n, COALESCE(SUM(amount_tax_incl),0) a FROM `'._DB_PREFIX_.'pulse_upsell_sale` WHERE DATE(date_add) '.self::range($from, $to)); $o['upsell_count'] = (int) $r['n']; $o['upsell_revenue'] = (float) $r['a']; }
         if (self::has('pulse_ticket')) { $o['tickets_raised'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ticket` WHERE DATE(date_add) '.self::range($from, $to)); $o['tickets_open'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ticket` WHERE status NOT IN ("resolved","closed")'); $o['complaints'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ticket` WHERE category="complaint" AND DATE(date_add) '.self::range($from, $to)); $o['tickets_sla_breached'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ticket` WHERE DATE(date_add) '.self::range($from, $to).' AND ((date_resolved IS NOT NULL AND date_resolved>sla_due) OR (date_resolved IS NULL AND sla_due<NOW()))'); $o['tickets_by_category'] = self::rows('SELECT category, COUNT(*) n FROM `'._DB_PREFIX_.'pulse_ticket` WHERE DATE(date_add) '.self::range($from, $to).' GROUP BY category ORDER BY n DESC'); }
         if (self::has('pulse_trace')) { $o['traces_open'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_trace` WHERE status="open"'); }
         if (self::has('pulse_waitlist')) { $o['waitlist'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_waitlist` WHERE status="waiting"'); }
@@ -120,7 +120,7 @@ class PulseReportData
     public static function housekeeping($from, $to)
     {
         if (!self::has('pulse_housekeeping_task')) { return array(); }
-        $r = Db::getInstance()->getRow('SELECT COUNT(*) tasks, SUM(status="done") done, SUM(status="skipped") skipped, ROUND(AVG(IF(status="done",TIMESTAMPDIFF(MINUTE,date_add,date_done),NULL))) avg_min FROM `'._DB_PREFIX_.'pulse_housekeeping_task` WHERE business_date '.self::range($from, $to));
+        $r = PulseDb::getRow('SELECT COUNT(*) tasks, SUM(status="done") done, SUM(status="skipped") skipped, ROUND(AVG(IF(status="done",TIMESTAMPDIFF(MINUTE,date_add,date_done),NULL))) avg_min FROM `'._DB_PREFIX_.'pulse_housekeeping_task` WHERE business_date '.self::range($from, $to));
         $r['status_now'] = self::rows('SELECT hk_status, COUNT(*) n FROM `'._DB_PREFIX_.'pulse_room_status` GROUP BY hk_status');
         $r['ooo_rooms'] = self::rows('SELECT r.room_num, s.hk_status, s.ooo_reason, s.ooo_until FROM `'._DB_PREFIX_.'pulse_room_status` s INNER JOIN `'._DB_PREFIX_.'htl_room_information` r ON r.id=s.id_room WHERE s.hk_status IN ("out_of_order","out_of_service")');
         $r['open_now'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_housekeeping_task` WHERE status IN ("open","in_progress")');
@@ -131,7 +131,7 @@ class PulseReportData
     public static function laundry($from, $to)
     {
         if (!self::has('pulse_laundry_order')) { return array(); }
-        $r = Db::getInstance()->getRow('SELECT COUNT(*) orders, COALESCE(SUM(pieces),0) pieces, ROUND(COALESCE(SUM(IF(type="guest",total_tax_incl,0)),0),2) revenue, SUM(service<>"normal") express, SUM(ready_at>promised_at) late, ROUND(AVG(TIMESTAMPDIFF(HOUR,collected_at,ready_at)),1) turnaround_h, SUM(type="house") house_orders FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE status<>"cancelled" AND business_date '.self::range($from, $to));
+        $r = PulseDb::getRow('SELECT COUNT(*) orders, COALESCE(SUM(pieces),0) pieces, ROUND(COALESCE(SUM(IF(type="guest",total_tax_incl,0)),0),2) revenue, SUM(service<>"normal") express, SUM(ready_at>promised_at) late, ROUND(AVG(TIMESTAMPDIFF(HOUR,collected_at,ready_at)),1) turnaround_h, SUM(type="house") house_orders FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE status<>"cancelled" AND business_date '.self::range($from, $to));
         $r['in_process'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_laundry_order` WHERE status IN ("requested","collected","washing","ready")');
         $r['claims'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_laundry_claim` WHERE DATE(date_add) '.self::range($from, $to));
         $r['claims_open'] = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_laundry_claim` WHERE status="open"');
@@ -173,7 +173,7 @@ class PulseReportData
     public static function cashiers($from, $to)
     {
         if (!self::has('pulse_cashier_session')) { return array(); }
-        $r = Db::getInstance()->getRow('SELECT COUNT(*) shifts, ROUND(COALESCE(SUM(variance),0),2) variance_total, SUM(ABS(COALESCE(variance,0))>0.009) shifts_with_variance, SUM(status="open") open_now FROM `'._DB_PREFIX_.'pulse_cashier_session` WHERE business_date '.self::range($from, $to));
+        $r = PulseDb::getRow('SELECT COUNT(*) shifts, ROUND(COALESCE(SUM(variance),0),2) variance_total, SUM(ABS(COALESCE(variance,0))>0.009) shifts_with_variance, SUM(status="open") open_now FROM `'._DB_PREFIX_.'pulse_cashier_session` WHERE business_date '.self::range($from, $to));
         $r['variances'] = self::rows('SELECT CONCAT(e.firstname," ",e.lastname) cashier, s.business_date, s.expected_cash, s.counted_cash, s.variance FROM `'._DB_PREFIX_.'pulse_cashier_session` s INNER JOIN `'._DB_PREFIX_.'employee` e ON e.id_employee=s.id_employee WHERE s.business_date '.self::range($from, $to).' AND ABS(COALESCE(s.variance,0))>0.009 ORDER BY ABS(s.variance) DESC');
         $r['cash_taken'] = self::has('pulse_folio_line') ? self::v('SELECT COALESCE(SUM(amount_tax_incl),0) FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE is_payment=1 AND voided=0 AND payment_method="cash" AND business_date '.self::range($from, $to)) : 0;
         $r['voids_count'] = self::has('pulse_folio_line') ? (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_folio_line` WHERE voided=1 AND transferred_to IS NULL AND business_date '.self::range($from, $to)) : 0;
@@ -190,7 +190,7 @@ class PulseReportData
         if (self::has('pulse_work_order')) { $n = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_work_order` WHERE status NOT IN ("completed","verified","cancelled") AND due_at<NOW()'); if ($n) { $a[] = array('level' => 'warning', 'text' => $n.' maintenance work order(s) overdue'); } $e = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_work_order` WHERE priority="emergency" AND status NOT IN ("completed","verified","cancelled")'); if ($e) { $a[] = array('level' => 'danger', 'text' => $e.' EMERGENCY work order(s) open'); } }
         if (self::has('pulse_room_status')) { $n = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_room_status` WHERE hk_status IN ("out_of_order","out_of_service") AND ooo_until<CURDATE()'); if ($n) { $a[] = array('level' => 'warning', 'text' => $n.' room(s) out of order past their expected return date'); } }
         if (self::has('pulse_ticket')) { $n = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_ticket` WHERE category="complaint" AND status NOT IN ("resolved","closed")'); if ($n) { $a[] = array('level' => 'warning', 'text' => $n.' unresolved guest complaint(s)'); } }
-        if (self::has('pulse_night_audit')) { $last = Db::getInstance()->getValue('SELECT MAX(business_date) FROM `'._DB_PREFIX_.'pulse_night_audit` WHERE status="closed"'); if ($last && $last < date('Y-m-d', strtotime('-1 day'))) { $a[] = array('level' => 'danger', 'text' => 'Night audit has not closed since '.$last); } $f = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_night_audit` WHERE status="failed"'); if ($f) { $a[] = array('level' => 'danger', 'text' => 'A night audit run failed — see Night Audit log'); } }
+        if (self::has('pulse_night_audit')) { $last = PulseDb::getValue('SELECT MAX(business_date) FROM `'._DB_PREFIX_.'pulse_night_audit` WHERE status="closed"'); if ($last && $last < date('Y-m-d', strtotime('-1 day'))) { $a[] = array('level' => 'danger', 'text' => 'Night audit has not closed since '.$last); } $f = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_night_audit` WHERE status="failed"'); if ($f) { $a[] = array('level' => 'danger', 'text' => 'A night audit run failed — see Night Audit log'); } }
         if (class_exists('PulseExpense')) { $p = PulseExpense::pending(); if ($p) { $a[] = array('level' => 'info', 'text' => count($p).' expense(s) awaiting approval'); } }
         if (self::has('pulse_part')) { $n = (int) self::v('SELECT COUNT(*) FROM `'._DB_PREFIX_.'pulse_part` WHERE active=1 AND qty_on_hand<=reorder_level'); if ($n) { $a[] = array('level' => 'info', 'text' => $n.' spare part(s) below reorder level'); } }
         if (file_exists(_PS_MODULE_DIR_.'pulselicense/classes/PulseLicenseService.php') && Module::isEnabled('pulselicense')) { require_once _PS_MODULE_DIR_.'pulselicense/classes/PulseLicenseService.php'; $s = PulseLicenseService::status(); if ($s['state'] !== 'valid' || ($s['days_left'] !== null && $s['days_left'] <= 30)) { $a[] = array('level' => $s['state'] === 'valid' ? 'info' : 'danger', 'text' => 'Pulse license: '.$s['message']); } }
