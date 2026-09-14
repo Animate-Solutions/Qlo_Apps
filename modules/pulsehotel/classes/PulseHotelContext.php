@@ -215,12 +215,12 @@ class PulseHotelContext
     public static function log($event, $idHotel, $from = null, $detail = '')
     {
         return Db::getInstance()->insert('pulse_hotel_session', array(
-            'id_employee' => (int) self::emp(), 'id_hotel' => $idHotel ? (int) $idHotel : null, 'event' => pSQL($event),
+            'id_employee' => (int) self::emp(), 'id_hotel' => $idHotel ? (int) $idHotel : null, 'event' => pSQL((string) $event) ?: '',
             'from_hotel' => $from ? (int) $from : null,
-            'controller' => pSQL(Tools::substr((string) Tools::getValue('controller'), 0, 64)),
-            'ip' => pSQL(Tools::substr((string) Tools::getRemoteAddr(), 0, 45)),
-            'detail' => pSQL(Tools::substr((string) $detail, 0, 255)), 'date_add' => date('Y-m-d H:i:s'),
-        ), true);
+            'controller' => pSQL((string) Tools::substr((string) Tools::getValue('controller'), 0, 64)) ?: '',
+            'ip' => pSQL((string) Tools::substr((string) Tools::getRemoteAddr(), 0, 45)) ?: '',
+            'detail' => pSQL((string) Tools::substr((string) $detail, 0, 255)) ?: '', 'date_add' => date('Y-m-d H:i:s'),
+        ), false);
     }
 
     /** Every active hotel, for the access-granting screen. */
